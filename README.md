@@ -37,4 +37,3 @@ npm run preview
 
 - The React app performs OpenAI calls directly from the browser using the official OpenAI JavaScript SDK.
 - This is useful for prototyping. For production, move OpenAI API calls to a backend so API keys are not exposed in the browser.
-

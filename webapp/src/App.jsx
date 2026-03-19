@@ -72,19 +72,9 @@ function PageShell({ mode, children }) {
           <h1>
             The Document Doctor: <span>A Professional Review and Critique Tool</span>
           </h1>
-          <p className="notice">
-            Each Streamlit mode is represented as a dedicated web page state in this React app.
-          </p>
         </div>
         <div className="mode-pill">{mode}</div>
       </header>
-      <section className="timeline card">
-        <div className="timeline-item active">1. doc_define_mode</div>
-        <div className="timeline-item active">2. invoke_model_mode</div>
-        <div className="timeline-item active">3. llm_result_saved_mode</div>
-        <div className="timeline-item active">4. critique_review_mode</div>
-        <div className="timeline-item active">5. view_changed_document_mode</div>
-      </section>
       {children}
     </main>
   )
@@ -330,9 +320,6 @@ export default function App() {
         <section className="card split-card">
           <div>
             <h2>OpenAI setup</h2>
-            <p className="section-copy">
-              This page corresponds to the Streamlit <code>doc_define_mode</code>, including the API-key entry and all document-definition inputs.
-            </p>
             <label>
               OpenAI API Key
               <input
@@ -442,9 +429,6 @@ export default function App() {
         <section className="card invoke-card">
           <div className="spinner" aria-hidden="true" />
           <h2>Invoking the model</h2>
-          <p className="section-copy">
-            This page mirrors the Streamlit <code>invoke_model_mode</code> and is intentionally isolated from the form and review pages.
-          </p>
           <p>
             <strong>Current operation:</strong> {operationLabels[lastOperation]}
           </p>
@@ -464,9 +448,6 @@ export default function App() {
       <PageShell mode={MODES.RESULT_SAVED}>
         <section className="card result-card">
           <h2>Result saved</h2>
-          <p className="section-copy">
-            This page mirrors the Streamlit <code>llm_result_saved_mode</code> and only offers the next step based on the last operation.
-          </p>
           {renderError()}
           <p>{resultMessage}</p>
           <div className="action-row wrap-actions">
@@ -494,9 +475,6 @@ export default function App() {
         <section className="card split-card">
           <div>
             <h2>Critique review</h2>
-            <p className="section-copy">
-              This page mirrors the Streamlit <code>critique_review_mode</code> and includes both the critique display and change-item authoring tools.
-            </p>
           </div>
           <div className="action-row wrap-actions right-aligned">
             <button type="button" className="secondary-button" onClick={resetToDefinitionMode}>
@@ -574,9 +552,6 @@ export default function App() {
       <section className="card split-card">
         <div>
           <h2>Changed document</h2>
-          <p className="section-copy">
-            This page mirrors the Streamlit <code>view_changed_document_mode</code> and focuses on the changed-document output.
-          </p>
         </div>
         <div className="action-row wrap-actions right-aligned">
           <button type="button" className="secondary-button" onClick={resetToDefinitionMode}>
