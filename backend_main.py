@@ -33,15 +33,16 @@ class LlmResponse(BaseModel):
     output_text: str = Field(..., alias='outputText')
 
 
-class FileReferenceError(ValueError):
-    pass
-
-
 def get_client() -> OpenAI:
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
         raise HTTPException(status_code=500, detail='OPENAI_API_KEY is not configured on the backend.')
     return OpenAI(api_key=api_key)
+
+
+@app.get('/api/health')
+def healthcheck() -> dict[str, str]:
+    return {'status': 'ok'}
 
 
 async def parse_form_request(request: str) -> LlmRequest:
@@ -52,7 +53,7 @@ async def parse_form_request(request: str) -> LlmRequest:
 
     try:
         return LlmRequest.model_validate(payload)
-    except Exception as exc:  # pydantic validation
+    except Exception as exc:
         raise HTTPException(status_code=400, detail=f'Invalid request payload: {exc}') from exc
 
 

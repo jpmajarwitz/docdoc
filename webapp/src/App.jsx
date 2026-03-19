@@ -14,10 +14,11 @@ const OPERATIONS = {
   CRITIQUE_CHANGED: 'critique_changed_document'
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const API_ENDPOINTS = {
-  [OPERATIONS.CRITIQUE_PRIMARY]: '/api/critique',
-  [OPERATIONS.APPLY_CHANGE_ITEMS]: '/api/apply-change-items',
-  [OPERATIONS.CRITIQUE_CHANGED]: '/api/critique-changed-document'
+  [OPERATIONS.CRITIQUE_PRIMARY]: `${API_BASE_URL}/api/critique`,
+  [OPERATIONS.APPLY_CHANGE_ITEMS]: `${API_BASE_URL}/api/apply-change-items`,
+  [OPERATIONS.CRITIQUE_CHANGED]: `${API_BASE_URL}/api/critique-changed-document`
 }
 
 const defaults = {
@@ -68,6 +69,14 @@ function PageShell({ mode, children }) {
       {children}
     </main>
   )
+}
+
+function normalizeRequestError(error) {
+  if (error instanceof TypeError) {
+    return 'Unable to reach the backend proxy. Start `uvicorn backend_main:app --reload --port 8000`, or set `VITE_API_BASE_URL` if the backend is running elsewhere.'
+  }
+
+  return error.message || 'Backend request failed.'
 }
 
 async function postMultipart(endpoint, payload, fileEntries = {}) {
@@ -256,7 +265,7 @@ export default function App() {
 
       setCurrentMode(MODES.RESULT_SAVED)
     } catch (invocationError) {
-      setError(`Invocation failed: ${invocationError.message}`)
+      setError(`Invocation failed: ${normalizeRequestError(invocationError)}`)
       setStatus('The request did not complete.')
       setCurrentMode(
         operation === OPERATIONS.APPLY_CHANGE_ITEMS ? MODES.CRITIQUE_REVIEW : MODES.DOC_DEFINE

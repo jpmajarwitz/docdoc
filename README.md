@@ -21,6 +21,12 @@ pip install -r requirements.txt
 uvicorn backend_main:app --reload --port 8000
 ```
 
+Optional backend health check:
+
+```bash
+curl http://127.0.0.1:8000/api/health
+```
+
 ## Run the React web app
 
 In a second terminal:
@@ -32,6 +38,23 @@ npm run dev
 ```
 
 Open the URL printed by Vite (typically `http://localhost:5173`).
+
+### If your backend is not on `127.0.0.1:8000`
+
+Set a Vite environment variable before starting the frontend:
+
+```bash
+export VITE_API_BASE_URL=http://your-backend-host:8000
+npm run dev
+```
+
+## Troubleshooting `ECONNREFUSED 127.0.0.1:8000`
+
+That error means Vite could not reach the backend proxy. Usually the fix is one of these:
+
+1. Start the backend with `uvicorn backend_main:app --reload --port 8000`.
+2. Verify it with `curl http://127.0.0.1:8000/api/health`.
+3. If the backend is running on a different host or port, set `VITE_API_BASE_URL` before starting Vite.
 
 ## Mode-based page flow
 
@@ -50,6 +73,7 @@ The backend is stateless and exposes:
 - `POST /api/critique`
 - `POST /api/apply-change-items`
 - `POST /api/critique-changed-document`
+- `GET /api/health`
 
 The browser prepares the LLM request payload, sends it to the backend, and the backend forwards it to OpenAI without storing interaction state.
 
