@@ -6,19 +6,34 @@ This repository now contains:
 - A browser-resident React implementation in `webapp/`.
 - A stateless FastAPI backend proxy in `backend_main.py` that stores only the OpenAI API key.
 
-## Backend setup
+## One-command local development
 
-Set the backend OpenAI key in your environment:
+From `webapp/`, the default dev script now starts **both** the FastAPI backend and the Vite frontend:
+
+```bash
+cd /workspace/docdoc/webapp
+npm install
+npm run dev
+```
+
+That command launches:
+
+- the backend proxy on `http://127.0.0.1:8000`
+- the Vite frontend on `http://localhost:5173`
+
+Before starting, make sure the backend key is available in your environment:
 
 ```bash
 export OPENAI_API_KEY=your_key_here
 ```
 
-Then run the backend from the repository root:
+## Run the backend by itself
+
+If you want to run the backend separately from the repo root:
 
 ```bash
 pip install -r requirements.txt
-uvicorn backend_main:app --reload --port 8000
+python -m uvicorn backend_main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Optional backend health check:
@@ -27,34 +42,24 @@ Optional backend health check:
 curl http://127.0.0.1:8000/api/health
 ```
 
-## Run the React web app
+## Run the frontend by itself
 
-In a second terminal:
+If you already have the backend running elsewhere:
 
 ```bash
 cd /workspace/docdoc/webapp
-npm install
-npm run dev
-```
-
-Open the URL printed by Vite (typically `http://localhost:5173`).
-
-### If your backend is not on `127.0.0.1:8000`
-
-Set a Vite environment variable before starting the frontend:
-
-```bash
 export VITE_API_BASE_URL=http://your-backend-host:8000
-npm run dev
+npm install
+npm run dev:frontend
 ```
 
 ## Troubleshooting `ECONNREFUSED 127.0.0.1:8000`
 
-That error means Vite could not reach the backend proxy. Usually the fix is one of these:
+If you still see that error, it means the frontend could not reach the backend proxy. Usually one of these is true:
 
-1. Start the backend with `uvicorn backend_main:app --reload --port 8000`.
-2. Verify it with `curl http://127.0.0.1:8000/api/health`.
-3. If the backend is running on a different host or port, set `VITE_API_BASE_URL` before starting Vite.
+1. `OPENAI_API_KEY` was not set before starting `npm run dev`, so the backend process exited.
+2. Python dependencies were not installed (`pip install -r requirements.txt`).
+3. The backend is running on a different host or port, so you need `VITE_API_BASE_URL` and `npm run dev:frontend` instead of the combined dev script.
 
 ## Mode-based page flow
 

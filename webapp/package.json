@@ -4,9 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 5173",
+    "dev": "concurrently -k -n BACKEND,FRONTEND -c green,magenta \"npm:dev:backend\" \"npm:dev:frontend\"",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0 --port 4173"
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "dev:backend": "python -m uvicorn backend_main:app --reload --host 127.0.0.1 --port 8000 --app-dir ..",
+    "dev:frontend": "vite --host 0.0.0.0 --port 5173"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -14,6 +16,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.4.1",
-    "vite": "^5.4.10"
+    "vite": "^5.4.10",
+    "concurrently": "^9.2.1"
   }
 }
