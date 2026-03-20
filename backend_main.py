@@ -1,7 +1,6 @@
 import json
 import os
 import tempfile
-from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
 
@@ -57,14 +56,22 @@ async def parse_form_request(request: str) -> LlmRequest:
         raise HTTPException(status_code=400, detail=f'Invalid request payload: {exc}') from exc
 
 
-async def upload_to_openai(client: OpenAI, upload: UploadFile, stack: ExitStack) -> str:
+async def upload_to_openai(client: OpenAI, upload: UploadFile) -> str:
     suffix = Path(upload.filename or 'upload.bin').suffix
-    with stack.enter_context(tempfile.NamedTemporaryFile(suffix=suffix)) as temp_file:
-        data = await upload.read()
-        temp_file.write(data)
-        temp_file.flush()
-        with open(temp_file.name, 'rb') as file_handle:
+    temp_path = None
+
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+            temp_path = Path(temp_file.name)
+            data = await upload.read()
+            temp_file.write(data)
+
+        with open(temp_path, 'rb') as file_handle:
             created_file = client.files.create(file=file_handle, purpose='user_data')
+    finally:
+        if temp_path and temp_path.exists():
+            temp_path.unlink()
+
     return created_file.id
 
 
@@ -75,23 +82,22 @@ async def build_input_content(
 ) -> list[dict[str, Any]]:
     built_messages: list[dict[str, Any]] = []
 
-    with ExitStack() as stack:
-        for message in llm_request.messages:
-            message_type = message.get('type')
-            if message_type == 'input_text':
-                built_messages.append({'type': 'input_text', 'text': message.get('text', '')})
-                continue
+    for message in llm_request.messages:
+        message_type = message.get('type')
+        if message_type == 'input_text':
+            built_messages.append({'type': 'input_text', 'text': message.get('text', '')})
+            continue
 
-            if message_type != 'input_file':
-                raise HTTPException(status_code=400, detail=f'Unsupported message type: {message_type}')
+        if message_type != 'input_file':
+            raise HTTPException(status_code=400, detail=f'Unsupported message type: {message_type}')
 
-            source = message.get('source')
-            upload = file_map.get(source)
-            if not source or upload is None:
-                raise HTTPException(status_code=400, detail=f"Missing uploaded file for source '{source}'.")
+        source = message.get('source')
+        upload = file_map.get(source)
+        if not source or upload is None:
+            raise HTTPException(status_code=400, detail=f"Missing uploaded file for source '{source}'.")
 
-            file_id = await upload_to_openai(client, upload, stack)
-            built_messages.append({'type': 'input_file', 'file_id': file_id})
+        file_id = await upload_to_openai(client, upload)
+        built_messages.append({'type': 'input_file', 'file_id': file_id})
 
     return built_messages
 
