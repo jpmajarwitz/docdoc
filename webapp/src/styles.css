@@ -151,18 +151,14 @@ h1 {
 }
 
 .primary-upload-inner {
-  width: min(640px, 100%);
+  width: min(460px, 100%);
   display: grid;
   gap: 0.85rem;
-  text-align: center;
+  text-align: left;
 }
 
 .primary-upload-inner h2 {
   margin-bottom: 0;
-}
-
-.primary-upload-inner label {
-  justify-items: center;
 }
 
 .primary-upload-inner input {
@@ -248,6 +244,21 @@ textarea::placeholder {
 
 textarea {
   resize: vertical;
+}
+
+input[type="file"] {
+  padding: 0.65rem 0.9rem;
+}
+
+input[type="file"]::file-selector-button {
+  margin-right: 1rem;
+  border: 0;
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  background: #f3e8ff;
+  color: #6b21a8;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 button {

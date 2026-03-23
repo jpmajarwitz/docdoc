@@ -332,11 +332,8 @@ export default function App() {
 
         <section className="card primary-upload-card">
           <div className="primary-upload-inner">
-            <h2>Primary document</h2>
-            <label>
-              Select Primary Document
-              <input type="file" onChange={(event) => setDocFile(event.target.files?.[0] || null)} />
-            </label>
+            <h2>Select primary document</h2>
+            <input type="file" onChange={(event) => setDocFile(event.target.files?.[0] || null)} />
           </div>
         </section>
 
@@ -349,7 +346,7 @@ export default function App() {
             </label>
             <label>
               Review Objective
-              <textarea value={objective} onChange={(event) => setObjective(event.target.value)} rows={5} />
+              <textarea value={objective} onChange={(event) => setObjective(event.target.value)} rows={3} />
             </label>
           </div>
 
@@ -357,16 +354,16 @@ export default function App() {
             <h2>Response guidance</h2>
             <label>
               Formatting Guidance
-              <textarea value={guidance} onChange={(event) => setGuidance(event.target.value)} rows={4} />
+              <textarea value={guidance} onChange={(event) => setGuidance(event.target.value)} rows={3} />
             </label>
             <label>
               Anti-Guidance
-              <textarea value={antiGuidance} onChange={(event) => setAntiGuidance(event.target.value)} rows={4} />
+              <textarea value={antiGuidance} onChange={(event) => setAntiGuidance(event.target.value)} rows={3} />
             </label>
           </div>
 
           <details className="collapsible-panel">
-            <summary>Supporting document</summary>
+            <summary>Supporting documents</summary>
             <div className="collapsible-panel-body field-group">
               <label>
                 Supporting Document
