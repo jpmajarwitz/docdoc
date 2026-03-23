@@ -69,14 +69,16 @@ function PageShell({ mode, children }) {
   return (
     <main className="layout">
       <header className="hero card">
-        <div className="brand-block">
+        <div className="hero-corner hero-left">
           <img className="brand-logo" src={logo} alt="Cartoon paper doctor logo" />
-          <div className="hero-title-group">
-            <h1>The Document Doctor</h1>
-            <p className="hero-subtitle">A Professional Review and Critique Tool</p>
-          </div>
         </div>
-        <div className="mode-pill">{MODE_LABELS[mode] || mode}</div>
+        <div className="hero-title-group">
+          <h1>The Document Doctor</h1>
+          <p className="hero-subtitle">A Professional Review and Critique Tool</p>
+        </div>
+        <div className="hero-corner hero-right">
+          <div className="mode-pill">{MODE_LABELS[mode] || mode}</div>
+        </div>
       </header>
       {children}
     </main>
@@ -326,15 +328,6 @@ export default function App() {
   if (currentMode === MODES.DOC_DEFINE) {
     return (
       <PageShell mode={MODES.DOC_DEFINE}>
-        <section className="card single-column-card">
-          <div>
-            <h2>Backend proxy</h2>
-            <p className="muted">
-              The browser no longer asks the user for an OpenAI API key. Requests are forwarded to a stateless backend proxy.
-            </p>
-          </div>
-        </section>
-
         {renderError()}
 
         <section className="card grid two-column-grid">
