@@ -446,7 +446,7 @@ export default function App() {
   if (currentMode === MODES.CRITIQUE_REVIEW) {
     return (
       <PageShell mode={MODES.CRITIQUE_REVIEW}>
-        <section className="card action-row wrap-actions right-aligned compact-panel">
+        <section className="card action-row wrap-actions center-actions compact-panel">
             <button type="button" className="secondary-button" onClick={resetToDefinitionMode}>
               Exit Review
             </button>
@@ -462,7 +462,7 @@ export default function App() {
         {renderError()}
 
         <section className="card review-grid tall-review-grid">
-          <div className="field-group">
+          <div className="field-group critique-panel">
             <label className="panel-field">
               <span className="panel-label">Critique Content</span>
               <textarea value={critiqueMarkdown} onChange={(event) => setCritiqueMarkdown(event.target.value)} rows={REVIEW_TEXTAREA_ROWS} />
