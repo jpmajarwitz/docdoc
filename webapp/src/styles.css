@@ -142,7 +142,7 @@ h1 {
 }
 
 .tall-document-panel textarea {
-  min-height: 760px;
+  min-height: 1000px;
 }
 
 .field-group {
@@ -366,6 +366,6 @@ code {
 
   .tall-review-grid textarea,
   .tall-document-panel textarea {
-    min-height: 540px;
+    min-height: 700px;
   }
 }

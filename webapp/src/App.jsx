@@ -13,7 +13,7 @@ const MODE_LABELS = {
   [MODES.DOC_DEFINE]: 'Document Definition',
   [MODES.INVOKE]: 'Invoking Model',
   [MODES.CRITIQUE_REVIEW]: 'Review Critique',
-  [MODES.RESULT_SAVED]: 'LLM Result Saved',
+  [MODES.RESULT_SAVED]: 'Model Result Saved',
   [MODES.VIEW_CHANGED]: 'Review Changed Document'
 }
 
@@ -534,18 +534,13 @@ export default function App() {
 
   return (
     <PageShell mode={MODES.VIEW_CHANGED}>
-      <section className="card split-card compact-panel">
-        <div>
-          <h2>Changed document</h2>
-        </div>
-        <div className="action-row wrap-actions right-aligned">
-          <button type="button" className="secondary-button" onClick={resetToDefinitionMode}>
-            Exit Review
-          </button>
-          <button type="button" onClick={() => invokeOperation(OPERATIONS.CRITIQUE_CHANGED)}>
-            Critique Changed Document
-          </button>
-        </div>
+      <section className="card action-row wrap-actions center-actions compact-panel">
+        <button type="button" className="secondary-button" onClick={resetToDefinitionMode}>
+          Exit Review
+        </button>
+        <button type="button" onClick={() => invokeOperation(OPERATIONS.CRITIQUE_CHANGED)}>
+          Critique Changed Document
+        </button>
       </section>
 
       {renderError()}
