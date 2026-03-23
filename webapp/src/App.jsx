@@ -330,13 +330,19 @@ export default function App() {
       <PageShell mode={MODES.DOC_DEFINE}>
         {renderError()}
 
+        <section className="card primary-upload-card">
+          <div className="primary-upload-inner">
+            <h2>Primary document</h2>
+            <label>
+              Select Primary Document
+              <input type="file" onChange={(event) => setDocFile(event.target.files?.[0] || null)} />
+            </label>
+          </div>
+        </section>
+
         <section className="card grid two-column-grid">
           <div className="field-group">
             <h2>Primary document definition</h2>
-            <label>
-              Primary Document
-              <input type="file" onChange={(event) => setDocFile(event.target.files?.[0] || null)} />
-            </label>
             <label>
               Topic
               <textarea value={topic} onChange={(event) => setTopic(event.target.value)} rows={3} />
@@ -359,43 +365,47 @@ export default function App() {
             </label>
           </div>
 
-          <div className="field-group">
-            <h2>Supporting document</h2>
-            <label>
-              Supporting Document
-              <input
-                type="file"
-                onChange={(event) => setSupportingFile(event.target.files?.[0] || null)}
-              />
-            </label>
-            <label>
-              Supporting Document Context
-              <textarea
-                value={supportInstructions}
-                onChange={(event) => setSupportInstructions(event.target.value)}
-                rows={4}
-              />
-            </label>
-          </div>
+          <details className="collapsible-panel">
+            <summary>Supporting document</summary>
+            <div className="collapsible-panel-body field-group">
+              <label>
+                Supporting Document
+                <input
+                  type="file"
+                  onChange={(event) => setSupportingFile(event.target.files?.[0] || null)}
+                />
+              </label>
+              <label>
+                Supporting Document Context
+                <textarea
+                  value={supportInstructions}
+                  onChange={(event) => setSupportInstructions(event.target.value)}
+                  rows={4}
+                />
+              </label>
+            </div>
+          </details>
 
-          <div className="field-group">
-            <h2>Prior response</h2>
-            <label>
-              Prior Response Document
-              <input
-                type="file"
-                onChange={(event) => setPriorResponseFile(event.target.files?.[0] || null)}
-              />
-            </label>
-            <label>
-              Prior Response Context
-              <textarea
-                value={priorInstructions}
-                onChange={(event) => setPriorInstructions(event.target.value)}
-                rows={4}
-              />
-            </label>
-          </div>
+          <details className="collapsible-panel">
+            <summary>Prior response</summary>
+            <div className="collapsible-panel-body field-group">
+              <label>
+                Prior Response Document
+                <input
+                  type="file"
+                  onChange={(event) => setPriorResponseFile(event.target.files?.[0] || null)}
+                />
+              </label>
+              <label>
+                Prior Response Context
+                <textarea
+                  value={priorInstructions}
+                  onChange={(event) => setPriorInstructions(event.target.value)}
+                  rows={4}
+                />
+              </label>
+            </div>
+          </details>
         </section>
 
         <section className="card action-panel right-aligned">
