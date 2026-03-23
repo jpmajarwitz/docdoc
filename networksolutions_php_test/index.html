@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Network Solutions PHP OpenAI Test</title>
+    <style>
+      :root {
+        font-family: Inter, Arial, sans-serif;
+        color: #2d1d3f;
+        background: #e8f7e5;
+      }
+      body {
+        margin: 0;
+        background: #e8f7e5;
+      }
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 3rem;
+      }
+      .card {
+        background: rgba(255, 255, 255, 0.8);
+        border: 1px solid #cde6d0;
+        border-radius: 20px;
+        padding: 1.25rem;
+        box-shadow: 0 12px 24px rgba(107, 33, 168, 0.08);
+        margin-bottom: 1rem;
+      }
+      h1, h2, p { margin-top: 0; }
+      form {
+        display: grid;
+        gap: 1rem;
+      }
+      label {
+        display: grid;
+        gap: 0.35rem;
+        font-weight: 700;
+        color: #6b21a8;
+      }
+      input, textarea, button {
+        font: inherit;
+      }
+      input, textarea {
+        border: 1px solid #ccb9e8;
+        border-radius: 12px;
+        padding: 0.85rem 1rem;
+        background: #fff;
+      }
+      input[type="file"]::file-selector-button {
+        margin-right: 1rem;
+        border: 0;
+        border-radius: 10px;
+        padding: 0.55rem 0.9rem;
+        background: #f3e8ff;
+        color: #6b21a8;
+        font-weight: 700;
+      }
+      textarea {
+        min-height: 180px;
+        resize: vertical;
+      }
+      button {
+        width: fit-content;
+        border: 0;
+        border-radius: 12px;
+        padding: 0.85rem 1.1rem;
+        background: linear-gradient(135deg, #6b21a8 0%, #9333ea 100%);
+        color: #fff;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #f8f3ff;
+        border-radius: 14px;
+        padding: 1rem;
+        overflow: auto;
+      }
+      .muted {
+        color: #5d4770;
+      }
+      .status {
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="card">
+        <h1>Network Solutions PHP OpenAI Test</h1>
+        <p class="muted">
+          This standalone page posts to <code>proxy_test.php</code> so you can verify whether your
+          Network Solutions basic hosting account can handle PHP, file uploads, outbound cURL,
+          and OpenAI API calls.
+        </p>
+      </section>
+
+      <section class="card">
+        <form id="test-form">
+          <label>
+            Model
+            <input type="text" name="model" value="gpt-5-mini" />
+          </label>
+
+          <label>
+            Prompt
+            <textarea name="prompt">Summarize the uploaded document in 5 bullet points. If no file is uploaded, reply with a short greeting.</textarea>
+          </label>
+
+          <label>
+            Optional document
+            <input type="file" name="document" />
+          </label>
+
+          <button type="submit">Run PHP Test</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Result</h2>
+        <p id="status" class="status">Ready.</p>
+        <pre id="output">No request sent yet.</pre>
+      </section>
+    </main>
+
+    <script>
+      const form = document.getElementById('test-form')
+      const statusEl = document.getElementById('status')
+      const outputEl = document.getElementById('output')
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault()
+        statusEl.textContent = 'Sending request to proxy_test.php...'
+        outputEl.textContent = 'Waiting for response...'
+
+        try {
+          const formData = new FormData(form)
+          const response = await fetch('proxy_test.php', {
+            method: 'POST',
+            body: formData,
+          })
+
+          const text = await response.text()
+          statusEl.textContent = response.ok ? 'Request completed.' : `Request failed (${response.status}).`
+          outputEl.textContent = text
+        } catch (error) {
+          statusEl.textContent = 'Browser request failed.'
+          outputEl.textContent = String(error)
+        }
+      })
+    </script>
+  </body>
+</html>
