@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import logo from './assets/docdoc-logo.svg'
 
 const MODES = {
   DOC_DEFINE: 'doc_define_mode',
@@ -39,6 +40,8 @@ const operationLabels = {
   [OPERATIONS.CRITIQUE_CHANGED]: 'changed-document critique'
 }
 
+const REVIEW_TEXTAREA_ROWS = 34
+
 function emptyChangeDraft() {
   return {
     id: '',
@@ -58,11 +61,13 @@ function PageShell({ mode, children }) {
   return (
     <main className="layout">
       <header className="hero card">
-        <div>
-          <p className="eyebrow">Mode-driven browser app</p>
-          <h1>
-            The Document Doctor: <span>A Professional Review and Critique Tool</span>
-          </h1>
+        <div className="brand-block">
+          <img className="brand-logo" src={logo} alt="Cartoon paper doctor logo" />
+          <div>
+            <h1>
+              The Document Doctor: <span>A Professional Review and Critique Tool</span>
+            </h1>
+          </div>
         </div>
         <div className="mode-pill">{mode}</div>
       </header>
@@ -314,20 +319,12 @@ export default function App() {
   if (currentMode === MODES.DOC_DEFINE) {
     return (
       <PageShell mode={MODES.DOC_DEFINE}>
-        <section className="card split-card">
+        <section className="card single-column-card">
           <div>
             <h2>Backend proxy</h2>
             <p className="muted">
               The browser no longer asks the user for an OpenAI API key. Requests are forwarded to a stateless backend proxy.
             </p>
-          </div>
-          <div>
-            <h2>Mode entry criteria</h2>
-            <ul className="bullet-list">
-              <li>Choose the primary document.</li>
-              <li>Review or edit the critique instructions.</li>
-              <li>Press the critique button to transition to <code>invoke_model_mode</code>.</li>
-            </ul>
           </div>
         </section>
 
@@ -401,10 +398,7 @@ export default function App() {
           </div>
         </section>
 
-        <section className="card action-row">
-          <div>
-            <strong>Status:</strong> {status}
-          </div>
+        <section className="card action-panel right-aligned">
           <button type="button" onClick={() => invokeOperation(OPERATIONS.CRITIQUE_PRIMARY)}>
             Critique Primary Document
           </button>
@@ -416,12 +410,9 @@ export default function App() {
   if (currentMode === MODES.INVOKE) {
     return (
       <PageShell mode={MODES.INVOKE}>
-        <section className="card invoke-card">
+        <section className="card invoke-card compact-panel">
           <div className="spinner" aria-hidden="true" />
           <h2>Invoking the model</h2>
-          <p>
-            <strong>Current operation:</strong> {operationLabels[lastOperation]}
-          </p>
           <p>{loading ? 'Sending the prepared message to the backend proxy and waiting for the model response...' : status}</p>
         </section>
       </PageShell>
@@ -436,11 +427,11 @@ export default function App() {
 
     return (
       <PageShell mode={MODES.RESULT_SAVED}>
-        <section className="card result-card">
+        <section className="card result-card compact-panel">
           <h2>Result saved</h2>
           {renderError()}
           <p>{resultMessage}</p>
-          <div className="action-row wrap-actions">
+          <div className="action-row wrap-actions center-actions">
             {lastOperation === OPERATIONS.APPLY_CHANGE_ITEMS ? (
               <button type="button" onClick={() => setCurrentMode(MODES.VIEW_CHANGED)}>
                 View Changed Document
@@ -462,7 +453,7 @@ export default function App() {
   if (currentMode === MODES.CRITIQUE_REVIEW) {
     return (
       <PageShell mode={MODES.CRITIQUE_REVIEW}>
-        <section className="card split-card">
+        <section className="card split-card compact-panel">
           <div>
             <h2>Critique review</h2>
           </div>
@@ -482,10 +473,10 @@ export default function App() {
 
         {renderError()}
 
-        <section className="card review-grid">
+        <section className="card review-grid tall-review-grid">
           <div className="field-group">
             <h3>Critique content</h3>
-            <textarea value={critiqueMarkdown} onChange={(event) => setCritiqueMarkdown(event.target.value)} rows={24} />
+            <textarea value={critiqueMarkdown} onChange={(event) => setCritiqueMarkdown(event.target.value)} rows={REVIEW_TEXTAREA_ROWS} />
           </div>
 
           <div className="field-group side-panel">
@@ -508,7 +499,7 @@ export default function App() {
                 onChange={(event) =>
                   setChangeItemDraft((draft) => ({ ...draft, instruction: event.target.value }))
                 }
-                rows={4}
+                rows={5}
               />
             </label>
             <button type="button" onClick={addChangeItem}>
@@ -539,7 +530,7 @@ export default function App() {
 
   return (
     <PageShell mode={MODES.VIEW_CHANGED}>
-      <section className="card split-card">
+      <section className="card split-card compact-panel">
         <div>
           <h2>Changed document</h2>
         </div>
@@ -555,13 +546,13 @@ export default function App() {
 
       {renderError()}
 
-      <section className="card field-group">
+      <section className="card field-group tall-document-panel">
         <label>
           Changed document content
           <textarea
             value={changedDocumentMarkdown}
             onChange={(event) => setChangedDocumentMarkdown(event.target.value)}
-            rows={24}
+            rows={REVIEW_TEXTAREA_ROWS}
           />
         </label>
       </section>
