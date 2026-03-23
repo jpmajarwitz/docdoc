@@ -9,6 +9,14 @@ const MODES = {
   VIEW_CHANGED: 'view_changed_document_mode'
 }
 
+const MODE_LABELS = {
+  [MODES.DOC_DEFINE]: 'Document Definition',
+  [MODES.INVOKE]: 'Invoking Model',
+  [MODES.CRITIQUE_REVIEW]: 'Review Critique',
+  [MODES.RESULT_SAVED]: 'LLM Result Saved',
+  [MODES.VIEW_CHANGED]: 'Review Changed Document'
+}
+
 const OPERATIONS = {
   CRITIQUE_PRIMARY: 'critique_primary_document',
   APPLY_CHANGE_ITEMS: 'apply_change_items',
@@ -63,13 +71,12 @@ function PageShell({ mode, children }) {
       <header className="hero card">
         <div className="brand-block">
           <img className="brand-logo" src={logo} alt="Cartoon paper doctor logo" />
-          <div>
-            <h1>
-              The Document Doctor: <span>A Professional Review and Critique Tool</span>
-            </h1>
+          <div className="hero-title-group">
+            <h1>The Document Doctor</h1>
+            <p className="hero-subtitle">A Professional Review and Critique Tool</p>
           </div>
         </div>
-        <div className="mode-pill">{mode}</div>
+        <div className="mode-pill">{MODE_LABELS[mode] || mode}</div>
       </header>
       {children}
     </main>
