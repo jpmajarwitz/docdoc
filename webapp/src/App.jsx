@@ -461,58 +461,72 @@ export default function App() {
 
         {renderError()}
 
-        <section className="card review-grid tall-review-grid">
+        <section className="card review-grid critique-review-layout">
           <div className="field-group critique-panel">
             <label className="panel-field">
               <span className="panel-label">Critique Content</span>
-              <textarea value={critiqueMarkdown} onChange={(event) => setCritiqueMarkdown(event.target.value)} rows={REVIEW_TEXTAREA_ROWS} />
+              <textarea
+                className="critique-editor"
+                value={critiqueMarkdown}
+                onChange={(event) => setCritiqueMarkdown(event.target.value)}
+                rows={REVIEW_TEXTAREA_ROWS}
+              />
             </label>
           </div>
 
-          <div className="field-group side-panel">
-            <h3>Create change items</h3>
-            <label>
-              Change ID
-              <input
-                type="text"
-                value={changeItemDraft.id}
-                onChange={(event) =>
-                  setChangeItemDraft((draft) => ({ ...draft, id: event.target.value }))
-                }
-                placeholder="major-1"
-              />
-            </label>
-            <label>
-              Change Instruction
-              <textarea
-                value={changeItemDraft.instruction}
-                onChange={(event) =>
-                  setChangeItemDraft((draft) => ({ ...draft, instruction: event.target.value }))
-                }
-                rows={3}
-              />
-            </label>
-            <button type="button" onClick={addChangeItem}>
-              Create Change Item
-            </button>
+          <aside className="side-panel change-composer">
+            <div className="side-panel-header">
+              <h3>Create change items</h3>
+              <p className="muted">Capture concise edits, then apply them to the document.</p>
+            </div>
 
-            <div className="change-item-list">
+            <div className="change-composer-card">
+              <label>
+                Change ID
+                <input
+                  type="text"
+                  value={changeItemDraft.id}
+                  onChange={(event) =>
+                    setChangeItemDraft((draft) => ({ ...draft, id: event.target.value }))
+                  }
+                  placeholder="major-1"
+                />
+              </label>
+              <label>
+                Change Instruction
+                <textarea
+                  className="compact-textarea"
+                  value={changeItemDraft.instruction}
+                  onChange={(event) =>
+                    setChangeItemDraft((draft) => ({ ...draft, instruction: event.target.value }))
+                  }
+                  rows={3}
+                />
+              </label>
+              <button type="button" onClick={addChangeItem}>
+                Create Change Item
+              </button>
+            </div>
+
+            <div className="change-item-list-card">
               <div className="change-item-list-header">
                 <span>Change Items</span>
                 <span>{changeItems.length}</span>
               </div>
-              {changeItems.length ? (
-                changeItems.map((item) => (
-                  <article key={item.id} className="change-item-card">
-                    <h4>{item.id}</h4>
-                    <p>{item.instruction}</p>
-                  </article>
-                ))
-              ) : (
-                <p className="muted">No entries saved yet.</p>
-              )}
+              <div className="change-item-list">
+                {changeItems.length ? (
+                  changeItems.map((item) => (
+                    <article key={item.id} className="change-item-card">
+                      <h4>{item.id}</h4>
+                      <p>{item.instruction}</p>
+                    </article>
+                  ))
+                ) : (
+                  <p className="muted">No entries saved yet.</p>
+                )}
+              </div>
             </div>
-          </div>
+          </aside>
         </section>
       </PageShell>
     )
