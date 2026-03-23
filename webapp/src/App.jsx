@@ -413,24 +413,17 @@ export default function App() {
         <section className="card invoke-card compact-panel">
           <div className="spinner" aria-hidden="true" />
           <h2>Invoking the model</h2>
-          <p>{loading ? 'Sending the prepared message to the backend proxy and waiting for the model response...' : status}</p>
         </section>
       </PageShell>
     )
   }
 
   if (currentMode === MODES.RESULT_SAVED) {
-    const resultMessage =
-      lastOperation === OPERATIONS.APPLY_CHANGE_ITEMS
-        ? 'Applying change items completed. The changed document is ready to view.'
-        : 'Critique completed and saved in browser state.'
-
     return (
       <PageShell mode={MODES.RESULT_SAVED}>
         <section className="card result-card compact-panel">
           <h2>Result saved</h2>
           {renderError()}
-          <p>{resultMessage}</p>
           <div className="action-row wrap-actions center-actions">
             {lastOperation === OPERATIONS.APPLY_CHANGE_ITEMS ? (
               <button type="button" onClick={() => setCurrentMode(MODES.VIEW_CHANGED)}>
@@ -453,11 +446,7 @@ export default function App() {
   if (currentMode === MODES.CRITIQUE_REVIEW) {
     return (
       <PageShell mode={MODES.CRITIQUE_REVIEW}>
-        <section className="card split-card compact-panel">
-          <div>
-            <h2>Critique review</h2>
-          </div>
-          <div className="action-row wrap-actions right-aligned">
+        <section className="card action-row wrap-actions right-aligned compact-panel">
             <button type="button" className="secondary-button" onClick={resetToDefinitionMode}>
               Exit Review
             </button>
@@ -468,15 +457,16 @@ export default function App() {
             >
               Apply Change Items
             </button>
-          </div>
         </section>
 
         {renderError()}
 
         <section className="card review-grid tall-review-grid">
           <div className="field-group">
-            <h3>Critique content</h3>
-            <textarea value={critiqueMarkdown} onChange={(event) => setCritiqueMarkdown(event.target.value)} rows={REVIEW_TEXTAREA_ROWS} />
+            <label className="panel-field">
+              <span className="panel-label">Critique Content</span>
+              <textarea value={critiqueMarkdown} onChange={(event) => setCritiqueMarkdown(event.target.value)} rows={REVIEW_TEXTAREA_ROWS} />
+            </label>
           </div>
 
           <div className="field-group side-panel">
@@ -499,7 +489,7 @@ export default function App() {
                 onChange={(event) =>
                   setChangeItemDraft((draft) => ({ ...draft, instruction: event.target.value }))
                 }
-                rows={5}
+                rows={3}
               />
             </label>
             <button type="button" onClick={addChangeItem}>
