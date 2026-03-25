@@ -98,6 +98,14 @@ npm run build
 Then upload the generated `webapp/dist/` contents to your hosting web root (or subdirectory).
 Those built files are production-ready HTML/CSS/JavaScript that browsers can run directly.
 
+Deployment checklist for `/dd` style hosting:
+
+1. Ensure `webapp/.env.production` contains `VITE_API_BASE_URL=/dd` (or your HTTPS backend base URL).
+2. Run `npm run build` from `webapp/`.
+3. Verify built assets do not contain `http://` backend URLs (for example: `rg -n "http://" webapp/dist/assets`).
+4. Upload the new `webapp/dist/*` files (overwrite old files).
+5. Hard refresh the site (or clear cache) so the browser loads the latest JS bundle.
+
 > Important: do **not** upload `webapp/src/*.jsx` expecting the host to compile it.
 
 ## Build and preview

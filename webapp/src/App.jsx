@@ -92,7 +92,7 @@ function PageShell({ mode, children }) {
 
 function normalizeRequestError(error) {
   if (error instanceof TypeError) {
-    return 'Unable to reach the backend proxy. Start `uvicorn backend_main:app --reload --port 8000`, or set `VITE_API_BASE_URL` if the backend is running elsewhere.'
+    return 'Unable to reach the backend API. If this page is loaded over HTTPS, make sure the backend URL is also HTTPS (no mixed content), then rebuild and redeploy your dist files.'
   }
 
   return error.message || 'Backend request failed.'
