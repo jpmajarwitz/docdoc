@@ -93,9 +93,18 @@ function normalizeRequestError(error) {
   return error.message || 'Backend request failed.'
 }
 
+function preferHttpsOnSecurePage(endpoint) {
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && endpoint.startsWith('http://')) {
+    return `https://${endpoint.slice('http://'.length)}`
+  }
+
+  return endpoint
+}
+
 function endpointCandidates(endpoint) {
-  const normalized = endpoint.replace(/\/api\/api\//g, '/api/')
-  const seeds = [endpoint, normalized]
+  const secureEndpoint = preferHttpsOnSecurePage(endpoint)
+  const normalized = secureEndpoint.replace(/\/api\/api\//g, '/api/')
+  const seeds = [secureEndpoint, normalized]
   const candidates = []
 
   seeds.forEach((seed) => {
@@ -130,7 +139,7 @@ async function readBackendJson(response) {
     const maybeHtml = responseText.trim().startsWith('<')
     throw new Error(
       maybeHtml
-        ? `Backend returned HTML instead of JSON (status ${response.status}). Verify VITE_API_BASE_URL points to your backend API, not your frontend site.`
+        ? `Backend returned HTML instead of JSON (status ${response.status}). Verify VITE_API_BASE_URL points to your backend API and uses HTTPS when the site is served over HTTPS.`
         : `Backend returned non-JSON response (status ${response.status}).`
     )
   }
