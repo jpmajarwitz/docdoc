@@ -93,6 +93,27 @@ function normalizeRequestError(error) {
   return error.message || 'Backend request failed.'
 }
 
+function endpointCandidates(endpoint) {
+  const base = endpoint.replace(/\/+$/, '')
+  return [endpoint, `${base}/`, `${base}/index.php`]
+}
+
+async function fetchWithEndpointFallback(endpoint, init) {
+  const candidates = endpointCandidates(endpoint)
+  let lastResponse = null
+
+  for (const candidate of candidates) {
+    const response = await fetch(candidate, init)
+    if (response.status !== 404) {
+      return response
+    }
+
+    lastResponse = response
+  }
+
+  return lastResponse
+}
+
 async function readBackendJson(response) {
   const contentType = response.headers.get('content-type') || ''
 
@@ -119,7 +140,7 @@ async function postMultipart(endpoint, payload, fileEntries = {}) {
     }
   })
 
-  const response = await fetch(endpoint, {
+  const response = await fetchWithEndpointFallback(endpoint, {
     method: 'POST',
     body: formData
   })
@@ -133,7 +154,7 @@ async function postMultipart(endpoint, payload, fileEntries = {}) {
 }
 
 async function postJson(endpoint, payload) {
-  const response = await fetch(endpoint, {
+  const response = await fetchWithEndpointFallback(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
