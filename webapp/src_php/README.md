@@ -26,7 +26,8 @@ Each endpoint returns JSON shaped to match the current frontend expectations.
 2. Set `openai_api_key` in `config.php`.
 3. Update `cors_allow_origins` for your real frontend origin(s).
 4. Upload the contents of `src_php/` so the host serves the `api/` folder.
-5. Point the frontend `VITE_API_BASE_URL` at the deployed PHP backend root.
+5. Build the React frontend with `npm run build` and upload only the generated `webapp/dist/` files to your web root (not the JSX source files).
+6. Point the frontend `VITE_API_BASE_URL` at the deployed PHP backend root.
 
 ## Important behavior
 

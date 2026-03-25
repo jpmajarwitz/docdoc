@@ -82,6 +82,24 @@ The backend is stateless and exposes:
 
 The browser prepares the LLM request payload, sends it to the backend, and the backend forwards it to OpenAI without storing interaction state.
 
+## Deploy the React frontend to basic hosting (Network Solutions)
+
+If your frontend is hosted on a basic shared host, you cannot upload JSX source files directly.
+Shared hosting serves static assets only, so you must first transpile/build the React app.
+
+Use this flow:
+
+```bash
+cd /workspace/docdoc/webapp
+npm install
+npm run build
+```
+
+Then upload the generated `webapp/dist/` contents to your hosting web root (or subdirectory).
+Those built files are production-ready HTML/CSS/JavaScript that browsers can run directly.
+
+> Important: do **not** upload `webapp/src/*.jsx` expecting the host to compile it.
+
 ## Build and preview
 
 ```bash
