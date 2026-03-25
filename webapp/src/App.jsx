@@ -94,8 +94,16 @@ function normalizeRequestError(error) {
 }
 
 function endpointCandidates(endpoint) {
-  const base = endpoint.replace(/\/+$/, '')
-  return [endpoint, `${base}/`, `${base}/index.php`]
+  const normalized = endpoint.replace(/\/api\/api\//g, '/api/')
+  const seeds = [endpoint, normalized]
+  const candidates = []
+
+  seeds.forEach((seed) => {
+    const base = seed.replace(/\/+$/, '')
+    candidates.push(seed, `${base}/`, `${base}/index.php`)
+  })
+
+  return [...new Set(candidates)]
 }
 
 async function fetchWithEndpointFallback(endpoint, init) {
