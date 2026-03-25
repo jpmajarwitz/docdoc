@@ -23,7 +23,12 @@ const OPERATIONS = {
   CRITIQUE_CHANGED: 'critique_changed_document'
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+const RAW_API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+const API_BASE_URL =
+  typeof window !== 'undefined' && window.location.protocol === 'https:'
+    ? RAW_API_BASE_URL.replace(/^http:\/\//, 'https://')
+    : RAW_API_BASE_URL
+
 const API_ENDPOINTS = {
   [OPERATIONS.CRITIQUE_PRIMARY]: `${API_BASE_URL}/api/critique`,
   [OPERATIONS.APPLY_CHANGE_ITEMS]: `${API_BASE_URL}/api/apply-change-items`,
