@@ -30,9 +30,9 @@ const API_BASE_URL =
     : RAW_API_BASE_URL
 
 const API_ENDPOINTS = {
-  [OPERATIONS.CRITIQUE_PRIMARY]: `${API_BASE_URL}/api/critique`,
-  [OPERATIONS.APPLY_CHANGE_ITEMS]: `${API_BASE_URL}/api/apply-change-items`,
-  [OPERATIONS.CRITIQUE_CHANGED]: `${API_BASE_URL}/api/critique-changed-document`
+  [OPERATIONS.CRITIQUE_PRIMARY]: `${API_BASE_URL}/api/critique/`,
+  [OPERATIONS.APPLY_CHANGE_ITEMS]: `${API_BASE_URL}/api/apply-change-items/`,
+  [OPERATIONS.CRITIQUE_CHANGED]: `${API_BASE_URL}/api/critique-changed-document/`
 }
 
 const defaults = {
@@ -114,7 +114,7 @@ function endpointCandidates(endpoint) {
 
   seeds.forEach((seed) => {
     const base = seed.replace(/\/+$/, '')
-    candidates.push(seed, `${base}/`, `${base}/index.php`)
+    candidates.push(`${base}/`, seed, `${base}/index.php`)
   })
 
   return [...new Set(candidates)]
@@ -126,7 +126,14 @@ async function fetchWithEndpointFallback(endpoint, init) {
 
   for (const candidate of candidates) {
     const response = await fetch(candidate, init)
-    if (response.status !== 404) {
+    const isRedirect = [301, 302, 307, 308].includes(response.status)
+    const redirectTarget = response.headers.get('location') || ''
+    const insecureRedirect =
+      typeof window !== 'undefined' &&
+      window.location.protocol === 'https:' &&
+      redirectTarget.startsWith('http://')
+
+    if (response.status !== 404 && !(isRedirect && insecureRedirect)) {
       return response
     }
 
