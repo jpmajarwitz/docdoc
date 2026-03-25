@@ -93,6 +93,22 @@ function normalizeRequestError(error) {
   return error.message || 'Backend request failed.'
 }
 
+async function readBackendJson(response) {
+  const contentType = response.headers.get('content-type') || ''
+
+  if (!contentType.includes('application/json')) {
+    const responseText = await response.text()
+    const maybeHtml = responseText.trim().startsWith('<')
+    throw new Error(
+      maybeHtml
+        ? `Backend returned HTML instead of JSON (status ${response.status}). Verify VITE_API_BASE_URL points to your backend API, not your frontend site.`
+        : `Backend returned non-JSON response (status ${response.status}).`
+    )
+  }
+
+  return response.json()
+}
+
 async function postMultipart(endpoint, payload, fileEntries = {}) {
   const formData = new FormData()
   formData.append('request', JSON.stringify(payload))
@@ -108,7 +124,7 @@ async function postMultipart(endpoint, payload, fileEntries = {}) {
     body: formData
   })
 
-  const data = await response.json()
+  const data = await readBackendJson(response)
   if (!response.ok) {
     throw new Error(data.detail || 'Backend request failed.')
   }
@@ -125,7 +141,7 @@ async function postJson(endpoint, payload) {
     body: JSON.stringify(payload)
   })
 
-  const data = await response.json()
+  const data = await readBackendJson(response)
   if (!response.ok) {
     throw new Error(data.detail || 'Backend request failed.')
   }
