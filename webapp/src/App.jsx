@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import logo from './assets/docdoc-logo.svg'
+import { APP_SETTINGS } from './config/appSettings'
 
 const MODES = {
   DOC_DEFINE: 'doc_define_mode',
@@ -204,6 +205,8 @@ export default function App() {
   const [docFile, setDocFile] = useState(null)
   const [supportingFile, setSupportingFile] = useState(null)
   const [priorResponseFile, setPriorResponseFile] = useState(null)
+  const [selectedModel, setSelectedModel] = useState(APP_SETTINGS.defaultModel)
+  const [ignoreOcrErrors, setIgnoreOcrErrors] = useState(false)
   const [topic, setTopic] = useState(defaults.topic)
   const [objective, setObjective] = useState(defaults.objective)
   const [guidance, setGuidance] = useState(defaults.guidance)
@@ -219,9 +222,19 @@ export default function App() {
   const [changeItems, setChangeItems] = useState([])
   const [changeItemDraft, setChangeItemDraft] = useState(emptyChangeDraft())
 
+  function buildAntiGuidancePrompt() {
+    const parts = [antiGuidance.trim()]
+
+    if (ignoreOcrErrors && APP_SETTINGS.ocrGuidanceText.trim()) {
+      parts.push(APP_SETTINGS.ocrGuidanceText.trim())
+    }
+
+    return parts.filter(Boolean).join(' ')
+  }
+
   function buildLlmRequest(messages) {
     return {
-      model: 'gpt-5-mini',
+      model: selectedModel,
       systemPrompt: 'You are a highly skilled assistant to an experienced professional in the field indicated.',
       messages
     }
@@ -231,7 +244,7 @@ export default function App() {
     const messages = [
       {
         type: 'input_text',
-        text: `Primary document to critique. Topic: ${topic} Objective: ${objective} Guidance: ${guidance} Anti-Guidance: ${antiGuidance}`
+        text: `Primary document to critique. Topic: ${topic} Objective: ${objective} Guidance: ${guidance} Anti-Guidance: ${buildAntiGuidancePrompt()}`
       },
       { type: 'input_file', source: 'primary_document' }
     ]
@@ -259,7 +272,7 @@ export default function App() {
     return buildLlmRequest([
       {
         type: 'input_text',
-        text: `Main Instruction: Apply all requested change items directly to the original document and return the changed document in markdown. Anti-Guidance: ${antiGuidance}`
+        text: `Main Instruction: Apply all requested change items directly to the original document and return the changed document in markdown. Anti-Guidance: ${buildAntiGuidancePrompt()}`
       },
       {
         type: 'input_text',
@@ -281,7 +294,7 @@ export default function App() {
     return buildLlmRequest([
       {
         type: 'input_text',
-        text: `Critique the included changed document using the original review configuration. Topic: ${topic} Objective: ${objective} Guidance: ${guidance} Anti-Guidance: ${antiGuidance}`
+        text: `Critique the included changed document using the original review configuration. Topic: ${topic} Objective: ${objective} Guidance: ${guidance} Anti-Guidance: ${buildAntiGuidancePrompt()}`
       },
       {
         type: 'input_text',
@@ -401,6 +414,35 @@ export default function App() {
             <h2>Select primary document</h2>
             <input type="file" onChange={(event) => setDocFile(event.target.files?.[0] || null)} />
           </div>
+        </section>
+
+        <section className="card settings-card">
+          <details className="collapsible-panel">
+            <summary>Settings</summary>
+            <div className="collapsible-panel-body field-group">
+              <label>
+                LLM Model
+                <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
+                  {APP_SETTINGS.llmModels.map((modelOption) => (
+                    <option key={modelOption.value} value={modelOption.value}>
+                      {modelOption.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={ignoreOcrErrors}
+                  onChange={(event) => setIgnoreOcrErrors(event.target.checked)}
+                />
+                Ignore obvious OCR misspellings
+              </label>
+
+              {ignoreOcrErrors ? <p className="muted setting-note">{APP_SETTINGS.ocrGuidanceText}</p> : null}
+            </div>
+          </details>
         </section>
 
         <section className="card grid two-column-grid">
