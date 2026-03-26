@@ -416,6 +416,7 @@ export default function App() {
               <details className="gear-settings">
                 <summary aria-label="Open settings" title="Settings">
                   <span className="gear-icon" aria-hidden="true">⚙</span>
+                  <span className="gear-label">Settings</span>
                 </summary>
                 <div className="gear-settings-panel field-group">
                   <label>

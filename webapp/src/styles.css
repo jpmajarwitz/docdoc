@@ -222,15 +222,19 @@ h1 {
 .gear-settings summary {
   cursor: pointer;
   list-style: none;
-  width: 2rem;
-  height: 2rem;
+  min-height: 2rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
   border: 1px solid #d9c2f3;
   border-radius: 999px;
   background: #faf5ff;
   user-select: none;
+  color: #6b21a8;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .gear-settings summary::-webkit-details-marker {
@@ -244,7 +248,11 @@ h1 {
 .gear-icon {
   font-size: 1.1rem;
   line-height: 1;
-  color: #6b21a8;
+}
+
+.gear-label {
+  font-size: 0.86rem;
+  line-height: 1;
 }
 
 .gear-settings-panel {
