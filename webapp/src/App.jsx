@@ -64,7 +64,7 @@ function formatChangeItems(changeItems) {
   return changeItems.map((item) => `- ${item.id}: ${item.instruction}`).join('\n')
 }
 
-function PageShell({ mode, children }) {
+function PageShell({ mode, topRightControls = null, children }) {
   return (
     <main className="layout">
       <header className="hero card">
@@ -76,7 +76,10 @@ function PageShell({ mode, children }) {
           <p className="hero-subtitle">A Professional Review and Critique Tool</p>
         </div>
         <div className="hero-corner hero-right">
-          <div className="mode-pill">{MODE_LABELS[mode] || mode}</div>
+          <div className="hero-right-stack">
+            {topRightControls}
+            <div className="mode-pill">{MODE_LABELS[mode] || mode}</div>
+          </div>
         </div>
       </header>
       {children}
@@ -398,9 +401,48 @@ export default function App() {
     return <div className="error-banner">{error}</div>
   }
 
+  function renderSettingsControl() {
+    return (
+      <div className="settings-dropdown">
+        <button
+          type="button"
+          className="settings-button"
+          onClick={() => setSettingsOpen((open) => !open)}
+          aria-expanded={settingsOpen}
+          aria-controls="settings-panel"
+        >
+          ⚙ Settings
+        </button>
+        {settingsOpen ? (
+          <div id="settings-panel" className="gear-settings-panel field-group">
+            <label>
+              LLM Model
+              <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
+                {APP_SETTINGS.llmModels.map((modelOption) => (
+                  <option key={modelOption.value} value={modelOption.value}>
+                    {modelOption.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={ignoreOcrErrors}
+                onChange={(event) => setIgnoreOcrErrors(event.target.checked)}
+              />
+              Ignore obvious OCR misspellings
+            </label>
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
   if (currentMode === MODES.DOC_DEFINE) {
     return (
-      <PageShell mode={MODES.DOC_DEFINE}>
+      <PageShell mode={MODES.DOC_DEFINE} topRightControls={renderSettingsControl()}>
         {renderError()}
 
         <section className="card primary-upload-card">
@@ -411,43 +453,7 @@ export default function App() {
         </section>
 
         <section className="card grid two-column-grid">
-          <div className="field-group primary-definition-panel">
-            <div className="section-controls-row">
-              <div className="settings-dropdown">
-                <button
-                  type="button"
-                  className="settings-button"
-                  onClick={() => setSettingsOpen((open) => !open)}
-                  aria-expanded={settingsOpen}
-                  aria-controls="settings-panel"
-                >
-                  Settings
-                </button>
-                {settingsOpen ? (
-                  <div id="settings-panel" className="gear-settings-panel field-group">
-                    <label>
-                      LLM Model
-                      <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
-                        {APP_SETTINGS.llmModels.map((modelOption) => (
-                          <option key={modelOption.value} value={modelOption.value}>
-                            {modelOption.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={ignoreOcrErrors}
-                        onChange={(event) => setIgnoreOcrErrors(event.target.checked)}
-                      />
-                      Ignore obvious OCR misspellings
-                    </label>
-                  </div>
-                ) : null}
-              </div>
-            </div>
+          <div className="field-group">
             <h2>Primary document definition</h2>
             <label>
               {APP_SETTINGS.labels.defaultTopic}

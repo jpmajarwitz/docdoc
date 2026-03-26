@@ -46,6 +46,12 @@ textarea {
   align-self: stretch;
 }
 
+.hero-right-stack {
+  display: grid;
+  justify-items: end;
+  gap: 0.45rem;
+}
+
 .brand-logo {
   width: 132px;
   height: 132px;
@@ -198,20 +204,9 @@ h1 {
   margin-top: 0.9rem;
 }
 
-.primary-definition-panel {
-  position: relative;
-  padding-top: 2.4rem;
-}
-
-.section-controls-row {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 8;
-}
-
 .settings-dropdown {
   position: relative;
+  z-index: 8;
 }
 
 .settings-button {
@@ -484,6 +479,10 @@ code {
   .hero-left,
   .hero-right {
     justify-content: center;
+  }
+
+  .hero-right-stack {
+    justify-items: center;
   }
 
   .brand-logo,
