@@ -203,14 +203,20 @@ h1 {
   align-items: center;
   justify-content: space-between;
   gap: 0.6rem;
+  position: relative;
+  padding-right: 0.25rem;
 }
 
 .section-heading-row h2 {
   margin-bottom: 0;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .gear-settings {
   position: relative;
+  flex: 0 0 auto;
+  z-index: 2;
 }
 
 .gear-settings summary {
