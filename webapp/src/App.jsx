@@ -411,8 +411,7 @@ export default function App() {
 
         <section className="card grid two-column-grid">
           <div className="field-group">
-            <div className="section-heading-row">
-              <h2>Primary document definition</h2>
+            <div className="section-controls-row">
               <details className="gear-settings">
                 <summary aria-label="Open settings" title="Settings">
                   <span className="gear-icon" aria-hidden="true">⚙</span>
@@ -441,6 +440,7 @@ export default function App() {
                 </div>
               </details>
             </div>
+            <h2>Primary document definition</h2>
             <label>
               {APP_SETTINGS.labels.defaultTopic}
               <textarea value={topic} onChange={(event) => setTopic(event.target.value)} rows={3} />
