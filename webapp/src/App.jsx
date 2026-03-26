@@ -37,13 +37,6 @@ const API_ENDPOINTS = {
 }
 
 const defaults = {
-  topic: 'This is a professional journal article in the <XXX> profession covering <YYY>',
-  objective:
-    'Proofread the document for consistency in tone, scope, and level of detail. Consider the document to be a refined draft that is complete in scope and intent. Suggest improvements only where necessary.',
-  guidance:
-    'Your response should be in Markdown format. Provide a section of major changes needed and a section of minor changes needed. Use enumerations for each change recommended, e.g., major-1, major-2,... minor-1, minor-2....',
-  antiGuidance:
-    'Do not add new ideas into the document. Your job is to sharpen up what is already being communicated',
   supportInstructions: '',
   priorInstructions: ''
 }
@@ -207,10 +200,10 @@ export default function App() {
   const [priorResponseFile, setPriorResponseFile] = useState(null)
   const [selectedModel, setSelectedModel] = useState(APP_SETTINGS.defaultModel)
   const [ignoreOcrErrors, setIgnoreOcrErrors] = useState(false)
-  const [topic, setTopic] = useState(defaults.topic)
-  const [objective, setObjective] = useState(defaults.objective)
-  const [guidance, setGuidance] = useState(defaults.guidance)
-  const [antiGuidance, setAntiGuidance] = useState(defaults.antiGuidance)
+  const [topic, setTopic] = useState(APP_SETTINGS.defaults.topic)
+  const [objective, setObjective] = useState(APP_SETTINGS.defaults.reviewObjective)
+  const [guidance, setGuidance] = useState(APP_SETTINGS.defaults.formattingGuidance)
+  const [antiGuidance, setAntiGuidance] = useState(APP_SETTINGS.defaults.antiGuidance)
   const [supportInstructions, setSupportInstructions] = useState(defaults.supportInstructions)
   const [priorInstructions, setPriorInstructions] = useState(defaults.priorInstructions)
   const [critiqueMarkdown, setCritiqueMarkdown] = useState('')
@@ -416,44 +409,41 @@ export default function App() {
           </div>
         </section>
 
-        <section className="card settings-card">
-          <details className="collapsible-panel">
-            <summary>Settings</summary>
-            <div className="collapsible-panel-body field-group">
-              <label>
-                LLM Model
-                <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
-                  {APP_SETTINGS.llmModels.map((modelOption) => (
-                    <option key={modelOption.value} value={modelOption.value}>
-                      {modelOption.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={ignoreOcrErrors}
-                  onChange={(event) => setIgnoreOcrErrors(event.target.checked)}
-                />
-                Ignore obvious OCR misspellings
-              </label>
-
-              {ignoreOcrErrors ? <p className="muted setting-note">{APP_SETTINGS.ocrGuidanceText}</p> : null}
-            </div>
-          </details>
-        </section>
-
         <section className="card grid two-column-grid">
           <div className="field-group">
-            <h2>Primary document definition</h2>
+            <div className="section-heading-row">
+              <h2>Primary document definition</h2>
+              <details className="gear-settings">
+                <summary aria-label="Open settings" title="Settings">⚙️</summary>
+                <div className="gear-settings-panel field-group">
+                  <label>
+                    LLM Model
+                    <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
+                      {APP_SETTINGS.llmModels.map((modelOption) => (
+                        <option key={modelOption.value} value={modelOption.value}>
+                          {modelOption.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={ignoreOcrErrors}
+                      onChange={(event) => setIgnoreOcrErrors(event.target.checked)}
+                    />
+                    Ignore obvious OCR misspellings
+                  </label>
+                </div>
+              </details>
+            </div>
             <label>
-              Topic
+              {APP_SETTINGS.labels.defaultTopic}
               <textarea value={topic} onChange={(event) => setTopic(event.target.value)} rows={3} />
             </label>
             <label>
-              Review Objective
+              {APP_SETTINGS.labels.reviewObjective}
               <textarea value={objective} onChange={(event) => setObjective(event.target.value)} rows={3} />
             </label>
           </div>
@@ -461,11 +451,11 @@ export default function App() {
           <div className="field-group">
             <h2>Response guidance</h2>
             <label>
-              Formatting Guidance
+              {APP_SETTINGS.labels.formattingGuidance}
               <textarea value={guidance} onChange={(event) => setGuidance(event.target.value)} rows={3} />
             </label>
             <label>
-              Anti-Guidance
+              {APP_SETTINGS.labels.antiGuidance}
               <textarea value={antiGuidance} onChange={(event) => setAntiGuidance(event.target.value)} rows={3} />
             </label>
           </div>
