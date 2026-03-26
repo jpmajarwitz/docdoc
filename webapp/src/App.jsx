@@ -200,6 +200,7 @@ export default function App() {
   const [priorResponseFile, setPriorResponseFile] = useState(null)
   const [selectedModel, setSelectedModel] = useState(APP_SETTINGS.defaultModel)
   const [ignoreOcrErrors, setIgnoreOcrErrors] = useState(true)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [topic, setTopic] = useState(APP_SETTINGS.defaults.topic)
   const [objective, setObjective] = useState(APP_SETTINGS.defaults.reviewObjective)
   const [guidance, setGuidance] = useState(APP_SETTINGS.defaults.formattingGuidance)
@@ -412,33 +413,40 @@ export default function App() {
         <section className="card grid two-column-grid">
           <div className="field-group primary-definition-panel">
             <div className="section-controls-row">
-              <details className="gear-settings">
-                <summary aria-label="Open settings" title="Settings">
-                  <span className="gear-icon" aria-hidden="true">⚙</span>
-                  <span className="gear-label">Settings</span>
-                </summary>
-                <div className="gear-settings-panel field-group">
-                  <label>
-                    LLM Model
-                    <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
-                      {APP_SETTINGS.llmModels.map((modelOption) => (
-                        <option key={modelOption.value} value={modelOption.value}>
-                          {modelOption.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+              <div className="settings-dropdown">
+                <button
+                  type="button"
+                  className="settings-button"
+                  onClick={() => setSettingsOpen((open) => !open)}
+                  aria-expanded={settingsOpen}
+                  aria-controls="settings-panel"
+                >
+                  Settings
+                </button>
+                {settingsOpen ? (
+                  <div id="settings-panel" className="gear-settings-panel field-group">
+                    <label>
+                      LLM Model
+                      <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
+                        {APP_SETTINGS.llmModels.map((modelOption) => (
+                          <option key={modelOption.value} value={modelOption.value}>
+                            {modelOption.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={ignoreOcrErrors}
-                      onChange={(event) => setIgnoreOcrErrors(event.target.checked)}
-                    />
-                    Ignore obvious OCR misspellings
-                  </label>
-                </div>
-              </details>
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={ignoreOcrErrors}
+                        onChange={(event) => setIgnoreOcrErrors(event.target.checked)}
+                      />
+                      Ignore obvious OCR misspellings
+                    </label>
+                  </div>
+                ) : null}
+              </div>
             </div>
             <h2>Primary document definition</h2>
             <label>
