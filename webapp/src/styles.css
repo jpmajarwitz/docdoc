@@ -216,8 +216,14 @@ h1 {
 .gear-settings summary {
   cursor: pointer;
   list-style: none;
-  font-size: 1.35rem;
-  line-height: 1;
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d9c2f3;
+  border-radius: 999px;
+  background: #faf5ff;
   user-select: none;
 }
 
@@ -227,6 +233,12 @@ h1 {
 
 .gear-settings summary::after {
   content: '';
+}
+
+.gear-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+  color: #6b21a8;
 }
 
 .gear-settings-panel {

@@ -199,7 +199,7 @@ export default function App() {
   const [supportingFile, setSupportingFile] = useState(null)
   const [priorResponseFile, setPriorResponseFile] = useState(null)
   const [selectedModel, setSelectedModel] = useState(APP_SETTINGS.defaultModel)
-  const [ignoreOcrErrors, setIgnoreOcrErrors] = useState(false)
+  const [ignoreOcrErrors, setIgnoreOcrErrors] = useState(true)
   const [topic, setTopic] = useState(APP_SETTINGS.defaults.topic)
   const [objective, setObjective] = useState(APP_SETTINGS.defaults.reviewObjective)
   const [guidance, setGuidance] = useState(APP_SETTINGS.defaults.formattingGuidance)
@@ -414,7 +414,9 @@ export default function App() {
             <div className="section-heading-row">
               <h2>Primary document definition</h2>
               <details className="gear-settings">
-                <summary aria-label="Open settings" title="Settings">⚙️</summary>
+                <summary aria-label="Open settings" title="Settings">
+                  <span className="gear-icon" aria-hidden="true">⚙</span>
+                </summary>
                 <div className="gear-settings-panel field-group">
                   <label>
                     LLM Model
