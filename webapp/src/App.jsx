@@ -410,7 +410,7 @@ export default function App() {
         </section>
 
         <section className="card grid two-column-grid">
-          <div className="field-group">
+          <div className="field-group primary-definition-panel">
             <div className="section-controls-row">
               <details className="gear-settings">
                 <summary aria-label="Open settings" title="Settings">
