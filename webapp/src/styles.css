@@ -370,6 +370,25 @@ button:disabled {
   justify-content: flex-end;
 }
 
+.action-buttons {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.prompt-preview-card pre {
+  margin: 0;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #d9c2f3;
+  border-radius: 12px;
+  padding: 0.9rem;
+  max-height: 420px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .compact-panel {
   padding-top: 1rem;
   padding-bottom: 1rem;

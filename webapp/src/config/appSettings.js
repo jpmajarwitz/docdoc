@@ -22,5 +22,6 @@ export const APP_SETTINGS = {
   },
   ocrGuidanceText:
     'Ignore any OCR errors related to the mis-spelling of words that seems obvious. Do not report back these types of errors. For example: Objec@ive instead of Objective.',
-  storeResponsesDefault: false
+  disableResponseLoggingDefault: true,
+  viewPromptDefault: true
 }

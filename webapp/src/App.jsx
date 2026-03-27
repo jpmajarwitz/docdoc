@@ -203,7 +203,11 @@ export default function App() {
   const [priorResponseFile, setPriorResponseFile] = useState(null)
   const [selectedModel, setSelectedModel] = useState(APP_SETTINGS.defaultModel)
   const [ignoreOcrErrors, setIgnoreOcrErrors] = useState(true)
-  const [storeResponses, setStoreResponses] = useState(APP_SETTINGS.storeResponsesDefault ?? false)
+  const [disableResponseLogging, setDisableResponseLogging] = useState(
+    APP_SETTINGS.disableResponseLoggingDefault ?? true
+  )
+  const [viewPromptEnabled, setViewPromptEnabled] = useState(APP_SETTINGS.viewPromptDefault ?? true)
+  const [showPromptPanel, setShowPromptPanel] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsDropdownRef = useRef(null)
   const [topic, setTopic] = useState(APP_SETTINGS.defaults.topic)
@@ -234,7 +238,7 @@ export default function App() {
   function buildLlmRequest(messages) {
     return {
       model: selectedModel,
-      store: storeResponses,
+      store: !disableResponseLogging,
       systemPrompt: 'You are a highly skilled assistant to an experienced professional in the field indicated.',
       messages
     }
@@ -490,10 +494,25 @@ export default function App() {
             <label className="checkbox-label">
               <input
                 type="checkbox"
-                checked={storeResponses}
-                onChange={(event) => setStoreResponses(event.target.checked)}
+                checked={disableResponseLogging}
+                onChange={(event) => setDisableResponseLogging(event.target.checked)}
               />
-              Allow OpenAI response logging (`store`)
+              Disable response logging
+            </label>
+
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={viewPromptEnabled}
+                onChange={(event) => {
+                  const enabled = event.target.checked
+                  setViewPromptEnabled(enabled)
+                  if (!enabled) {
+                    setShowPromptPanel(false)
+                  }
+                }}
+              />
+              View Prompt
             </label>
           </div>
         ) : null}
@@ -582,10 +601,24 @@ export default function App() {
         </section>
 
         <section className="card action-panel right-aligned">
-          <button type="button" onClick={() => invokeOperation(OPERATIONS.CRITIQUE_PRIMARY)}>
-            Critique Primary Document
-          </button>
+          <div className="action-buttons">
+            <button type="button" onClick={() => invokeOperation(OPERATIONS.CRITIQUE_PRIMARY)}>
+              Critique Document
+            </button>
+            {viewPromptEnabled ? (
+              <button type="button" onClick={() => setShowPromptPanel((open) => !open)}>
+                View Prompt
+              </button>
+            ) : null}
+          </div>
         </section>
+
+        {viewPromptEnabled && showPromptPanel ? (
+          <section className="card prompt-preview-card">
+            <h2>Prompt Preview</h2>
+            <pre>{JSON.stringify(buildPrimaryCritiqueRequest(), null, 2)}</pre>
+          </section>
+        ) : null}
       </PageShell>
     )
   }
