@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import logo from './assets/docdoc-logo.svg'
 import { APP_SETTINGS } from './config/appSettings'
 
@@ -204,6 +204,7 @@ export default function App() {
   const [selectedModel, setSelectedModel] = useState(APP_SETTINGS.defaultModel)
   const [ignoreOcrErrors, setIgnoreOcrErrors] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const settingsDropdownRef = useRef(null)
   const [topic, setTopic] = useState(APP_SETTINGS.defaults.topic)
   const [objective, setObjective] = useState(APP_SETTINGS.defaults.reviewObjective)
   const [guidance, setGuidance] = useState(APP_SETTINGS.defaults.formattingGuidance)
@@ -401,9 +402,35 @@ export default function App() {
     return <div className="error-banner">{error}</div>
   }
 
+  useEffect(() => {
+    function handlePointerDown(event) {
+      if (!settingsOpen) {
+        return
+      }
+
+      if (settingsDropdownRef.current && !settingsDropdownRef.current.contains(event.target)) {
+        setSettingsOpen(false)
+      }
+    }
+
+    function handleEscape(event) {
+      if (event.key === 'Escape') {
+        setSettingsOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleEscape)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [settingsOpen])
+
   function renderSettingsControl() {
     return (
-      <div className="settings-dropdown">
+      <div className="settings-dropdown" ref={settingsDropdownRef}>
         <button
           type="button"
           className="settings-button"
@@ -415,6 +442,9 @@ export default function App() {
         </button>
         {settingsOpen ? (
           <div id="settings-panel" className="gear-settings-panel field-group">
+            <button type="button" className="settings-close" onClick={() => setSettingsOpen(false)}>
+              Close
+            </button>
             <label>
               LLM Model
               <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
@@ -424,6 +454,26 @@ export default function App() {
                   </option>
                 ))}
               </select>
+            </label>
+
+            <label>
+              {APP_SETTINGS.labels.defaultTopic}
+              <textarea value={topic} onChange={(event) => setTopic(event.target.value)} rows={3} />
+            </label>
+
+            <label>
+              {APP_SETTINGS.labels.reviewObjective}
+              <textarea value={objective} onChange={(event) => setObjective(event.target.value)} rows={3} />
+            </label>
+
+            <label>
+              {APP_SETTINGS.labels.formattingGuidance}
+              <textarea value={guidance} onChange={(event) => setGuidance(event.target.value)} rows={3} />
+            </label>
+
+            <label>
+              {APP_SETTINGS.labels.antiGuidance}
+              <textarea value={antiGuidance} onChange={(event) => setAntiGuidance(event.target.value)} rows={3} />
             </label>
 
             <label className="checkbox-label">

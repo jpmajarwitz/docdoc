@@ -229,13 +229,24 @@ h1 {
   position: absolute;
   right: 0;
   top: calc(100% + 0.5rem);
-  width: min(420px, 86vw);
+  width: min(560px, 92vw);
+  max-height: min(70vh, 760px);
+  overflow: auto;
   z-index: 5;
   background: #fff;
   border: 1px solid #d9c2f3;
   border-radius: 14px;
   box-shadow: 0 14px 30px rgba(107, 33, 168, 0.14);
   padding: 0.95rem;
+}
+
+.settings-close {
+  justify-self: end;
+  border-radius: 999px;
+  border: 1px solid #d9c2f3;
+  background: #faf5ff;
+  color: #6b21a8;
+  padding: 0.15rem 0.65rem;
 }
 
 .checkbox-label {
