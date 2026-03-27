@@ -203,6 +203,7 @@ export default function App() {
   const [priorResponseFile, setPriorResponseFile] = useState(null)
   const [selectedModel, setSelectedModel] = useState(APP_SETTINGS.defaultModel)
   const [ignoreOcrErrors, setIgnoreOcrErrors] = useState(true)
+  const [storeResponses, setStoreResponses] = useState(APP_SETTINGS.storeResponsesDefault ?? false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsDropdownRef = useRef(null)
   const [topic, setTopic] = useState(APP_SETTINGS.defaults.topic)
@@ -233,6 +234,7 @@ export default function App() {
   function buildLlmRequest(messages) {
     return {
       model: selectedModel,
+      store: storeResponses,
       systemPrompt: 'You are a highly skilled assistant to an experienced professional in the field indicated.',
       messages
     }
@@ -483,6 +485,15 @@ export default function App() {
                 onChange={(event) => setIgnoreOcrErrors(event.target.checked)}
               />
               Ignore obvious OCR misspellings
+            </label>
+
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={storeResponses}
+                onChange={(event) => setStoreResponses(event.target.checked)}
+              />
+              Allow OpenAI response logging (`store`)
             </label>
           </div>
         ) : null}

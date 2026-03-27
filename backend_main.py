@@ -26,6 +26,7 @@ class LlmRequest(BaseModel):
     model: str = 'gpt-5-mini'
     system_prompt: str = Field(..., alias='systemPrompt')
     messages: list[dict[str, Any]]
+    store: bool = False
 
 
 class LlmResponse(BaseModel):
@@ -108,6 +109,7 @@ async def invoke_llm(llm_request: LlmRequest, file_map: dict[str, UploadFile | N
 
     response = client.responses.create(
         model=llm_request.model,
+        store=llm_request.store,
         input=[
             {'role': 'system', 'content': llm_request.system_prompt},
             {'role': 'user', 'content': content},

@@ -115,6 +115,7 @@ function php_backend_validate_llm_request($payload)
         'model' => !empty($payload['model']) ? $payload['model'] : 'gpt-5-mini',
         'systemPrompt' => $payload['systemPrompt'],
         'messages' => $payload['messages'],
+        'store' => isset($payload['store']) ? (bool) $payload['store'] : false,
     ];
 }
 
@@ -247,6 +248,7 @@ function php_backend_invoke_llm($llmRequest, $fileMap, $config)
 
     $requestBody = [
         'model' => $llmRequest['model'],
+        'store' => !empty($llmRequest['store']),
         'input' => [
             [
                 'role' => 'system',
