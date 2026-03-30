@@ -309,8 +309,20 @@ export default function App() {
       prior_response_document: priorResponseFile
     })
 
+    const openAiEndpoint =
+      selectedApiMode === 'chat'
+        ? 'https://api.openai.com/v1/chat/completions'
+        : 'https://api.openai.com/v1/responses'
+
     if (selectedApiMode !== 'chat') {
-      return JSON.stringify(requestPayload, null, 2)
+      return JSON.stringify(
+        {
+          openAiEndpoint,
+          ...requestPayload
+        },
+        null,
+        2
+      )
     }
 
     const chatContent = requestPayload.messages.map((item) =>
@@ -321,6 +333,7 @@ export default function App() {
 
     return JSON.stringify(
       {
+        openAiEndpoint,
         model: requestPayload.model,
         store: requestPayload.store,
         messages: [
