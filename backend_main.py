@@ -23,6 +23,7 @@ app.add_middleware(
 
 
 class LlmRequest(BaseModel):
+    api_mode: str = Field('responses', alias='apiMode')
     model: str = 'gpt-5-mini'
     system_prompt: str = Field(..., alias='systemPrompt')
     messages: list[dict[str, Any]]
@@ -107,23 +108,52 @@ async def invoke_llm(llm_request: LlmRequest, file_map: dict[str, UploadFile | N
     client = get_client()
     content = await build_input_content(llm_request, file_map, client)
 
-    response = client.responses.create(
-        model=llm_request.model,
-        store=llm_request.store,
-        input=[
-            {'role': 'system', 'content': llm_request.system_prompt},
-            {'role': 'user', 'content': content},
-        ],
-    )
+    if llm_request.api_mode == 'chat':
+        chat_content: list[dict[str, Any]] = []
+        for item in content:
+            if item['type'] == 'input_text':
+                chat_content.append({'type': 'text', 'text': item.get('text', '')})
+            elif item['type'] == 'input_file':
+                chat_content.append({'type': 'file', 'file': {'file_id': item['file_id']}})
 
-    output_text = response.output_text
-    if not output_text:
-        output_text = '\n'.join(
-            item.get('text', '')
-            for output_item in response.output or []
-            for item in output_item.get('content', [])
-            if isinstance(item, dict)
-        ).strip()
+        response = client.chat.completions.create(
+            model=llm_request.model,
+            store=llm_request.store,
+            messages=[
+                {'role': 'system', 'content': llm_request.system_prompt},
+                {'role': 'user', 'content': chat_content},
+            ],
+        )
+
+        message_content = response.choices[0].message.content if response.choices else ''
+        if isinstance(message_content, str):
+            output_text = message_content
+        elif isinstance(message_content, list):
+            output_text = '\n'.join(
+                item.get('text', '')
+                for item in message_content
+                if isinstance(item, dict) and item.get('type') == 'text'
+            ).strip()
+        else:
+            output_text = ''
+    else:
+        response = client.responses.create(
+            model=llm_request.model,
+            store=llm_request.store,
+            input=[
+                {'role': 'system', 'content': llm_request.system_prompt},
+                {'role': 'user', 'content': content},
+            ],
+        )
+
+        output_text = response.output_text
+        if not output_text:
+            output_text = '\n'.join(
+                item.get('text', '')
+                for output_item in response.output or []
+                for item in output_item.get('content', [])
+                if isinstance(item, dict)
+            ).strip()
 
     return LlmResponse(outputText=output_text or 'No output text returned.')
 

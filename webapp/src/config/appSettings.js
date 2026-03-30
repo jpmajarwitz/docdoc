@@ -4,6 +4,11 @@ export const APP_SETTINGS = {
     { value: 'gpt-5', label: 'gpt-5' },
     { value: 'gpt-4.1-mini', label: 'gpt-4.1-mini' }
   ],
+  apiModes: [
+    { value: 'responses', label: 'responses' },
+    { value: 'chat', label: 'chat' }
+  ],
+  defaultApiMode: 'responses',
   defaultModel: 'gpt-5-mini',
   labels: {
     defaultTopic: 'Default Topic',

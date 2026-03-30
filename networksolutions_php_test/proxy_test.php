@@ -119,6 +119,7 @@ if (!function_exists('curl_init')) {
 
 $config = load_config();
 $apiKey = get_openai_api_key($config);
+$apiMode = trim($_POST['api_mode'] ?? 'responses');
 $model = trim($_POST['model'] ?? ($config['default_model'] ?? 'gpt-5-mini'));
 $prompt = trim($_POST['prompt'] ?? '');
 
@@ -156,19 +157,49 @@ if ($fileId) {
     ];
 }
 
-$requestBody = [
-    'model' => $model,
-    'store' => false,
-    'input' => [
+$endpoint = 'https://api.openai.com/v1/responses';
+if ($apiMode === 'chat') {
+    $chatContent = [
         [
-            'role' => 'user',
-            'content' => $content,
+            'type' => 'text',
+            'text' => $prompt,
         ],
-    ],
-];
+    ];
+    if ($fileId) {
+        $chatContent[] = [
+            'type' => 'file',
+            'file' => [
+                'file_id' => $fileId,
+            ],
+        ];
+    }
+
+    $requestBody = [
+        'model' => $model,
+        'store' => false,
+        'messages' => [
+            [
+                'role' => 'user',
+                'content' => $chatContent,
+            ],
+        ],
+    ];
+    $endpoint = 'https://api.openai.com/v1/chat/completions';
+} else {
+    $requestBody = [
+        'model' => $model,
+        'store' => false,
+        'input' => [
+            [
+                'role' => 'user',
+                'content' => $content,
+            ],
+        ],
+    ];
+}
 
 [$httpCode, $body] = curl_json_request(
-    'https://api.openai.com/v1/responses',
+    $endpoint,
     [
         'Authorization: Bearer ' . $apiKey,
         'Content-Type: application/json',
@@ -187,6 +218,22 @@ if ($httpCode < 200 || $httpCode >= 300) {
 }
 
 $outputText = $decoded['output_text'] ?? null;
+if (!$outputText && !empty($decoded['choices']) && is_array($decoded['choices'])) {
+    $choice = $decoded['choices'][0] ?? [];
+    $message = $choice['message'] ?? [];
+    if (isset($message['content']) && is_string($message['content'])) {
+        $outputText = $message['content'];
+    } elseif (isset($message['content']) && is_array($message['content'])) {
+        $chunks = [];
+        foreach ($message['content'] as $contentItem) {
+            if (($contentItem['type'] ?? '') === 'text' && isset($contentItem['text'])) {
+                $chunks[] = $contentItem['text'];
+            }
+        }
+        $outputText = trim(implode("\n", $chunks));
+    }
+}
+
 if (!$outputText && !empty($decoded['output']) && is_array($decoded['output'])) {
     $chunks = [];
     foreach ($decoded['output'] as $item) {

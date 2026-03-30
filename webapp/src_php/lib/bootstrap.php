@@ -112,6 +112,7 @@ function php_backend_validate_llm_request($payload)
     }
 
     return [
+        'apiMode' => !empty($payload['apiMode']) ? $payload['apiMode'] : 'responses',
         'model' => !empty($payload['model']) ? $payload['model'] : 'gpt-5-mini',
         'systemPrompt' => $payload['systemPrompt'],
         'messages' => $payload['messages'],
@@ -218,6 +219,27 @@ function php_backend_build_input_content($llmRequest, $fileMap, $apiKey)
 
 function php_backend_extract_output_text($decoded)
 {
+    if (!empty($decoded['choices']) && is_array($decoded['choices'])) {
+        $firstChoice = $decoded['choices'][0] ?? [];
+        $message = $firstChoice['message'] ?? [];
+        $content = $message['content'] ?? '';
+        if (is_string($content) && trim($content) !== '') {
+            return $content;
+        }
+        if (is_array($content)) {
+            $chunks = [];
+            foreach ($content as $item) {
+                if (($item['type'] ?? '') === 'text' && isset($item['text'])) {
+                    $chunks[] = $item['text'];
+                }
+            }
+            $joined = trim(implode("\n", $chunks));
+            if ($joined !== '') {
+                return $joined;
+            }
+        }
+    }
+
     if (!empty($decoded['output_text'])) {
         return $decoded['output_text'];
     }
@@ -246,23 +268,60 @@ function php_backend_invoke_llm($llmRequest, $fileMap, $config)
     $apiKey = php_backend_get_api_key($config);
     $content = php_backend_build_input_content($llmRequest, $fileMap, $apiKey);
 
-    $requestBody = [
-        'model' => $llmRequest['model'],
-        'store' => !empty($llmRequest['store']),
-        'input' => [
-            [
-                'role' => 'system',
-                'content' => $llmRequest['systemPrompt'],
+    $apiMode = !empty($llmRequest['apiMode']) ? $llmRequest['apiMode'] : 'responses';
+    if ($apiMode === 'chat') {
+        $chatContent = [];
+        foreach ($content as $item) {
+            if (($item['type'] ?? '') === 'input_text') {
+                $chatContent[] = [
+                    'type' => 'text',
+                    'text' => $item['text'] ?? '',
+                ];
+            } elseif (($item['type'] ?? '') === 'input_file') {
+                $chatContent[] = [
+                    'type' => 'file',
+                    'file' => [
+                        'file_id' => $item['file_id'] ?? '',
+                    ],
+                ];
+            }
+        }
+
+        $requestBody = [
+            'model' => $llmRequest['model'],
+            'store' => !empty($llmRequest['store']),
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => $llmRequest['systemPrompt'],
+                ],
+                [
+                    'role' => 'user',
+                    'content' => $chatContent,
+                ],
             ],
-            [
-                'role' => 'user',
-                'content' => $content,
+        ];
+        $endpoint = 'https://api.openai.com/v1/chat/completions';
+    } else {
+        $requestBody = [
+            'model' => $llmRequest['model'],
+            'store' => !empty($llmRequest['store']),
+            'input' => [
+                [
+                    'role' => 'system',
+                    'content' => $llmRequest['systemPrompt'],
+                ],
+                [
+                    'role' => 'user',
+                    'content' => $content,
+                ],
             ],
-        ],
-    ];
+        ];
+        $endpoint = 'https://api.openai.com/v1/responses';
+    }
 
     list($status, $body) = php_backend_curl_request(
-        'https://api.openai.com/v1/responses',
+        $endpoint,
         [
             'Authorization: Bearer ' . $apiKey,
             'Content-Type: application/json',

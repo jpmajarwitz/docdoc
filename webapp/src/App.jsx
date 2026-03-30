@@ -201,6 +201,7 @@ export default function App() {
   const [docFile, setDocFile] = useState(null)
   const [supportingFile, setSupportingFile] = useState(null)
   const [priorResponseFile, setPriorResponseFile] = useState(null)
+  const [selectedApiMode, setSelectedApiMode] = useState(APP_SETTINGS.defaultApiMode || 'responses')
   const [selectedModel, setSelectedModel] = useState(APP_SETTINGS.defaultModel)
   const [ignoreOcrErrors, setIgnoreOcrErrors] = useState(true)
   const [disableResponseLogging, setDisableResponseLogging] = useState(
@@ -239,6 +240,7 @@ export default function App() {
 
   function buildLlmRequest(messages) {
     return {
+      apiMode: selectedApiMode,
       model: selectedModel,
       store: !disableResponseLogging,
       systemPrompt: 'You are a highly skilled assistant to an experienced professional in the field indicated.',
@@ -307,7 +309,28 @@ export default function App() {
       prior_response_document: priorResponseFile
     })
 
-    return JSON.stringify(requestPayload, null, 2)
+    if (selectedApiMode !== 'chat') {
+      return JSON.stringify(requestPayload, null, 2)
+    }
+
+    const chatContent = requestPayload.messages.map((item) =>
+      item.type === 'input_text'
+        ? { type: 'text', text: item.text || '' }
+        : { type: 'file', file: { source: item.source || 'file_reference' } }
+    )
+
+    return JSON.stringify(
+      {
+        model: requestPayload.model,
+        store: requestPayload.store,
+        messages: [
+          { role: 'system', content: requestPayload.systemPrompt },
+          { role: 'user', content: chatContent }
+        ]
+      },
+      null,
+      2
+    )
   }
 
   function buildPrimaryCritiqueRequest() {
@@ -542,6 +565,16 @@ export default function App() {
               Close
             </button>
             <label>
+              API Mode
+              <select value={selectedApiMode} onChange={(event) => setSelectedApiMode(event.target.value)}>
+                {APP_SETTINGS.apiModes.map((apiModeOption) => (
+                  <option key={apiModeOption.value} value={apiModeOption.value}>
+                    {apiModeOption.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
               LLM Model
               <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
                 {APP_SETTINGS.llmModels.map((modelOption) => (
@@ -638,6 +671,7 @@ export default function App() {
   }, [
     showPromptPanel,
     viewPromptEnabled,
+    selectedApiMode,
     bypassFileInput,
     topic,
     objective,

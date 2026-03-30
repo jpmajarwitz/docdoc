@@ -38,10 +38,10 @@
         font-weight: 700;
         color: #6b21a8;
       }
-      input, textarea, button {
+      input, textarea, select, button {
         font: inherit;
       }
-      input, textarea {
+      input, textarea, select {
         border: 1px solid #ccb9e8;
         border-radius: 12px;
         padding: 0.85rem 1rem;
@@ -101,6 +101,14 @@
       <section class="card">
         <form id="test-form">
           <label>
+            API Mode
+            <select name="api_mode">
+              <option value="responses" selected>responses</option>
+              <option value="chat">chat</option>
+            </select>
+          </label>
+
+          <label>
             Model
             <input type="text" name="model" value="gpt-5-mini" />
           </label>
@@ -139,6 +147,7 @@
 
       function buildRequestPreview(formData) {
         const model = formData.get('model') || ''
+        const apiMode = formData.get('api_mode') || 'responses'
         const prompt = formData.get('prompt') || ''
         const documentFile = formData.get('document')
         const fileName =
@@ -147,6 +156,7 @@
         return JSON.stringify(
           {
             endpoint: 'POST proxy_test.php',
+            api_mode: apiMode,
             model,
             store: false,
             prompt,
