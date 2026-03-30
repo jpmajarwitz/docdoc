@@ -209,6 +209,7 @@ export default function App() {
   const [viewPromptEnabled, setViewPromptEnabled] = useState(APP_SETTINGS.viewPromptDefault ?? true)
   const [bypassFileInput, setBypassFileInput] = useState(APP_SETTINGS.bypassFileInputDefault ?? true)
   const [showPromptPanel, setShowPromptPanel] = useState(false)
+  const [promptPreviewText, setPromptPreviewText] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsDropdownRef = useRef(null)
   const [topic, setTopic] = useState(APP_SETTINGS.defaults.topic)
@@ -296,6 +297,17 @@ export default function App() {
     }
 
     return built
+  }
+
+  async function buildPrimaryPromptPreviewText() {
+    const requestPayload = buildPrimaryCritiqueRequest()
+    requestPayload.messages = await maybeBypassFileMessages(requestPayload.messages, {
+      primary_document: docFile,
+      supporting_document: supportingFile,
+      prior_response_document: priorResponseFile
+    })
+
+    return JSON.stringify(requestPayload, null, 2)
   }
 
   function buildPrimaryCritiqueRequest() {
@@ -607,6 +619,38 @@ export default function App() {
     )
   }
 
+  useEffect(() => {
+    if (!showPromptPanel || !viewPromptEnabled) {
+      return
+    }
+
+    let cancelled = false
+    ;(async () => {
+      const previewText = await buildPrimaryPromptPreviewText()
+      if (!cancelled) {
+        setPromptPreviewText(previewText)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    showPromptPanel,
+    viewPromptEnabled,
+    bypassFileInput,
+    topic,
+    objective,
+    guidance,
+    antiGuidance,
+    ignoreOcrErrors,
+    supportInstructions,
+    priorInstructions,
+    docFile,
+    supportingFile,
+    priorResponseFile
+  ])
+
   if (currentMode === MODES.DOC_DEFINE) {
     return (
       <PageShell mode={MODES.DOC_DEFINE} topRightControls={renderSettingsControl()}>
@@ -693,7 +737,19 @@ export default function App() {
               Critique Document
             </button>
             {viewPromptEnabled ? (
-              <button type="button" onClick={() => setShowPromptPanel((open) => !open)}>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (showPromptPanel) {
+                    setShowPromptPanel(false)
+                    return
+                  }
+
+                  setPromptPreviewText('Building prompt preview...')
+                  setShowPromptPanel(true)
+                  setPromptPreviewText(await buildPrimaryPromptPreviewText())
+                }}
+              >
                 View Prompt
               </button>
             ) : null}
@@ -703,7 +759,7 @@ export default function App() {
         {viewPromptEnabled && showPromptPanel ? (
           <section className="card prompt-preview-card">
             <h2>Prompt Preview</h2>
-            <pre>{JSON.stringify(buildPrimaryCritiqueRequest(), null, 2)}</pre>
+            <pre>{promptPreviewText}</pre>
           </section>
         ) : null}
       </PageShell>
