@@ -347,10 +347,16 @@ function php_backend_invoke_llm($llmRequest, $fileMap, $config)
         php_backend_error(502, 'Backend request failed.');
     }
 
+    $deleteLogs = null;
     if (!empty($llmRequest['deleteFileOnLlm'])) {
+        $deleteLogs = [
+            'deleteRequested' => true,
+            'scheduled' => false,
+            'files' => [],
+        ];
         foreach ($content as $item) {
             if (($item['type'] ?? '') === 'input_file' && !empty($item['file_id'])) {
-                php_backend_curl_request(
+                list($deleteStatus, $deleteBody) = php_backend_curl_request(
                     'https://api.openai.com/v1/files/' . rawurlencode($item['file_id']),
                     [
                         'Authorization: Bearer ' . $apiKey,
@@ -358,11 +364,23 @@ function php_backend_invoke_llm($llmRequest, $fileMap, $config)
                     '',
                     'DELETE'
                 );
+                $deleteLogs['files'][] = [
+                    'fileId' => $item['file_id'],
+                    'status' => $deleteStatus,
+                    'response' => $deleteBody,
+                ];
             }
         }
+    } elseif (!empty($content)) {
+        $deleteLogs = [
+            'deleteRequested' => false,
+            'scheduled' => false,
+            'note' => 'Deletion disabled by request.',
+        ];
     }
 
     return [
         'outputText' => php_backend_extract_output_text($decoded),
+        'deleteLogs' => $deleteLogs,
     ];
 }

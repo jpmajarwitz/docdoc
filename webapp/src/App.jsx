@@ -176,7 +176,7 @@ async function postMultipart(endpoint, payload, fileEntries = {}) {
     throw new Error(data.detail || 'Backend request failed.')
   }
 
-  return data.outputText
+  return data
 }
 
 async function postJson(endpoint, payload) {
@@ -193,7 +193,7 @@ async function postJson(endpoint, payload) {
     throw new Error(data.detail || 'Backend request failed.')
   }
 
-  return data.outputText
+  return data
 }
 
 export default function App() {
@@ -439,7 +439,7 @@ export default function App() {
     await new Promise((resolve) => window.setTimeout(resolve, 0))
 
     try {
-      const outputText =
+      const llmData =
         operation === OPERATIONS.CRITIQUE_PRIMARY
           ? await (async () => {
               const requestPayload = buildPrimaryCritiqueRequest()
@@ -475,6 +475,13 @@ export default function App() {
                 )
               })()
             : await postJson(API_ENDPOINTS[operation], buildChangedDocCritiqueRequest())
+
+      const outputText = llmData.outputText
+
+      if (llmData.deleteLogs) {
+        // eslint-disable-next-line no-console
+        console.log('[Delete_File_On_LLM] request/response logs:', llmData.deleteLogs)
+      }
 
       if (operation === OPERATIONS.APPLY_CHANGE_ITEMS) {
         setChangedDocumentMarkdown(outputText)

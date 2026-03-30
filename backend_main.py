@@ -34,6 +34,7 @@ class LlmRequest(BaseModel):
 
 class LlmResponse(BaseModel):
     output_text: str = Field(..., alias='outputText')
+    delete_logs: dict[str, Any] | None = Field(default=None, alias='deleteLogs')
 
 
 def get_client() -> OpenAI:
@@ -167,10 +168,24 @@ async def invoke_llm(llm_request: LlmRequest, file_map: dict[str, UploadFile | N
                 if isinstance(item, dict)
             ).strip()
 
+    delete_logs: dict[str, Any] | None = None
     if llm_request.delete_file_on_llm and uploaded_file_ids:
         asyncio.create_task(delete_uploaded_files(client, uploaded_file_ids))
+        delete_logs = {
+            'deleteRequested': True,
+            'scheduled': True,
+            'fileIds': uploaded_file_ids,
+            'note': 'Deletion scheduled in background.'
+        }
+    elif uploaded_file_ids:
+        delete_logs = {
+            'deleteRequested': False,
+            'scheduled': False,
+            'fileIds': uploaded_file_ids,
+            'note': 'Deletion disabled by request.'
+        }
 
-    return LlmResponse(outputText=output_text or 'No output text returned.')
+    return LlmResponse(outputText=output_text or 'No output text returned.', deleteLogs=delete_logs)
 
 
 @app.post('/api/critique', response_model=LlmResponse)
