@@ -120,6 +120,11 @@
       </section>
 
       <section class="card">
+        <h2>Request</h2>
+        <pre id="request-output">No request prepared yet.</pre>
+      </section>
+
+      <section class="card">
         <h2>Result</h2>
         <p id="status" class="status">Ready.</p>
         <pre id="output">No request sent yet.</pre>
@@ -130,6 +135,26 @@
       const form = document.getElementById('test-form')
       const statusEl = document.getElementById('status')
       const outputEl = document.getElementById('output')
+      const requestOutputEl = document.getElementById('request-output')
+
+      function buildRequestPreview(formData) {
+        const model = formData.get('model') || ''
+        const prompt = formData.get('prompt') || ''
+        const documentFile = formData.get('document')
+        const fileName =
+          documentFile && typeof documentFile === 'object' && documentFile.name ? documentFile.name : '(none)'
+
+        return JSON.stringify(
+          {
+            endpoint: 'POST proxy_test.php',
+            model,
+            prompt,
+            document: fileName,
+          },
+          null,
+          2
+        )
+      }
 
       form.addEventListener('submit', async (event) => {
         event.preventDefault()
@@ -138,6 +163,7 @@
 
         try {
           const formData = new FormData(form)
+          requestOutputEl.textContent = buildRequestPreview(formData)
           const response = await fetch('proxy_test.php', {
             method: 'POST',
             body: formData,
