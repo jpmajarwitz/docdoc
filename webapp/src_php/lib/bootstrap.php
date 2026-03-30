@@ -55,6 +55,15 @@ function php_backend_error($status, $detail)
     php_backend_json_response($status, ['detail' => $detail]);
 }
 
+function php_backend_log($event, $context = [])
+{
+    $payload = [
+        'event' => $event,
+        'context' => $context,
+    ];
+    error_log('[docdoc] ' . json_encode($payload));
+}
+
 function php_backend_require_method($method)
 {
     if ($_SERVER['REQUEST_METHOD'] !== $method) {
@@ -280,6 +289,10 @@ function php_backend_invoke_llm($llmRequest, $fileMap, $config)
 {
     $apiKey = php_backend_get_api_key($config);
     $content = php_backend_build_input_content($llmRequest, $fileMap, $apiKey);
+    php_backend_log('llm_invoke_start', [
+        'apiMode' => $llmRequest['apiMode'] ?? 'responses',
+        'deleteFileOnLlm' => !empty($llmRequest['deleteFileOnLlm']),
+    ]);
 
     $apiMode = !empty($llmRequest['apiMode']) ? $llmRequest['apiMode'] : 'responses';
     if ($apiMode === 'chat') {
@@ -369,6 +382,11 @@ function php_backend_invoke_llm($llmRequest, $fileMap, $config)
                     'status' => $deleteStatus,
                     'response' => $deleteBody,
                 ];
+                php_backend_log('openai_file_delete', [
+                    'fileId' => $item['file_id'],
+                    'status' => $deleteStatus,
+                    'response' => $deleteBody,
+                ]);
             }
         }
     } elseif (!empty($content)) {

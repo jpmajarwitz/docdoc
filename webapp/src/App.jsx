@@ -478,10 +478,13 @@ export default function App() {
 
       const outputText = llmData.outputText
 
-      if (llmData.deleteLogs) {
-        // eslint-disable-next-line no-console
-        console.log('[Delete_File_On_LLM] request/response logs:', llmData.deleteLogs)
-      }
+      // eslint-disable-next-line no-console
+      console.info('[Delete_File_On_LLM] operation response:', {
+        operation,
+        apiMode: selectedApiMode,
+        deleteFileOnLlm,
+        deleteLogs: llmData.deleteLogs || null,
+      })
 
       if (operation === OPERATIONS.APPLY_CHANGE_ITEMS) {
         setChangedDocumentMarkdown(outputText)
@@ -588,7 +591,7 @@ export default function App() {
             </button>
             <label>
               API Mode
-              <select value={selectedApiMode} onChange={(event) => setSelectedApiMode(event.target.value)}>
+              <select name="api_mode" value={selectedApiMode} onChange={(event) => setSelectedApiMode(event.target.value)}>
                 {APP_SETTINGS.apiModes.map((apiModeOption) => (
                   <option key={apiModeOption.value} value={apiModeOption.value}>
                     {apiModeOption.label}
@@ -598,7 +601,7 @@ export default function App() {
             </label>
             <label>
               LLM Model
-              <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
+              <select name="llm_model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
                 {APP_SETTINGS.llmModels.map((modelOption) => (
                   <option key={modelOption.value} value={modelOption.value}>
                     {modelOption.label}
@@ -609,27 +612,28 @@ export default function App() {
 
             <label>
               {APP_SETTINGS.labels.defaultTopic}
-              <textarea value={topic} onChange={(event) => setTopic(event.target.value)} rows={3} />
+              <textarea name="default_topic" value={topic} onChange={(event) => setTopic(event.target.value)} rows={3} />
             </label>
 
             <label>
               {APP_SETTINGS.labels.reviewObjective}
-              <textarea value={objective} onChange={(event) => setObjective(event.target.value)} rows={3} />
+              <textarea name="review_objective" value={objective} onChange={(event) => setObjective(event.target.value)} rows={3} />
             </label>
 
             <label>
               {APP_SETTINGS.labels.formattingGuidance}
-              <textarea value={guidance} onChange={(event) => setGuidance(event.target.value)} rows={3} />
+              <textarea name="formatting_guidance" value={guidance} onChange={(event) => setGuidance(event.target.value)} rows={3} />
             </label>
 
             <label>
               {APP_SETTINGS.labels.antiGuidance}
-              <textarea value={antiGuidance} onChange={(event) => setAntiGuidance(event.target.value)} rows={3} />
+              <textarea name="anti_guidance" value={antiGuidance} onChange={(event) => setAntiGuidance(event.target.value)} rows={3} />
             </label>
 
             <label className="checkbox-label">
-              <input
-                type="checkbox"
+                <input
+                  name="ignore_ocr_errors"
+                  type="checkbox"
                 checked={ignoreOcrErrors}
                 onChange={(event) => setIgnoreOcrErrors(event.target.checked)}
               />
@@ -637,8 +641,9 @@ export default function App() {
             </label>
 
             <label className="checkbox-label">
-              <input
-                type="checkbox"
+                <input
+                  name="disable_response_logging"
+                  type="checkbox"
                 checked={disableResponseLogging}
                 onChange={(event) => setDisableResponseLogging(event.target.checked)}
               />
@@ -646,8 +651,9 @@ export default function App() {
             </label>
 
             <label className="checkbox-label">
-              <input
-                type="checkbox"
+                <input
+                  name="view_prompt"
+                  type="checkbox"
                 checked={viewPromptEnabled}
                 onChange={(event) => {
                   const enabled = event.target.checked
@@ -661,8 +667,9 @@ export default function App() {
             </label>
 
             <label className="checkbox-label">
-              <input
-                type="checkbox"
+                <input
+                  name="bypass_file_input"
+                  type="checkbox"
                 checked={bypassFileInput}
                 onChange={(event) => setBypassFileInput(event.target.checked)}
               />
@@ -670,8 +677,9 @@ export default function App() {
             </label>
 
             <label className="checkbox-label">
-              <input
-                type="checkbox"
+                <input
+                  name="delete_file_on_llm"
+                  type="checkbox"
                 checked={deleteFileOnLlm}
                 onChange={(event) => setDeleteFileOnLlm(event.target.checked)}
               />
@@ -724,7 +732,7 @@ export default function App() {
         <section className="card primary-upload-card">
           <div className="primary-upload-inner">
             <h2>Select primary document</h2>
-            <input type="file" onChange={(event) => setDocFile(event.target.files?.[0] || null)} />
+            <input name="primary_document" type="file" onChange={(event) => setDocFile(event.target.files?.[0] || null)} />
           </div>
         </section>
 
@@ -733,11 +741,11 @@ export default function App() {
             <h2>Primary document definition</h2>
             <label>
               {APP_SETTINGS.labels.defaultTopic}
-              <textarea value={topic} onChange={(event) => setTopic(event.target.value)} rows={3} />
+              <textarea name="topic_main" value={topic} onChange={(event) => setTopic(event.target.value)} rows={3} />
             </label>
             <label>
               {APP_SETTINGS.labels.reviewObjective}
-              <textarea value={objective} onChange={(event) => setObjective(event.target.value)} rows={3} />
+              <textarea name="objective_main" value={objective} onChange={(event) => setObjective(event.target.value)} rows={3} />
             </label>
           </div>
 
@@ -745,11 +753,11 @@ export default function App() {
             <h2>Response guidance</h2>
             <label>
               {APP_SETTINGS.labels.formattingGuidance}
-              <textarea value={guidance} onChange={(event) => setGuidance(event.target.value)} rows={3} />
+              <textarea name="guidance_main" value={guidance} onChange={(event) => setGuidance(event.target.value)} rows={3} />
             </label>
             <label>
               {APP_SETTINGS.labels.antiGuidance}
-              <textarea value={antiGuidance} onChange={(event) => setAntiGuidance(event.target.value)} rows={3} />
+              <textarea name="anti_guidance_main" value={antiGuidance} onChange={(event) => setAntiGuidance(event.target.value)} rows={3} />
             </label>
           </div>
 
@@ -759,6 +767,7 @@ export default function App() {
               <label>
                 Supporting Document
                 <input
+                  name="supporting_document"
                   type="file"
                   onChange={(event) => setSupportingFile(event.target.files?.[0] || null)}
                 />
@@ -766,6 +775,7 @@ export default function App() {
               <label>
                 Supporting Document Context
                 <textarea
+                  name="support_instructions"
                   value={supportInstructions}
                   onChange={(event) => setSupportInstructions(event.target.value)}
                   rows={4}
@@ -780,6 +790,7 @@ export default function App() {
               <label>
                 Prior Response Document
                 <input
+                  name="prior_response_document"
                   type="file"
                   onChange={(event) => setPriorResponseFile(event.target.files?.[0] || null)}
                 />
@@ -787,6 +798,7 @@ export default function App() {
               <label>
                 Prior Response Context
                 <textarea
+                  name="prior_instructions"
                   value={priorInstructions}
                   onChange={(event) => setPriorInstructions(event.target.value)}
                   rows={4}
