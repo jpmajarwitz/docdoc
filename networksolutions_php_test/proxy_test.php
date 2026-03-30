@@ -158,6 +158,7 @@ if ($fileId) {
 
 $requestBody = [
     'model' => $model,
+    'store' => false,
     'input' => [
         [
             'role' => 'user',
