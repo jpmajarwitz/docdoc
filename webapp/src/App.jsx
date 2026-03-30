@@ -207,6 +207,7 @@ export default function App() {
     APP_SETTINGS.disableResponseLoggingDefault ?? true
   )
   const [viewPromptEnabled, setViewPromptEnabled] = useState(APP_SETTINGS.viewPromptDefault ?? true)
+  const [bypassFileInput, setBypassFileInput] = useState(APP_SETTINGS.bypassFileInputDefault ?? true)
   const [showPromptPanel, setShowPromptPanel] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsDropdownRef = useRef(null)
@@ -242,6 +243,59 @@ export default function App() {
       systemPrompt: 'You are a highly skilled assistant to an experienced professional in the field indicated.',
       messages
     }
+  }
+
+  async function readFileAsTextPayload(file) {
+    if (!file) {
+      return ''
+    }
+
+    try {
+      return await file.text()
+    } catch (_error) {
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      const chunkSize = 0x8000
+      let binary = ''
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.slice(i, i + chunkSize))
+      }
+      return `BASE64:${btoa(binary)}`
+    }
+  }
+
+  async function maybeBypassFileMessages(messages, fileEntries = {}) {
+    if (!bypassFileInput) {
+      return messages
+    }
+
+    const sourceLabels = {
+      primary_document: 'PRIMARY DOCUMENT',
+      supporting_document: 'SUPPORTING DOCUMENT',
+      prior_response_document: 'PRIOR RESPONSE DOCUMENT',
+      original_document: 'ORIGINAL DOCUMENT'
+    }
+
+    const built = []
+    for (const message of messages) {
+      if (message.type !== 'input_file') {
+        built.push(message)
+        continue
+      }
+
+      const file = fileEntries[message.source]
+      if (!file) {
+        continue
+      }
+
+      const fileText = await readFileAsTextPayload(file)
+      const label = sourceLabels[message.source] || message.source || 'DOCUMENT'
+      built.push({
+        type: 'input_text',
+        text: `${label} CONTENT START:\n${fileText}\n${label} CONTENT END`
+      })
+    }
+
+    return built
   }
 
   function buildPrimaryCritiqueRequest() {
@@ -337,15 +391,39 @@ export default function App() {
     try {
       const outputText =
         operation === OPERATIONS.CRITIQUE_PRIMARY
-          ? await postMultipart(API_ENDPOINTS[operation], buildPrimaryCritiqueRequest(), {
-              primary_document: docFile,
-              supporting_document: supportingFile,
-              prior_response_document: priorResponseFile
-            })
-          : operation === OPERATIONS.APPLY_CHANGE_ITEMS
-            ? await postMultipart(API_ENDPOINTS[operation], buildApplyChangeItemsRequest(), {
-                original_document: docFile
+          ? await (async () => {
+              const requestPayload = buildPrimaryCritiqueRequest()
+              requestPayload.messages = await maybeBypassFileMessages(requestPayload.messages, {
+                primary_document: docFile,
+                supporting_document: supportingFile,
+                prior_response_document: priorResponseFile
               })
+
+              return postMultipart(
+                API_ENDPOINTS[operation],
+                requestPayload,
+                bypassFileInput
+                  ? {}
+                  : {
+                      primary_document: docFile,
+                      supporting_document: supportingFile,
+                      prior_response_document: priorResponseFile
+                    }
+              )
+            })()
+          : operation === OPERATIONS.APPLY_CHANGE_ITEMS
+            ? await (async () => {
+                const requestPayload = buildApplyChangeItemsRequest()
+                requestPayload.messages = await maybeBypassFileMessages(requestPayload.messages, {
+                  original_document: docFile
+                })
+
+                return postMultipart(
+                  API_ENDPOINTS[operation],
+                  requestPayload,
+                  bypassFileInput ? {} : { original_document: docFile }
+                )
+              })()
             : await postJson(API_ENDPOINTS[operation], buildChangedDocCritiqueRequest())
 
       if (operation === OPERATIONS.APPLY_CHANGE_ITEMS) {
@@ -513,6 +591,15 @@ export default function App() {
                 }}
               />
               View Prompt
+            </label>
+
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={bypassFileInput}
+                onChange={(event) => setBypassFileInput(event.target.checked)}
+              />
+              Bypass_File_Input
             </label>
           </div>
         ) : null}

@@ -131,7 +131,7 @@ async def invoke_llm(llm_request: LlmRequest, file_map: dict[str, UploadFile | N
 @app.post('/api/critique', response_model=LlmResponse)
 async def critique(
     request: str = Form(...),
-    primary_document: UploadFile = File(...),
+    primary_document: UploadFile | None = File(None),
     supporting_document: UploadFile | None = File(None),
     prior_response_document: UploadFile | None = File(None),
 ) -> LlmResponse:
@@ -149,7 +149,7 @@ async def critique(
 @app.post('/api/apply-change-items', response_model=LlmResponse)
 async def apply_change_items(
     request: str = Form(...),
-    original_document: UploadFile = File(...),
+    original_document: UploadFile | None = File(None),
 ) -> LlmResponse:
     llm_request = await parse_form_request(request)
     return await invoke_llm(llm_request, {'original_document': original_document})
