@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import tempfile
@@ -28,6 +29,7 @@ class LlmRequest(BaseModel):
     system_prompt: str = Field(..., alias='systemPrompt')
     messages: list[dict[str, Any]]
     store: bool = False
+    delete_file_on_llm: bool = Field(True, alias='deleteFileOnLlm')
 
 
 class LlmResponse(BaseModel):
@@ -81,8 +83,9 @@ async def build_input_content(
     llm_request: LlmRequest,
     file_map: dict[str, UploadFile | None],
     client: OpenAI,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[str]]:
     built_messages: list[dict[str, Any]] = []
+    uploaded_file_ids: list[str] = []
 
     for message in llm_request.messages:
         message_type = message.get('type')
@@ -99,14 +102,23 @@ async def build_input_content(
             raise HTTPException(status_code=400, detail=f"Missing uploaded file for source '{source}'.")
 
         file_id = await upload_to_openai(client, upload)
+        uploaded_file_ids.append(file_id)
         built_messages.append({'type': 'input_file', 'file_id': file_id})
 
-    return built_messages
+    return built_messages, uploaded_file_ids
+
+
+async def delete_uploaded_files(client: OpenAI, file_ids: list[str]) -> None:
+    for file_id in file_ids:
+        try:
+            await asyncio.to_thread(client.files.delete, file_id)
+        except Exception:
+            continue
 
 
 async def invoke_llm(llm_request: LlmRequest, file_map: dict[str, UploadFile | None]) -> LlmResponse:
     client = get_client()
-    content = await build_input_content(llm_request, file_map, client)
+    content, uploaded_file_ids = await build_input_content(llm_request, file_map, client)
 
     if llm_request.api_mode == 'chat':
         chat_content: list[dict[str, Any]] = []
@@ -154,6 +166,9 @@ async def invoke_llm(llm_request: LlmRequest, file_map: dict[str, UploadFile | N
                 for item in output_item.get('content', [])
                 if isinstance(item, dict)
             ).strip()
+
+    if llm_request.delete_file_on_llm and uploaded_file_ids:
+        asyncio.create_task(delete_uploaded_files(client, uploaded_file_ids))
 
     return LlmResponse(outputText=output_text or 'No output text returned.')
 

@@ -117,23 +117,36 @@ function php_backend_validate_llm_request($payload)
         'systemPrompt' => $payload['systemPrompt'],
         'messages' => $payload['messages'],
         'store' => isset($payload['store']) ? (bool) $payload['store'] : false,
+        'deleteFileOnLlm' => isset($payload['deleteFileOnLlm']) ? (bool) $payload['deleteFileOnLlm'] : true,
     ];
 }
 
-function php_backend_curl_request($url, $headers, $payload)
+function php_backend_curl_request($url, $headers, $payload = '', $method = 'POST')
 {
     if (!function_exists('curl_init')) {
         php_backend_error(500, 'PHP cURL extension is not available on this hosting account.');
     }
 
     $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
+    $options = [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER => $headers,
-        CURLOPT_POSTFIELDS => $payload,
         CURLOPT_TIMEOUT => 180,
-    ]);
+    ];
+
+    if ($method === 'POST') {
+        $options[CURLOPT_POST] = true;
+        $options[CURLOPT_POSTFIELDS] = $payload;
+    } elseif ($method === 'DELETE') {
+        $options[CURLOPT_CUSTOMREQUEST] = 'DELETE';
+    } else {
+        $options[CURLOPT_CUSTOMREQUEST] = $method;
+        if ($payload !== '') {
+            $options[CURLOPT_POSTFIELDS] = $payload;
+        }
+    }
+
+    curl_setopt_array($ch, $options);
 
     $body = curl_exec($ch);
     $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -332,6 +345,21 @@ function php_backend_invoke_llm($llmRequest, $fileMap, $config)
     $decoded = json_decode($body, true);
     if ($status < 200 || $status >= 300 || !is_array($decoded)) {
         php_backend_error(502, 'Backend request failed.');
+    }
+
+    if (!empty($llmRequest['deleteFileOnLlm'])) {
+        foreach ($content as $item) {
+            if (($item['type'] ?? '') === 'input_file' && !empty($item['file_id'])) {
+                php_backend_curl_request(
+                    'https://api.openai.com/v1/files/' . rawurlencode($item['file_id']),
+                    [
+                        'Authorization: Bearer ' . $apiKey,
+                    ],
+                    '',
+                    'DELETE'
+                );
+            }
+        }
     }
 
     return [

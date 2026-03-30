@@ -209,6 +209,7 @@ export default function App() {
   )
   const [viewPromptEnabled, setViewPromptEnabled] = useState(APP_SETTINGS.viewPromptDefault ?? true)
   const [bypassFileInput, setBypassFileInput] = useState(APP_SETTINGS.bypassFileInputDefault ?? true)
+  const [deleteFileOnLlm, setDeleteFileOnLlm] = useState(APP_SETTINGS.deleteFileOnLlmDefault ?? true)
   const [showPromptPanel, setShowPromptPanel] = useState(false)
   const [promptPreviewText, setPromptPreviewText] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -243,6 +244,7 @@ export default function App() {
       apiMode: selectedApiMode,
       model: selectedModel,
       store: !disableResponseLogging,
+      deleteFileOnLlm,
       systemPrompt: 'You are a highly skilled assistant to an experienced professional in the field indicated.',
       messages
     }
@@ -658,6 +660,15 @@ export default function App() {
                 onChange={(event) => setBypassFileInput(event.target.checked)}
               />
               Bypass_File_Input
+            </label>
+
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={deleteFileOnLlm}
+                onChange={(event) => setDeleteFileOnLlm(event.target.checked)}
+              />
+              Delete_File_On_LLM
             </label>
           </div>
         ) : null}
