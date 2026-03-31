@@ -58,10 +58,19 @@ function php_backend_error($status, $detail)
 function php_backend_log($event, $context = [])
 {
     $payload = [
+        'ts' => gmdate('c'),
         'event' => $event,
         'context' => $context,
     ];
-    error_log('[docdoc] ' . json_encode($payload));
+    $line = '[docdoc] ' . json_encode($payload);
+    error_log($line);
+
+    $logDir = dirname(__DIR__) . '/logs';
+    $logPath = $logDir . '/docdoc.log';
+    if (!is_dir($logDir)) {
+        @mkdir($logDir, 0775, true);
+    }
+    @file_put_contents($logPath, $line . PHP_EOL, FILE_APPEND | LOCK_EX);
 }
 
 function php_backend_require_method($method)
@@ -365,11 +374,16 @@ function php_backend_invoke_llm($llmRequest, $fileMap, $config)
         'scheduled' => false,
         'files' => [],
         'apiMode' => $apiMode,
+        'serverLogPath' => 'webapp/src_php/logs/docdoc.log',
     ];
 
     if (!empty($llmRequest['deleteFileOnLlm'])) {
+        $deleteLogs['attempted'] = 0;
+        $deleteLogs['succeeded'] = 0;
+        $deleteLogs['failed'] = 0;
         foreach ($content as $item) {
             if (($item['type'] ?? '') === 'input_file' && !empty($item['file_id'])) {
+                $deleteLogs['attempted'] += 1;
                 list($deleteStatus, $deleteBody) = php_backend_curl_request(
                     'https://api.openai.com/v1/files/' . rawurlencode($item['file_id']),
                     [
@@ -378,14 +392,23 @@ function php_backend_invoke_llm($llmRequest, $fileMap, $config)
                     '',
                     'DELETE'
                 );
+                $deleteDecoded = json_decode($deleteBody, true);
+                $deleteSuccess = $deleteStatus >= 200 && $deleteStatus < 300 && !empty($deleteDecoded['deleted']);
+                if ($deleteSuccess) {
+                    $deleteLogs['succeeded'] += 1;
+                } else {
+                    $deleteLogs['failed'] += 1;
+                }
                 $deleteLogs['files'][] = [
                     'fileId' => $item['file_id'],
                     'status' => $deleteStatus,
+                    'success' => $deleteSuccess,
                     'response' => $deleteBody,
                 ];
                 php_backend_log('openai_file_delete', [
                     'fileId' => $item['file_id'],
                     'status' => $deleteStatus,
+                    'success' => $deleteSuccess,
                     'response' => $deleteBody,
                 ]);
             }
