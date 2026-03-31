@@ -360,13 +360,14 @@ function php_backend_invoke_llm($llmRequest, $fileMap, $config)
         php_backend_error(502, 'Backend request failed.');
     }
 
-    $deleteLogs = null;
+    $deleteLogs = [
+        'deleteRequested' => !empty($llmRequest['deleteFileOnLlm']),
+        'scheduled' => false,
+        'files' => [],
+        'apiMode' => $apiMode,
+    ];
+
     if (!empty($llmRequest['deleteFileOnLlm'])) {
-        $deleteLogs = [
-            'deleteRequested' => true,
-            'scheduled' => false,
-            'files' => [],
-        ];
         foreach ($content as $item) {
             if (($item['type'] ?? '') === 'input_file' && !empty($item['file_id'])) {
                 list($deleteStatus, $deleteBody) = php_backend_curl_request(
@@ -389,12 +390,11 @@ function php_backend_invoke_llm($llmRequest, $fileMap, $config)
                 ]);
             }
         }
-    } elseif (!empty($content)) {
-        $deleteLogs = [
-            'deleteRequested' => false,
-            'scheduled' => false,
-            'note' => 'Deletion disabled by request.',
-        ];
+        if (empty($deleteLogs['files'])) {
+            $deleteLogs['note'] = 'No input_file entries were present to delete.';
+        }
+    } else {
+        $deleteLogs['note'] = 'Deletion disabled by request.';
     }
 
     return [
