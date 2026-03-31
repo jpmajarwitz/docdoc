@@ -62,15 +62,7 @@ function php_backend_log($event, $context = [])
         'event' => $event,
         'context' => $context,
     ];
-    $line = '[docdoc] ' . json_encode($payload);
-    error_log($line);
-
-    $logDir = dirname(__DIR__) . '/logs';
-    $logPath = $logDir . '/docdoc.log';
-    if (!is_dir($logDir)) {
-        @mkdir($logDir, 0775, true);
-    }
-    @file_put_contents($logPath, $line . PHP_EOL, FILE_APPEND | LOCK_EX);
+    error_log('[docdoc] ' . json_encode($payload));
 }
 
 function php_backend_require_method($method)
@@ -374,7 +366,6 @@ function php_backend_invoke_llm($llmRequest, $fileMap, $config)
         'scheduled' => false,
         'files' => [],
         'apiMode' => $apiMode,
-        'serverLogPath' => 'webapp/src_php/logs/docdoc.log',
     ];
 
     if (!empty($llmRequest['deleteFileOnLlm'])) {
