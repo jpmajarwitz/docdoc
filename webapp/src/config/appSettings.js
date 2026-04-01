@@ -16,6 +16,32 @@ export const APP_SETTINGS = {
     formattingGuidance: 'Formatting Guidance',
     antiGuidance: 'Anti-Guidance'
   },
+  settingsPanelLabels: {
+    apiMode: 'API Mode',
+    llmModel: 'LLM Model',
+    defaultTopic: 'Default Topic',
+    reviewObjective: 'Review Objective',
+    formattingGuidance: 'Formatting Guidance',
+    antiGuidance: 'Anti-Guidance',
+    ignoreOcrErrors: 'Ignore obvious OCR misspellings',
+    disableResponseLogging: 'Disable response logging',
+    viewPrompt: 'View Prompt',
+    bypassFileInput: 'Bypass_File_Input',
+    deleteFileOnLlm: 'Delete_File_On_LLM'
+  },
+  settingsPanelOrder: [
+    'apiMode',
+    'llmModel',
+    'defaultTopic',
+    'reviewObjective',
+    'formattingGuidance',
+    'antiGuidance',
+    'ignoreOcrErrors',
+    'disableResponseLogging',
+    'viewPrompt',
+    'bypassFileInput',
+    'deleteFileOnLlm'
+  ],
   defaults: {
     topic: 'This is a professional journal article in the <XXX> profession covering <YYY>',
     reviewObjective:

@@ -573,6 +573,136 @@ export default function App() {
   }, [settingsOpen])
 
   function renderSettingsControl() {
+    const settingsLabels = APP_SETTINGS.settingsPanelLabels || {}
+    const settingsPanelOrder = APP_SETTINGS.settingsPanelOrder || []
+
+    function renderSettingsField(settingKey) {
+      switch (settingKey) {
+        case 'apiMode':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.apiMode || 'API Mode'}
+              <select name="api_mode" value={selectedApiMode} onChange={(event) => setSelectedApiMode(event.target.value)}>
+                {APP_SETTINGS.apiModes.map((apiModeOption) => (
+                  <option key={apiModeOption.value} value={apiModeOption.value}>
+                    {apiModeOption.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )
+        case 'llmModel':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.llmModel || 'LLM Model'}
+              <select name="llm_model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
+                {APP_SETTINGS.llmModels.map((modelOption) => (
+                  <option key={modelOption.value} value={modelOption.value}>
+                    {modelOption.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )
+        case 'defaultTopic':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.defaultTopic || APP_SETTINGS.labels.defaultTopic}
+              <textarea name="default_topic" value={topic} onChange={(event) => setTopic(event.target.value)} rows={3} />
+            </label>
+          )
+        case 'reviewObjective':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.reviewObjective || APP_SETTINGS.labels.reviewObjective}
+              <textarea name="review_objective" value={objective} onChange={(event) => setObjective(event.target.value)} rows={3} />
+            </label>
+          )
+        case 'formattingGuidance':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.formattingGuidance || APP_SETTINGS.labels.formattingGuidance}
+              <textarea name="formatting_guidance" value={guidance} onChange={(event) => setGuidance(event.target.value)} rows={3} />
+            </label>
+          )
+        case 'antiGuidance':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.antiGuidance || APP_SETTINGS.labels.antiGuidance}
+              <textarea name="anti_guidance" value={antiGuidance} onChange={(event) => setAntiGuidance(event.target.value)} rows={3} />
+            </label>
+          )
+        case 'ignoreOcrErrors':
+          return (
+            <label key={settingKey} className="checkbox-label">
+              <input
+                name="ignore_ocr_errors"
+                type="checkbox"
+                checked={ignoreOcrErrors}
+                onChange={(event) => setIgnoreOcrErrors(event.target.checked)}
+              />
+              {settingsLabels.ignoreOcrErrors || 'Ignore obvious OCR misspellings'}
+            </label>
+          )
+        case 'disableResponseLogging':
+          return (
+            <label key={settingKey} className="checkbox-label">
+              <input
+                name="disable_response_logging"
+                type="checkbox"
+                checked={disableResponseLogging}
+                onChange={(event) => setDisableResponseLogging(event.target.checked)}
+              />
+              {settingsLabels.disableResponseLogging || 'Disable response logging'}
+            </label>
+          )
+        case 'viewPrompt':
+          return (
+            <label key={settingKey} className="checkbox-label">
+              <input
+                name="view_prompt"
+                type="checkbox"
+                checked={viewPromptEnabled}
+                onChange={(event) => {
+                  const enabled = event.target.checked
+                  setViewPromptEnabled(enabled)
+                  if (!enabled) {
+                    setShowPromptPanel(false)
+                  }
+                }}
+              />
+              {settingsLabels.viewPrompt || 'View Prompt'}
+            </label>
+          )
+        case 'bypassFileInput':
+          return (
+            <label key={settingKey} className="checkbox-label">
+              <input
+                name="bypass_file_input"
+                type="checkbox"
+                checked={bypassFileInput}
+                onChange={(event) => setBypassFileInput(event.target.checked)}
+              />
+              {settingsLabels.bypassFileInput || 'Bypass_File_Input'}
+            </label>
+          )
+        case 'deleteFileOnLlm':
+          return (
+            <label key={settingKey} className="checkbox-label">
+              <input
+                name="delete_file_on_llm"
+                type="checkbox"
+                checked={deleteFileOnLlm}
+                onChange={(event) => setDeleteFileOnLlm(event.target.checked)}
+              />
+              {settingsLabels.deleteFileOnLlm || 'Delete_File_On_LLM'}
+            </label>
+          )
+        default:
+          return null
+      }
+    }
+
     return (
       <div className="settings-dropdown" ref={settingsDropdownRef}>
         <button
@@ -589,102 +719,7 @@ export default function App() {
             <button type="button" className="settings-close" onClick={() => setSettingsOpen(false)}>
               Close
             </button>
-            <label>
-              API Mode
-              <select name="api_mode" value={selectedApiMode} onChange={(event) => setSelectedApiMode(event.target.value)}>
-                {APP_SETTINGS.apiModes.map((apiModeOption) => (
-                  <option key={apiModeOption.value} value={apiModeOption.value}>
-                    {apiModeOption.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              LLM Model
-              <select name="llm_model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
-                {APP_SETTINGS.llmModels.map((modelOption) => (
-                  <option key={modelOption.value} value={modelOption.value}>
-                    {modelOption.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              {APP_SETTINGS.labels.defaultTopic}
-              <textarea name="default_topic" value={topic} onChange={(event) => setTopic(event.target.value)} rows={3} />
-            </label>
-
-            <label>
-              {APP_SETTINGS.labels.reviewObjective}
-              <textarea name="review_objective" value={objective} onChange={(event) => setObjective(event.target.value)} rows={3} />
-            </label>
-
-            <label>
-              {APP_SETTINGS.labels.formattingGuidance}
-              <textarea name="formatting_guidance" value={guidance} onChange={(event) => setGuidance(event.target.value)} rows={3} />
-            </label>
-
-            <label>
-              {APP_SETTINGS.labels.antiGuidance}
-              <textarea name="anti_guidance" value={antiGuidance} onChange={(event) => setAntiGuidance(event.target.value)} rows={3} />
-            </label>
-
-            <label className="checkbox-label">
-                <input
-                  name="ignore_ocr_errors"
-                  type="checkbox"
-                checked={ignoreOcrErrors}
-                onChange={(event) => setIgnoreOcrErrors(event.target.checked)}
-              />
-              Ignore obvious OCR misspellings
-            </label>
-
-            <label className="checkbox-label">
-                <input
-                  name="disable_response_logging"
-                  type="checkbox"
-                checked={disableResponseLogging}
-                onChange={(event) => setDisableResponseLogging(event.target.checked)}
-              />
-              Disable response logging
-            </label>
-
-            <label className="checkbox-label">
-                <input
-                  name="view_prompt"
-                  type="checkbox"
-                checked={viewPromptEnabled}
-                onChange={(event) => {
-                  const enabled = event.target.checked
-                  setViewPromptEnabled(enabled)
-                  if (!enabled) {
-                    setShowPromptPanel(false)
-                  }
-                }}
-              />
-              View Prompt
-            </label>
-
-            <label className="checkbox-label">
-                <input
-                  name="bypass_file_input"
-                  type="checkbox"
-                checked={bypassFileInput}
-                onChange={(event) => setBypassFileInput(event.target.checked)}
-              />
-              Bypass_File_Input
-            </label>
-
-            <label className="checkbox-label">
-                <input
-                  name="delete_file_on_llm"
-                  type="checkbox"
-                checked={deleteFileOnLlm}
-                onChange={(event) => setDeleteFileOnLlm(event.target.checked)}
-              />
-              Delete_File_On_LLM
-            </label>
+            {settingsPanelOrder.map((settingKey) => renderSettingsField(settingKey))}
           </div>
         ) : null}
       </div>
