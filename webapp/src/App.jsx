@@ -76,10 +76,7 @@ function PageShell({ mode, topRightControls = null, children }) {
           <p className="hero-subtitle">A Professional Review and Critique Tool</p>
         </div>
         <div className="hero-corner hero-right">
-          <div className="hero-right-stack">
-            {topRightControls}
-            <div className="mode-pill">{MODE_LABELS[mode] || mode}</div>
-          </div>
+          <div className="hero-right-stack">{topRightControls}</div>
         </div>
       </header>
       {children}
@@ -488,6 +485,7 @@ export default function App() {
 
       if (operation === OPERATIONS.APPLY_CHANGE_ITEMS) {
         setChangedDocumentMarkdown(outputText)
+        setChangeItems([])
         setStatus('Applying change items completed successfully.')
       } else {
         setCritiqueMarkdown(outputText)
@@ -765,9 +763,37 @@ export default function App() {
         {renderError()}
 
         <section className="card primary-upload-card">
-          <div className="primary-upload-inner">
-            <h2>Select primary document</h2>
-            <input name="primary_document" type="file" onChange={(event) => setDocFile(event.target.files?.[0] || null)} />
+          <div className="primary-upload-inner split">
+            <div className="primary-upload-left">
+              <h2>Select primary document</h2>
+              <input
+                name="primary_document"
+                type="file"
+                onChange={(event) => setDocFile(event.target.files?.[0] || null)}
+              />
+            </div>
+            <div className="primary-upload-actions">
+              <button type="button" disabled={!docFile} onClick={() => invokeOperation(OPERATIONS.CRITIQUE_PRIMARY)}>
+                Critique Document
+              </button>
+              {viewPromptEnabled ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (showPromptPanel) {
+                      setShowPromptPanel(false)
+                      return
+                    }
+
+                    setPromptPreviewText('Building prompt preview...')
+                    setShowPromptPanel(true)
+                    setPromptPreviewText(await buildPrimaryPromptPreviewText())
+                  }}
+                >
+                  View Prompt
+                </button>
+              ) : null}
+            </div>
           </div>
         </section>
 
@@ -843,31 +869,6 @@ export default function App() {
           </details>
         </section>
 
-        <section className="card action-panel right-aligned">
-          <div className="action-buttons">
-            <button type="button" onClick={() => invokeOperation(OPERATIONS.CRITIQUE_PRIMARY)}>
-              Critique Document
-            </button>
-            {viewPromptEnabled ? (
-              <button
-                type="button"
-                onClick={async () => {
-                  if (showPromptPanel) {
-                    setShowPromptPanel(false)
-                    return
-                  }
-
-                  setPromptPreviewText('Building prompt preview...')
-                  setShowPromptPanel(true)
-                  setPromptPreviewText(await buildPrimaryPromptPreviewText())
-                }}
-              >
-                View Prompt
-              </button>
-            ) : null}
-          </div>
-        </section>
-
         {viewPromptEnabled && showPromptPanel ? (
           <section className="card prompt-preview-card">
             <h2>Prompt Preview</h2>
@@ -883,7 +884,7 @@ export default function App() {
       <PageShell mode={MODES.INVOKE}>
         <section className="card invoke-card compact-panel">
           <div className="spinner" aria-hidden="true" />
-          <h2>Invoking the model</h2>
+          <h2>Invoking the AI Model</h2>
         </section>
       </PageShell>
     )
@@ -893,7 +894,7 @@ export default function App() {
     return (
       <PageShell mode={MODES.RESULT_SAVED}>
         <section className="card result-card compact-panel">
-          <h2>Result saved</h2>
+          <h2>AI Model Result Saved</h2>
           {renderError()}
           <div className="action-row wrap-actions center-actions">
             {lastOperation === OPERATIONS.APPLY_CHANGE_ITEMS ? (
