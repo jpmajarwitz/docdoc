@@ -1,36 +1,36 @@
 <svg width="240" height="240" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">Doc 2 Deck logo</title>
-  <desc id="desc">Document Doctor character shaking hands with Deck Mate sailor character.</desc>
+  <desc id="desc">Document Doctor persona using a stethoscope to examine the Deck Mate persona.</desc>
   <rect x="0" y="0" width="240" height="240" rx="34" fill="#f4f9ff"/>
+  <ellipse cx="120" cy="196" rx="94" ry="23" fill="#d6f5e3"/>
 
-  <ellipse cx="120" cy="194" rx="92" ry="24" fill="#d6f5e3"/>
+  <g transform="translate(20 40)">
+    <rect x="8" y="34" width="66" height="88" rx="16" fill="#ffffff" stroke="#6b21a8" stroke-width="4"/>
+    <path d="M22 54 H60 M22 68 H58 M22 82 H54" stroke="#6b21a8" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="41" cy="20" r="17" fill="#ffd7b8"/>
+    <path d="M24 19 Q41 5 58 19" fill="#6b21a8"/>
+    <circle cx="35" cy="22" r="2.4" fill="#1f2937"/>
+    <circle cx="47" cy="22" r="2.4" fill="#1f2937"/>
+    <path d="M35 30 Q41 35 47 30" stroke="#1f2937" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+    <path d="M16 124 Q41 142 66 124" fill="#ede9fe"/>
 
-  <g transform="translate(24 60)">
-    <rect x="0" y="30" width="64" height="84" rx="16" fill="#ffffff" stroke="#6b21a8" stroke-width="4"/>
-    <path d="M12 48 H52 M12 62 H50 M12 76 H46" stroke="#6b21a8" stroke-width="4" stroke-linecap="round"/>
-    <circle cx="32" cy="18" r="16" fill="#ffd7b8"/>
-    <path d="M16 18 Q32 4 48 18" fill="#6b21a8"/>
-    <circle cx="26" cy="20" r="2.4" fill="#1f2937"/>
-    <circle cx="38" cy="20" r="2.4" fill="#1f2937"/>
-    <path d="M26 28 Q32 33 38 28" stroke="#1f2937" stroke-width="2.8" fill="none" stroke-linecap="round"/>
-    <path d="M57 86 Q72 80 84 90" stroke="#6b21a8" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <path d="M64 90 C102 82, 124 92, 145 98" stroke="#6b21a8" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+    <circle cx="149" cy="100" r="8.5" fill="#f59e0b" stroke="#b45309" stroke-width="2"/>
+    <circle cx="149" cy="100" r="3.6" fill="#fff7ed"/>
   </g>
 
-  <g transform="translate(122 52)">
-    <path d="M8 116 L76 116 L66 132 L18 132 Z" fill="#8a5b3d"/>
-    <path d="M42 46 V116" stroke="#4b5563" stroke-width="6" stroke-linecap="round"/>
-    <rect x="44" y="38" width="48" height="38" rx="7" fill="#ffffff" stroke="#5b7bbd" stroke-width="3.5"/>
-    <line x1="52" y1="50" x2="82" y2="50" stroke="#5b7bbd" stroke-width="3" stroke-linecap="round"/>
-    <line x1="52" y1="60" x2="76" y2="60" stroke="#5b7bbd" stroke-width="3" stroke-linecap="round"/>
-    <circle cx="22" cy="56" r="16" fill="#ffd7b8"/>
-    <path d="M7 56 Q22 44 37 56" fill="#1f2937"/>
-    <path d="M7 46 Q22 34 37 46 L37 52 L7 52 Z" fill="#f8fafc" stroke="#1f2937" stroke-width="2.6"/>
-    <circle cx="16" cy="57.5" r="2.2" fill="#1f2937"/>
-    <circle cx="28" cy="57.5" r="2.2" fill="#1f2937"/>
-    <path d="M16 64 Q22 69 28 64" stroke="#1f2937" stroke-width="2.4" fill="none" stroke-linecap="round"/>
-    <path d="M22 92 Q10 84 -2 92" stroke="#2563eb" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <g transform="translate(126 44)">
+    <path d="M6 118 L82 118 L72 136 L16 136 Z" fill="#8a5b3d"/>
+    <path d="M44 46 V118" stroke="#4b5563" stroke-width="6" stroke-linecap="round"/>
+    <rect x="46" y="38" width="48" height="38" rx="7" fill="#ffffff" stroke="#5b7bbd" stroke-width="3.5"/>
+    <line x1="54" y1="50" x2="84" y2="50" stroke="#5b7bbd" stroke-width="3" stroke-linecap="round"/>
+    <line x1="54" y1="60" x2="78" y2="60" stroke="#5b7bbd" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="24" cy="58" r="17" fill="#ffd7b8"/>
+    <path d="M7 58 Q24 45 41 58" fill="#1f2937"/>
+    <path d="M7 47 Q24 34 41 47 L41 53 L7 53 Z" fill="#f8fafc" stroke="#1f2937" stroke-width="2.6"/>
+    <circle cx="17" cy="60" r="2.2" fill="#1f2937"/>
+    <circle cx="30" cy="60" r="2.2" fill="#1f2937"/>
+    <path d="M17 67 Q24 72 30 67" stroke="#1f2937" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    <rect x="8" y="84" width="30" height="24" rx="8" fill="#3b82f6"/>
   </g>
-
-  <circle cx="119" cy="145" r="6" fill="#f59e0b"/>
-  <path d="M107 145 H131" stroke="#f59e0b" stroke-width="4" stroke-linecap="round"/>
 </svg>
