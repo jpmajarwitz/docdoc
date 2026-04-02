@@ -219,6 +219,8 @@ export default function App() {
   const [priorInstructions, setPriorInstructions] = useState(defaults.priorInstructions)
   const [critiqueMarkdown, setCritiqueMarkdown] = useState('')
   const [changedDocumentMarkdown, setChangedDocumentMarkdown] = useState('')
+  const [critiqueOutputFileName, setCritiqueOutputFileName] = useState('critique.md')
+  const [changedOutputFileName, setChangedOutputFileName] = useState('changes.md')
   const [status, setStatus] = useState('Ready for document definition.')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -234,6 +236,20 @@ export default function App() {
     }
 
     return parts.filter(Boolean).join(' ')
+  }
+
+  function saveMarkdownToFile(content, desiredFileName) {
+    const safeName = (desiredFileName || 'output.md').trim() || 'output.md'
+    const fileName = safeName.toLowerCase().endsWith('.md') ? safeName : `${safeName}.md`
+    const blob = new Blob([content || ''], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = fileName
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
   }
 
   function buildLlmRequest(messages) {
@@ -486,9 +502,13 @@ export default function App() {
       if (operation === OPERATIONS.APPLY_CHANGE_ITEMS) {
         setChangedDocumentMarkdown(outputText)
         setChangeItems([])
+        saveMarkdownToFile(outputText, changedOutputFileName)
         setStatus('Applying change items completed successfully.')
       } else {
         setCritiqueMarkdown(outputText)
+        if (operation === OPERATIONS.CRITIQUE_PRIMARY) {
+          saveMarkdownToFile(outputText, critiqueOutputFileName)
+        }
         setStatus(
           operation === OPERATIONS.CRITIQUE_CHANGED
             ? 'Changed-document critique completed successfully.'
@@ -767,11 +787,24 @@ export default function App() {
           <div className="primary-upload-inner split">
             <div className="primary-upload-left">
               <h2>Select primary document</h2>
-              <input
-                name="primary_document"
-                type="file"
-                onChange={(event) => setDocFile(event.target.files?.[0] || null)}
-              />
+              <div className="file-selector-row">
+                <input
+                  name="primary_document"
+                  type="file"
+                  onChange={(event) => setDocFile(event.target.files?.[0] || null)}
+                />
+                {docFile ? (
+                  <label className="output-file-field">
+                    Critique Output File
+                    <input
+                      type="text"
+                      name="critique_output_file"
+                      value={critiqueOutputFileName}
+                      onChange={(event) => setCritiqueOutputFileName(event.target.value)}
+                    />
+                  </label>
+                ) : null}
+              </div>
             </div>
             <div className="primary-upload-actions">
               <button type="button" disabled={!docFile} onClick={() => invokeOperation(OPERATIONS.CRITIQUE_PRIMARY)}>
@@ -930,6 +963,17 @@ export default function App() {
             >
               Apply Change Items
             </button>
+            {changeItems.length ? (
+              <label className="output-file-field inline-output-field">
+                Changed Document Output File
+                <input
+                  type="text"
+                  name="changed_output_file"
+                  value={changedOutputFileName}
+                  onChange={(event) => setChangedOutputFileName(event.target.value)}
+                />
+              </label>
+            ) : null}
         </section>
 
         {renderError()}
@@ -1008,11 +1052,21 @@ export default function App() {
   return (
     <PageShell mode={MODES.VIEW_CHANGED}>
       <section className="card action-row wrap-actions center-actions compact-panel">
-        <button type="button" className="secondary-button" onClick={resetToDefinitionMode}>
-          Exit Review
-        </button>
         <button type="button" onClick={() => invokeOperation(OPERATIONS.CRITIQUE_CHANGED)}>
           Critique Changed Document
+        </button>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => {
+            setChangeItems([])
+            setCurrentMode(MODES.CRITIQUE_REVIEW)
+          }}
+        >
+          Discard Changes
+        </button>
+        <button type="button" className="secondary-button" onClick={resetToDefinitionMode}>
+          Start Over
         </button>
       </section>
 

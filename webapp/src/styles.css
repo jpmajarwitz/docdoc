@@ -179,6 +179,29 @@ h1 {
   flex-wrap: wrap;
 }
 
+.file-selector-row {
+  display: flex;
+  align-items: end;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.output-file-field {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 700;
+  color: #6b21a8;
+  min-width: 220px;
+}
+
+.output-file-field input[type="text"] {
+  width: 100%;
+}
+
+.inline-output-field {
+  min-width: 280px;
+}
+
 .primary-upload-inner h2 {
   margin-bottom: 0;
 }
@@ -544,6 +567,10 @@ code {
   .primary-upload-left input[type="file"] {
     width: 100%;
     max-width: 100%;
+  }
+
+  .inline-output-field {
+    min-width: 100%;
   }
 
   .primary-upload-inner.split {
