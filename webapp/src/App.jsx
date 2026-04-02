@@ -821,7 +821,7 @@ export default function App() {
             </button>
             <button type="button" className="suite-link-card" onClick={() => setActiveView(APP_VIEWS.DECK_MATE)}>
               <img src={deckMateLogo} alt="Deck Mate logo" />
-              <span>Presentation Practitioner</span>
+              <span>Deck Mate</span>
             </button>
           </div>
         </section>
@@ -840,7 +840,7 @@ export default function App() {
         brandAlt="Cartoon sailor on a boat presentation logo"
       >
         <section className="card compact-panel">
-          <h2>Presentation Practitioner</h2>
+          <h2>Deck Mate</h2>
           <p className="muted">Deck Mate home screen placeholder.</p>
         </section>
       </PageShell>
