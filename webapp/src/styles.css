@@ -90,6 +90,46 @@ h1 {
   margin-bottom: 0;
 }
 
+.suite-hero {
+  grid-template-columns: 1fr;
+}
+
+.suite-links h2 {
+  margin-bottom: 1rem;
+}
+
+.suite-link-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.suite-link-card {
+  display: grid;
+  justify-items: center;
+  gap: 0.65rem;
+  text-align: center;
+  padding: 1rem;
+  border: 1px solid #d6bcfa;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.66);
+  color: #6b21a8;
+  cursor: pointer;
+}
+
+.suite-link-card:hover {
+  background: #f8f2ff;
+}
+
+.suite-link-card img {
+  width: 88px;
+  height: 88px;
+}
+
+.suite-link-card span {
+  font-weight: 700;
+}
+
 .muted {
   color: #6b21a8;
 }

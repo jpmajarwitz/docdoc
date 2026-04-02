@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import logo from './assets/docdoc-logo.svg'
+import deckMateLogo from './assets/deck-mate-logo.svg'
 import { APP_SETTINGS } from './config/appSettings'
+
+const APP_VIEWS = {
+  SUITE_HOME: 'suite_home',
+  DOCUMENT_DOCTOR: 'document_doctor',
+  DECK_MATE: 'deck_mate'
+}
 
 const MODES = {
   DOC_DEFINE: 'doc_define_mode',
@@ -64,16 +71,24 @@ function formatChangeItems(changeItems) {
   return changeItems.map((item) => `- ${item.id}: ${item.instruction}`).join('\n')
 }
 
-function PageShell({ mode, topRightControls = null, children }) {
+function PageShell({
+  mode,
+  topRightControls = null,
+  children,
+  appTitle = 'The Document Doctor',
+  appSubtitle = 'A Professional Review Tool for Document Authors',
+  brandLogo = logo,
+  brandAlt = 'Cartoon paper doctor logo'
+}) {
   return (
     <main className="layout">
       <header className="hero card">
         <div className="hero-corner hero-left">
-          <img className="brand-logo" src={logo} alt="Cartoon paper doctor logo" />
+          <img className="brand-logo" src={brandLogo} alt={brandAlt} />
         </div>
         <div className="hero-title-group">
-          <h1>The Document Doctor</h1>
-          <p className="hero-subtitle">A Professional Review and Critique Tool</p>
+          <h1>{appTitle}</h1>
+          <p className="hero-subtitle">{appSubtitle}</p>
         </div>
         <div className="hero-corner hero-right">
           <div className="hero-right-stack">{topRightControls}</div>
@@ -194,6 +209,7 @@ async function postJson(endpoint, payload) {
 }
 
 export default function App() {
+  const [activeView, setActiveView] = useState(APP_VIEWS.SUITE_HOME)
   const [currentMode, setCurrentMode] = useState(MODES.DOC_DEFINE)
   const [docFile, setDocFile] = useState(null)
   const [supportingFile, setSupportingFile] = useState(null)
@@ -557,6 +573,14 @@ export default function App() {
     setStatus('Ready for document definition.')
   }
 
+  function renderBackToSuiteButton() {
+    return (
+      <button type="button" className="secondary-button" onClick={() => setActiveView(APP_VIEWS.SUITE_HOME)}>
+        Back to A-Ideation
+      </button>
+    )
+  }
+
   function renderError() {
     if (!error) {
       return null
@@ -778,9 +802,62 @@ export default function App() {
     priorResponseFile
   ])
 
+  if (activeView === APP_VIEWS.SUITE_HOME) {
+    return (
+      <main className="layout">
+        <header className="hero card suite-hero">
+          <div className="hero-title-group">
+            <h1>A-Ideation</h1>
+            <p className="hero-subtitle">Improving Professional Productivity</p>
+          </div>
+        </header>
+
+        <section className="card suite-links">
+          <h2>Applications</h2>
+          <div className="suite-link-grid">
+            <button type="button" className="suite-link-card" onClick={() => setActiveView(APP_VIEWS.DOCUMENT_DOCTOR)}>
+              <img src={logo} alt="Document Doctor logo" />
+              <span>Document Doctor</span>
+            </button>
+            <button type="button" className="suite-link-card" onClick={() => setActiveView(APP_VIEWS.DECK_MATE)}>
+              <img src={deckMateLogo} alt="Deck Mate logo" />
+              <span>Presentation Practitioner</span>
+            </button>
+          </div>
+        </section>
+      </main>
+    )
+  }
+
+  if (activeView === APP_VIEWS.DECK_MATE) {
+    return (
+      <PageShell
+        mode={MODES.DOC_DEFINE}
+        topRightControls={renderBackToSuiteButton()}
+        appTitle="Deck Mate"
+        appSubtitle="A Professional Review Tool for Powerpoint Authors"
+        brandLogo={deckMateLogo}
+        brandAlt="Cartoon sailor on a boat presentation logo"
+      >
+        <section className="card compact-panel">
+          <h2>Presentation Practitioner</h2>
+          <p className="muted">Deck Mate home screen placeholder.</p>
+        </section>
+      </PageShell>
+    )
+  }
+
   if (currentMode === MODES.DOC_DEFINE) {
     return (
-      <PageShell mode={MODES.DOC_DEFINE} topRightControls={renderSettingsControl()}>
+      <PageShell
+        mode={MODES.DOC_DEFINE}
+        topRightControls={
+          <>
+            {renderBackToSuiteButton()}
+            {renderSettingsControl()}
+          </>
+        }
+      >
         {renderError()}
 
         <section className="card primary-upload-card">
@@ -915,7 +992,7 @@ export default function App() {
 
   if (currentMode === MODES.INVOKE) {
     return (
-      <PageShell mode={MODES.INVOKE}>
+      <PageShell mode={MODES.INVOKE} topRightControls={renderBackToSuiteButton()}>
         <section className="card invoke-card compact-panel">
           <div className="spinner" aria-hidden="true" />
           <h2>Invoking the AI Model</h2>
@@ -926,7 +1003,7 @@ export default function App() {
 
   if (currentMode === MODES.RESULT_SAVED) {
     return (
-      <PageShell mode={MODES.RESULT_SAVED}>
+      <PageShell mode={MODES.RESULT_SAVED} topRightControls={renderBackToSuiteButton()}>
         <section className="card result-card compact-panel">
           <h2>AI Model Result Saved</h2>
           {renderError()}
@@ -951,7 +1028,7 @@ export default function App() {
 
   if (currentMode === MODES.CRITIQUE_REVIEW) {
     return (
-      <PageShell mode={MODES.CRITIQUE_REVIEW}>
+      <PageShell mode={MODES.CRITIQUE_REVIEW} topRightControls={renderBackToSuiteButton()}>
         <section className="card action-row wrap-actions center-actions compact-panel">
             <button type="button" className="secondary-button" onClick={resetToDefinitionMode}>
               Exit Review
@@ -1050,7 +1127,7 @@ export default function App() {
   }
 
   return (
-    <PageShell mode={MODES.VIEW_CHANGED}>
+    <PageShell mode={MODES.VIEW_CHANGED} topRightControls={renderBackToSuiteButton()}>
       <section className="card action-row wrap-actions center-actions compact-panel">
         <button type="button" onClick={() => invokeOperation(OPERATIONS.CRITIQUE_CHANGED)}>
           Critique Changed Document

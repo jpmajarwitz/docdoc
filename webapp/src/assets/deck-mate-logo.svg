@@ -1,0 +1,29 @@
+<svg width="240" height="240" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Deck Mate cartoon logo</title>
+  <desc id="desc">A smiling sailor on a small boat with a presentation board sail.</desc>
+  <defs>
+    <linearGradient id="sea" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#c7f1ff"/>
+      <stop offset="100%" stop-color="#7fd3f7"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="240" height="240" rx="34" fill="#f4f9ff"/>
+  <ellipse cx="120" cy="190" rx="90" ry="24" fill="url(#sea)"/>
+  <path d="M54 168 L186 168 L168 188 L72 188 Z" fill="#8a5b3d"/>
+  <path d="M112 98 L112 168" stroke="#4b5563" stroke-width="8" stroke-linecap="round"/>
+  <rect x="114" y="90" width="74" height="54" rx="8" fill="#ffffff" stroke="#5b7bbd" stroke-width="4"/>
+  <line x1="126" y1="104" x2="176" y2="104" stroke="#5b7bbd" stroke-width="4" stroke-linecap="round"/>
+  <line x1="126" y1="118" x2="165" y2="118" stroke="#5b7bbd" stroke-width="4" stroke-linecap="round"/>
+  <polyline points="126,132 142,122 156,128 174,112" fill="none" stroke="#ef4444" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="92" cy="110" r="21" fill="#ffd7b8"/>
+  <path d="M71 110 Q92 95 113 110" fill="#1f2937"/>
+  <circle cx="84" cy="111" r="2.5" fill="#1f2937"/>
+  <circle cx="100" cy="111" r="2.5" fill="#1f2937"/>
+  <path d="M84 119 Q92 126 100 119" fill="none" stroke="#1f2937" stroke-width="3" stroke-linecap="round"/>
+  <path d="M72 96 Q92 78 112 96 L112 103 L72 103 Z" fill="#f8fafc" stroke="#1f2937" stroke-width="3"/>
+  <circle cx="92" cy="96" r="5" fill="#f87171"/>
+  <rect x="72" y="132" width="40" height="24" rx="8" fill="#3b82f6"/>
+  <path d="M72 146 Q92 160 112 146" fill="#2563eb"/>
+  <path d="M84 163 L74 177" stroke="#1f2937" stroke-width="4" stroke-linecap="round"/>
+  <path d="M100 163 L110 177" stroke="#1f2937" stroke-width="4" stroke-linecap="round"/>
+</svg>
