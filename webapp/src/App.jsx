@@ -532,6 +532,7 @@ export default function App() {
 
   function resetToDefinitionMode() {
     setCurrentMode(MODES.DOC_DEFINE)
+    setDocFile(null)
     setError('')
     setStatus('Ready for document definition.')
   }

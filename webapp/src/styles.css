@@ -29,7 +29,9 @@ textarea {
   display: grid;
   grid-template-columns: minmax(140px, auto) 1fr minmax(220px, auto);
   align-items: center;
-  gap: 1rem;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
 }
 
 .hero-corner {
@@ -53,8 +55,8 @@ textarea {
 }
 
 .brand-logo {
-  width: 132px;
-  height: 132px;
+  width: 96px;
+  height: 96px;
   flex-shrink: 0;
 }
 
@@ -68,9 +70,9 @@ p {
 
 h1 {
   color: #6b21a8;
-  font-size: clamp(2.5rem, 4vw, 3.8rem);
+  font-size: clamp(2rem, 3.2vw, 3rem);
   line-height: 1.05;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.15rem;
 }
 
 .hero-title-group {
@@ -183,6 +185,11 @@ h1 {
 
 .primary-upload-inner input {
   max-width: 100%;
+}
+
+.primary-upload-left input[type="file"] {
+  width: 25vw;
+  max-width: 25vw;
 }
 
 .collapsible-panel {
@@ -532,6 +539,11 @@ code {
   .brand-logo,
   .mode-pill {
     width: fit-content;
+  }
+
+  .primary-upload-left input[type="file"] {
+    width: 100%;
+    max-width: 100%;
   }
 
   .primary-upload-inner.split {
