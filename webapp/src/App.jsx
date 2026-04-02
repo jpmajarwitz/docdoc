@@ -815,7 +815,7 @@ export default function App() {
         </header>
 
         <section className="card suite-links">
-          <h2>Applications</h2>
+          <h2>Solutions</h2>
           <div className="suite-link-grid">
             <button type="button" className="suite-link-card" onClick={() => setActiveView(APP_VIEWS.DOCUMENT_DOCTOR)}>
               <img src={logo} alt="Document Doctor logo" />
