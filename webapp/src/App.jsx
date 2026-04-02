@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import logo from './assets/docdoc-logo.svg'
 import deckMateLogo from './assets/deck-mate-logo.svg'
+import doc2DeckLogo from './assets/doc2deck-logo.svg'
 import { APP_SETTINGS } from './config/appSettings'
 
 const APP_VIEWS = {
   SUITE_HOME: 'suite_home',
   DOCUMENT_DOCTOR: 'document_doctor',
-  DECK_MATE: 'deck_mate'
+  DECK_MATE: 'deck_mate',
+  DOC2DECK: 'doc2deck'
 }
 
 const MODES = {
@@ -823,6 +825,10 @@ export default function App() {
               <img src={deckMateLogo} alt="Deck Mate logo" />
               <span>Deck Mate</span>
             </button>
+            <button type="button" className="suite-link-card" onClick={() => setActiveView(APP_VIEWS.DOC2DECK)}>
+              <img src={doc2DeckLogo} alt="Doc 2 Deck logo" />
+              <span>Doc2Deck</span>
+            </button>
           </div>
         </section>
       </main>
@@ -842,6 +848,24 @@ export default function App() {
         <section className="card compact-panel">
           <h2>Deck Mate</h2>
           <p className="muted">Deck Mate home screen placeholder.</p>
+        </section>
+      </PageShell>
+    )
+  }
+
+  if (activeView === APP_VIEWS.DOC2DECK) {
+    return (
+      <PageShell
+        mode={MODES.DOC_DEFINE}
+        topRightControls={renderBackToSuiteButton()}
+        appTitle="Doc 2 Deck"
+        appSubtitle="Create Powerpoint Decks  from Published Documents"
+        brandLogo={doc2DeckLogo}
+        brandAlt="Document Doctor and Deck Mate shaking hands logo"
+      >
+        <section className="card compact-panel">
+          <h2>Doc 2 Deck</h2>
+          <p className="muted">Doc2Deck home screen placeholder.</p>
         </section>
       </PageShell>
     )
