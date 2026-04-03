@@ -282,6 +282,17 @@ export default function App() {
   const [changeItems, setChangeItems] = useState([])
   const [changeItemDraft, setChangeItemDraft] = useState(emptyChangeDraft())
 
+  function resetAuthInputs() {
+    setAuthEmail('')
+    setAuthPassword('')
+    setAuthDisplayName('')
+    setVerifyToken('')
+    setResetToken('')
+    setNewPassword('')
+    setAuthInfo('')
+    setError('')
+  }
+
   async function loadSession() {
     setAuthLoading(true)
     try {
@@ -382,6 +393,7 @@ export default function App() {
       setError(normalizeRequestError(logoutError))
     } finally {
       setAuthUser(null)
+      resetAuthInputs()
       setActiveView(APP_VIEWS.SUITE_HOME)
       setCurrentMode(MODES.DOC_DEFINE)
     }
@@ -1073,20 +1085,28 @@ export default function App() {
   }
 
   if (activeView === APP_VIEWS.SUITE_HOME) {
+    const suiteDisplayName = authUser.displayName?.trim() ? authUser.displayName : authUser.email
+
     return (
       <main className="layout">
         <header className="hero card suite-hero">
+          <div className="hero-corner hero-left" />
           <div className="hero-title-group">
             <h1>A-Ideation</h1>
             <p className="hero-subtitle">Improving Professional Productivity</p>
           </div>
+          <div className="hero-corner hero-right">
+            <div className="hero-right-stack">
+              <div className="suite-user-info">
+                <span>{suiteDisplayName}</span>
+                <small>({authUser.email})</small>
+              </div>
+              {renderLogoutButton()}
+            </div>
+          </div>
         </header>
 
         <section className="card suite-links">
-          <div className="suite-auth-row">
-            <p className="muted">Signed in as {authUser.email}</p>
-            {renderLogoutButton()}
-          </div>
           <h2>Solutions</h2>
           <div className="suite-link-grid">
             <button type="button" className="suite-link-card" onClick={() => setActiveView(APP_VIEWS.DOCUMENT_DOCTOR)}>

@@ -91,19 +91,23 @@ h1 {
 }
 
 .suite-hero {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(140px, auto) 1fr minmax(220px, auto);
 }
 
 .suite-links h2 {
   margin-bottom: 1rem;
 }
 
-.suite-auth-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
+.suite-user-info {
+  display: grid;
+  justify-items: end;
+  color: #6b21a8;
+  font-weight: 700;
+}
+
+.suite-user-info small {
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
 .suite-link-grid {
