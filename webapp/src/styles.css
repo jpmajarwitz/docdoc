@@ -98,6 +98,14 @@ h1 {
   margin-bottom: 1rem;
 }
 
+.suite-auth-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
 .suite-link-grid {
   display: flex;
   flex-wrap: wrap;
@@ -132,6 +140,43 @@ h1 {
 
 .suite-link-card span {
   font-weight: 700;
+}
+
+.auth-card {
+  max-width: 760px;
+  margin: 0 auto;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.auth-toggle-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.auth-form {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.auth-subpanel {
+  border: 1px solid #d6bcfa;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 0.9rem;
+}
+
+.auth-inline-form {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.auth-inline-row {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .muted {

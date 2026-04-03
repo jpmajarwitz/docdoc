@@ -1,0 +1,54 @@
+<?php
+require_once dirname(__DIR__, 3) . '/lib/auth.php';
+
+$config = php_backend_load_config();
+php_backend_apply_cors($config);
+php_backend_require_method('POST');
+auth_start_session($config);
+
+$payload = auth_read_json_body();
+$email = trim((string) ($payload['email'] ?? ''));
+$password = (string) ($payload['password'] ?? '');
+$displayName = trim((string) ($payload['displayName'] ?? ''));
+
+if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    php_backend_error(400, 'A valid email is required.');
+}
+auth_validate_password($password);
+
+$emailNormalized = auth_normalize_email($email);
+$pdo = auth_get_pdo($config);
+$existing = auth_get_user_by_email($pdo, $emailNormalized);
+if ($existing) {
+    php_backend_error(409, 'An account with that email already exists.');
+}
+
+$passwordHash = password_hash($password, PASSWORD_DEFAULT);
+$status = 'pending_verification';
+
+$stmt = $pdo->prepare('INSERT INTO users (email, email_normalized, password_hash, display_name, status, created_at, updated_at) VALUES (:email, :email_normalized, :password_hash, :display_name, :status, NOW(), NOW())');
+$stmt->execute([
+    'email' => $email,
+    'email_normalized' => $emailNormalized,
+    'password_hash' => $passwordHash,
+    'display_name' => $displayName,
+    'status' => $status,
+]);
+$userId = (int) $pdo->lastInsertId();
+
+$token = auth_generate_token();
+$tokenHash = auth_token_hash($token);
+$expiresAt = date('Y-m-d H:i:s', time() + 86400);
+
+$tokenStmt = $pdo->prepare('INSERT INTO email_verification_tokens (user_id, token_hash, expires_at, created_at) VALUES (:user_id, :token_hash, :expires_at, NOW())');
+$tokenStmt->execute([
+    'user_id' => $userId,
+    'token_hash' => $tokenHash,
+    'expires_at' => $expiresAt,
+]);
+
+php_backend_json_response(201, [
+    'ok' => true,
+    'message' => 'Registration successful. Verify your email to activate account.',
+    'verificationToken' => $token,
+]);

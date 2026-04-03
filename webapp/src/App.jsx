@@ -45,6 +45,16 @@ const API_ENDPOINTS = {
   [OPERATIONS.CRITIQUE_CHANGED]: `${API_BASE_URL}/api/critique-changed-document/`
 }
 
+const AUTH_ENDPOINTS = {
+  SESSION: `${API_BASE_URL}/api/auth/session/`,
+  REGISTER: `${API_BASE_URL}/api/auth/register/`,
+  VERIFY_EMAIL: `${API_BASE_URL}/api/auth/verify-email/`,
+  LOGIN: `${API_BASE_URL}/api/auth/login/`,
+  LOGOUT: `${API_BASE_URL}/api/auth/logout/`,
+  FORGOT_PASSWORD: `${API_BASE_URL}/api/auth/forgot-password/`,
+  RESET_PASSWORD: `${API_BASE_URL}/api/auth/reset-password/`
+}
+
 const defaults = {
   supportInstructions: '',
   priorInstructions: ''
@@ -182,7 +192,8 @@ async function postMultipart(endpoint, payload, fileEntries = {}) {
 
   const response = await fetchWithEndpointFallback(endpoint, {
     method: 'POST',
-    body: formData
+    body: formData,
+    credentials: 'include'
   })
 
   const data = await readBackendJson(response)
@@ -199,7 +210,22 @@ async function postJson(endpoint, payload) {
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    credentials: 'include'
+  })
+
+  const data = await readBackendJson(response)
+  if (!response.ok) {
+    throw new Error(data.detail || 'Backend request failed.')
+  }
+
+  return data
+}
+
+async function getJson(endpoint) {
+  const response = await fetchWithEndpointFallback(endpoint, {
+    method: 'GET',
+    credentials: 'include'
   })
 
   const data = await readBackendJson(response)
@@ -211,6 +237,16 @@ async function postJson(endpoint, payload) {
 }
 
 export default function App() {
+  const [authLoading, setAuthLoading] = useState(true)
+  const [authUser, setAuthUser] = useState(null)
+  const [authMode, setAuthMode] = useState('login')
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authDisplayName, setAuthDisplayName] = useState('')
+  const [authInfo, setAuthInfo] = useState('')
+  const [verifyToken, setVerifyToken] = useState('')
+  const [resetToken, setResetToken] = useState('')
+  const [newPassword, setNewPassword] = useState('')
   const [activeView, setActiveView] = useState(APP_VIEWS.SUITE_HOME)
   const [currentMode, setCurrentMode] = useState(MODES.DOC_DEFINE)
   const [docFile, setDocFile] = useState(null)
@@ -245,6 +281,111 @@ export default function App() {
   const [lastOperation, setLastOperation] = useState(null)
   const [changeItems, setChangeItems] = useState([])
   const [changeItemDraft, setChangeItemDraft] = useState(emptyChangeDraft())
+
+  async function loadSession() {
+    setAuthLoading(true)
+    try {
+      const data = await getJson(AUTH_ENDPOINTS.SESSION)
+      if (data.authenticated && data.user) {
+        setAuthUser(data.user)
+      } else {
+        setAuthUser(null)
+      }
+    } catch (sessionError) {
+      setAuthUser(null)
+      setAuthInfo(`Session check failed: ${normalizeRequestError(sessionError)}`)
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  async function handleAuthSubmit(event) {
+    event.preventDefault()
+    setError('')
+    setAuthInfo('')
+    try {
+      if (authMode === 'register') {
+        const response = await postJson(AUTH_ENDPOINTS.REGISTER, {
+          email: authEmail,
+          password: authPassword,
+          displayName: authDisplayName
+        })
+        setAuthInfo(
+          `Registration successful. Verify your email token, then sign in.${response.verificationToken ? ` Token: ${response.verificationToken}` : ''}`
+        )
+        setAuthMode('login')
+      } else {
+        const response = await postJson(AUTH_ENDPOINTS.LOGIN, {
+          email: authEmail,
+          password: authPassword
+        })
+        setAuthUser(response.user || null)
+        setAuthInfo('')
+      }
+    } catch (authError) {
+      setError(normalizeRequestError(authError))
+    }
+  }
+
+  async function handleVerifyEmail(event) {
+    event.preventDefault()
+    setError('')
+    setAuthInfo('')
+    try {
+      const response = await postJson(AUTH_ENDPOINTS.VERIFY_EMAIL, { token: verifyToken })
+      setAuthInfo(response.message || 'Email verified. You can now sign in.')
+      setVerifyToken('')
+      setAuthMode('login')
+    } catch (verifyError) {
+      setError(normalizeRequestError(verifyError))
+    }
+  }
+
+  async function handleForgotPassword() {
+    setError('')
+    setAuthInfo('')
+    try {
+      const response = await postJson(AUTH_ENDPOINTS.FORGOT_PASSWORD, { email: authEmail })
+      setAuthInfo(
+        `${response.message || 'If the email exists, reset instructions were created.'}${
+          response.resetToken ? ` Reset token: ${response.resetToken}` : ''
+        }`
+      )
+    } catch (forgotError) {
+      setError(normalizeRequestError(forgotError))
+    }
+  }
+
+  async function handleResetPassword(event) {
+    event.preventDefault()
+    setError('')
+    setAuthInfo('')
+    try {
+      const response = await postJson(AUTH_ENDPOINTS.RESET_PASSWORD, {
+        token: resetToken,
+        newPassword
+      })
+      setAuthInfo(response.message || 'Password updated. You can sign in now.')
+      setResetToken('')
+      setNewPassword('')
+      setAuthMode('login')
+    } catch (resetError) {
+      setError(normalizeRequestError(resetError))
+    }
+  }
+
+  async function handleLogout() {
+    setError('')
+    try {
+      await postJson(AUTH_ENDPOINTS.LOGOUT, {})
+    } catch (logoutError) {
+      setError(normalizeRequestError(logoutError))
+    } finally {
+      setAuthUser(null)
+      setActiveView(APP_VIEWS.SUITE_HOME)
+      setCurrentMode(MODES.DOC_DEFINE)
+    }
+  }
 
   function buildAntiGuidancePrompt() {
     const parts = [antiGuidance.trim()]
@@ -583,6 +724,14 @@ export default function App() {
     )
   }
 
+  function renderLogoutButton() {
+    return (
+      <button type="button" className="secondary-button" onClick={handleLogout}>
+        Logout
+      </button>
+    )
+  }
+
   function renderError() {
     if (!error) {
       return null
@@ -590,6 +739,10 @@ export default function App() {
 
     return <div className="error-banner">{error}</div>
   }
+
+  useEffect(() => {
+    loadSession()
+  }, [])
 
   useEffect(() => {
     function handlePointerDown(event) {
@@ -804,6 +957,121 @@ export default function App() {
     priorResponseFile
   ])
 
+  if (authLoading) {
+    return (
+      <main className="layout">
+        <section className="card auth-card">
+          <h2>Checking session...</h2>
+          <p className="muted">Please wait while we verify authentication.</p>
+        </section>
+      </main>
+    )
+  }
+
+  if (!authUser) {
+    return (
+      <main className="layout">
+        <section className="card auth-card">
+          <h1>A-Ideation Access</h1>
+          <p className="muted">Sign in or register to access the A-Ideation solution suite.</p>
+          <div className="auth-toggle-row">
+            <button
+              type="button"
+              className={authMode === 'login' ? 'primary-button' : 'secondary-button'}
+              onClick={() => setAuthMode('login')}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              className={authMode === 'register' ? 'primary-button' : 'secondary-button'}
+              onClick={() => setAuthMode('register')}
+            >
+              Register
+            </button>
+          </div>
+
+          <form className="auth-form" onSubmit={handleAuthSubmit}>
+            <label>
+              Email
+              <input type="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} required />
+            </label>
+            <label>
+              Password
+              <input
+                type="password"
+                value={authPassword}
+                onChange={(event) => setAuthPassword(event.target.value)}
+                required
+              />
+            </label>
+            {authMode === 'register' ? (
+              <label>
+                Display Name
+                <input
+                  type="text"
+                  value={authDisplayName}
+                  onChange={(event) => setAuthDisplayName(event.target.value)}
+                  placeholder="Optional"
+                />
+              </label>
+            ) : null}
+            <button type="submit" className="primary-button">
+              {authMode === 'register' ? 'Create Account' : 'Sign In'}
+            </button>
+          </form>
+
+          <section className="auth-subpanel">
+            <h3>Verify Email</h3>
+            <form className="auth-inline-form" onSubmit={handleVerifyEmail}>
+              <input
+                type="text"
+                value={verifyToken}
+                onChange={(event) => setVerifyToken(event.target.value)}
+                placeholder="Verification token"
+                required
+              />
+              <button type="submit" className="secondary-button">
+                Verify
+              </button>
+            </form>
+          </section>
+
+          <section className="auth-subpanel">
+            <h3>Password Reset</h3>
+            <div className="auth-inline-row">
+              <button type="button" className="secondary-button" onClick={handleForgotPassword}>
+                Request Reset Token
+              </button>
+            </div>
+            <form className="auth-inline-form" onSubmit={handleResetPassword}>
+              <input
+                type="text"
+                value={resetToken}
+                onChange={(event) => setResetToken(event.target.value)}
+                placeholder="Reset token"
+                required
+              />
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                placeholder="New password"
+                required
+              />
+              <button type="submit" className="secondary-button">
+                Reset Password
+              </button>
+            </form>
+          </section>
+
+          {authInfo ? <p className="status">{authInfo}</p> : null}
+          {renderError()}
+        </section>
+      </main>
+    )
+  }
+
   if (activeView === APP_VIEWS.SUITE_HOME) {
     return (
       <main className="layout">
@@ -815,6 +1083,10 @@ export default function App() {
         </header>
 
         <section className="card suite-links">
+          <div className="suite-auth-row">
+            <p className="muted">Signed in as {authUser.email}</p>
+            {renderLogoutButton()}
+          </div>
           <h2>Solutions</h2>
           <div className="suite-link-grid">
             <button type="button" className="suite-link-card" onClick={() => setActiveView(APP_VIEWS.DOCUMENT_DOCTOR)}>
@@ -839,7 +1111,12 @@ export default function App() {
     return (
       <PageShell
         mode={MODES.DOC_DEFINE}
-        topRightControls={renderBackToSuiteButton()}
+        topRightControls={
+          <>
+            {renderBackToSuiteButton()}
+            {renderLogoutButton()}
+          </>
+        }
         appTitle="Deck Mate"
         appSubtitle="A Professional Review Tool for Powerpoint Authors"
         brandLogo={deckMateLogo}
@@ -857,7 +1134,12 @@ export default function App() {
     return (
       <PageShell
         mode={MODES.DOC_DEFINE}
-        topRightControls={renderBackToSuiteButton()}
+        topRightControls={
+          <>
+            {renderBackToSuiteButton()}
+            {renderLogoutButton()}
+          </>
+        }
         appTitle="Doc 2 Deck"
         appSubtitle="Create Powerpoint Decks  from Published Documents"
         brandLogo={doc2DeckLogo}
@@ -878,6 +1160,7 @@ export default function App() {
         topRightControls={
           <>
             {renderBackToSuiteButton()}
+            {renderLogoutButton()}
             {renderSettingsControl()}
           </>
         }
@@ -1016,7 +1299,15 @@ export default function App() {
 
   if (currentMode === MODES.INVOKE) {
     return (
-      <PageShell mode={MODES.INVOKE} topRightControls={renderBackToSuiteButton()}>
+      <PageShell
+        mode={MODES.INVOKE}
+        topRightControls={
+          <>
+            {renderBackToSuiteButton()}
+            {renderLogoutButton()}
+          </>
+        }
+      >
         <section className="card invoke-card compact-panel">
           <div className="spinner" aria-hidden="true" />
           <h2>Invoking the AI Model</h2>
@@ -1027,7 +1318,15 @@ export default function App() {
 
   if (currentMode === MODES.RESULT_SAVED) {
     return (
-      <PageShell mode={MODES.RESULT_SAVED} topRightControls={renderBackToSuiteButton()}>
+      <PageShell
+        mode={MODES.RESULT_SAVED}
+        topRightControls={
+          <>
+            {renderBackToSuiteButton()}
+            {renderLogoutButton()}
+          </>
+        }
+      >
         <section className="card result-card compact-panel">
           <h2>AI Model Result Saved</h2>
           {renderError()}
@@ -1052,7 +1351,15 @@ export default function App() {
 
   if (currentMode === MODES.CRITIQUE_REVIEW) {
     return (
-      <PageShell mode={MODES.CRITIQUE_REVIEW} topRightControls={renderBackToSuiteButton()}>
+      <PageShell
+        mode={MODES.CRITIQUE_REVIEW}
+        topRightControls={
+          <>
+            {renderBackToSuiteButton()}
+            {renderLogoutButton()}
+          </>
+        }
+      >
         <section className="card action-row wrap-actions center-actions compact-panel">
             <button type="button" className="secondary-button" onClick={resetToDefinitionMode}>
               Exit Review
@@ -1151,7 +1458,15 @@ export default function App() {
   }
 
   return (
-    <PageShell mode={MODES.VIEW_CHANGED} topRightControls={renderBackToSuiteButton()}>
+    <PageShell
+      mode={MODES.VIEW_CHANGED}
+      topRightControls={
+        <>
+          {renderBackToSuiteButton()}
+          {renderLogoutButton()}
+        </>
+      }
+    >
       <section className="card action-row wrap-actions center-actions compact-panel">
         <button type="button" onClick={() => invokeOperation(OPERATIONS.CRITIQUE_CHANGED)}>
           Critique Changed Document
