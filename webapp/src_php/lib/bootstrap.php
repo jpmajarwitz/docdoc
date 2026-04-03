@@ -45,6 +45,10 @@ function php_backend_load_config()
 {
     $configPath = dirname(__DIR__) . '/config.php';
     if (file_exists($configPath)) {
+        $rawConfig = file_get_contents($configPath);
+        if ($rawConfig !== false && preg_match('/,\s*,/m', $rawConfig)) {
+            php_backend_error(500, 'Invalid config.php syntax: remove empty array elements (for example accidental double commas).');
+        }
         $loaded = require $configPath;
         if (is_array($loaded)) {
             return $loaded;
