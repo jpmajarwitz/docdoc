@@ -227,21 +227,25 @@ function auth_send_email($config, $toEmail, $toName, $subject, $htmlBody, $textB
         php_backend_error(500, 'SMTP is enabled but SMTP credentials are incomplete in config.php.');
     }
 
-    $mailer = new PHPMailer\PHPMailer\PHPMailer(true);
-    $mailer->isSMTP();
-    $mailer->Host = $smtp['host'];
-    $mailer->Port = $smtp['port'];
-    $mailer->SMTPAuth = true;
-    $mailer->Username = $smtp['username'];
-    $mailer->Password = $smtp['password'];
-    $mailer->SMTPSecure = $smtp['secure'];
-    $mailer->setFrom($smtp['from_email'], $smtp['from_name']);
-    $mailer->addAddress($toEmail, $toName);
-    $mailer->isHTML(true);
-    $mailer->Subject = $subject;
-    $mailer->Body = $htmlBody;
-    $mailer->AltBody = $textBody;
-    $mailer->send();
+    try {
+        $mailer = new PHPMailer\PHPMailer\PHPMailer(true);
+        $mailer->isSMTP();
+        $mailer->Host = $smtp['host'];
+        $mailer->Port = $smtp['port'];
+        $mailer->SMTPAuth = true;
+        $mailer->Username = $smtp['username'];
+        $mailer->Password = $smtp['password'];
+        $mailer->SMTPSecure = $smtp['secure'];
+        $mailer->setFrom($smtp['from_email'], $smtp['from_name']);
+        $mailer->addAddress($toEmail, $toName);
+        $mailer->isHTML(true);
+        $mailer->Subject = $subject;
+        $mailer->Body = $htmlBody;
+        $mailer->AltBody = $textBody;
+        $mailer->send();
+    } catch (Throwable $exception) {
+        php_backend_error(500, 'SMTP send failed: ' . $exception->getMessage());
+    }
 }
 
 function auth_send_verification_email($config, $toEmail, $toName, $token)

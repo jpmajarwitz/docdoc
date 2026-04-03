@@ -1,5 +1,23 @@
 <?php
 
+if (!function_exists('php_backend_register_error_handlers')) {
+    function php_backend_register_error_handlers()
+    {
+        set_exception_handler(function ($exception) {
+            if (!headers_sent()) {
+                http_response_code(500);
+                header('Content-Type: application/json');
+            }
+            echo json_encode([
+                'detail' => 'Backend exception: ' . $exception->getMessage(),
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            exit;
+        });
+    }
+}
+
+php_backend_register_error_handlers();
+
 function php_backend_load_config()
 {
     $configPath = dirname(__DIR__) . '/config.php';

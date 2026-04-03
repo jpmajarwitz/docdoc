@@ -26,26 +26,30 @@ if ($existing) {
 $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 $status = 'pending_verification';
 
-$stmt = $pdo->prepare('INSERT INTO users (email, email_normalized, password_hash, display_name, status, created_at, updated_at) VALUES (:email, :email_normalized, :password_hash, :display_name, :status, NOW(), NOW())');
-$stmt->execute([
-    'email' => $email,
-    'email_normalized' => $emailNormalized,
-    'password_hash' => $passwordHash,
-    'display_name' => $displayName,
-    'status' => $status,
-]);
-$userId = (int) $pdo->lastInsertId();
+try {
+    $stmt = $pdo->prepare('INSERT INTO users (email, email_normalized, password_hash, display_name, status) VALUES (:email, :email_normalized, :password_hash, :display_name, :status)');
+    $stmt->execute([
+        'email' => $email,
+        'email_normalized' => $emailNormalized,
+        'password_hash' => $passwordHash,
+        'display_name' => $displayName,
+        'status' => $status,
+    ]);
+    $userId = (int) $pdo->lastInsertId();
 
-$token = auth_generate_token();
-$tokenHash = auth_token_hash($token);
-$expiresAt = date('Y-m-d H:i:s', time() + 86400);
+    $token = auth_generate_token();
+    $tokenHash = auth_token_hash($token);
+    $expiresAt = date('Y-m-d H:i:s', time() + 86400);
 
-$tokenStmt = $pdo->prepare('INSERT INTO email_verification_tokens (user_id, token_hash, expires_at, created_at) VALUES (:user_id, :token_hash, :expires_at, NOW())');
-$tokenStmt->execute([
-    'user_id' => $userId,
-    'token_hash' => $tokenHash,
-    'expires_at' => $expiresAt,
-]);
+    $tokenStmt = $pdo->prepare('INSERT INTO email_verification_tokens (user_id, token_hash, expires_at) VALUES (:user_id, :token_hash, :expires_at)');
+    $tokenStmt->execute([
+        'user_id' => $userId,
+        'token_hash' => $tokenHash,
+        'expires_at' => $expiresAt,
+    ]);
+} catch (Throwable $exception) {
+    php_backend_error(500, 'Registration failed: ' . $exception->getMessage());
+}
 
 auth_send_verification_email($config, $email, $displayName, $token);
 

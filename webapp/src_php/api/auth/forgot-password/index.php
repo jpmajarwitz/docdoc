@@ -20,14 +20,18 @@ if ($user && ($user['status'] ?? '') === 'active') {
     $tokenHash = auth_token_hash($token);
     $expiresAt = date('Y-m-d H:i:s', time() + 1800);
 
-    $stmt = $pdo->prepare('INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, created_at) VALUES (:user_id, :token_hash, :expires_at, NOW())');
-    $stmt->execute([
-        'user_id' => $user['id'],
-        'token_hash' => $tokenHash,
-        'expires_at' => $expiresAt,
-    ]);
+    try {
+        $stmt = $pdo->prepare('INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (:user_id, :token_hash, :expires_at)');
+        $stmt->execute([
+            'user_id' => $user['id'],
+            'token_hash' => $tokenHash,
+            'expires_at' => $expiresAt,
+        ]);
 
-    auth_send_reset_email($config, $user['email'], (string) ($user['display_name'] ?? ''), $token);
+        auth_send_reset_email($config, $user['email'], (string) ($user['display_name'] ?? ''), $token);
+    } catch (Throwable $exception) {
+        php_backend_error(500, 'Password reset request failed: ' . $exception->getMessage());
+    }
 }
 
 $response = [

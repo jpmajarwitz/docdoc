@@ -28,7 +28,14 @@ $_SESSION['auth_user_id'] = (int) $user['id'];
 $_SESSION['auth_email'] = $user['email'];
 $_SESSION['auth_logged_in_at'] = time();
 
-$pdo->prepare('UPDATE users SET last_login_at = NOW(), failed_login_count = 0, updated_at = NOW() WHERE id = :id')->execute(['id' => $user['id']]);
+try {
+    $pdo->prepare('UPDATE users SET last_login_at = NOW() WHERE id = :id')->execute(['id' => $user['id']]);
+} catch (Throwable $exception) {
+    php_backend_log('auth.login.last_login_update_failed', [
+        'user_id' => $user['id'],
+        'error' => $exception->getMessage(),
+    ]);
+}
 
 php_backend_json_response(200, [
     'ok' => true,

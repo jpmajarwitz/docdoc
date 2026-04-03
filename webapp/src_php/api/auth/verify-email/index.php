@@ -28,8 +28,12 @@ if (strtotime((string) $row['expires_at']) < time()) {
     php_backend_error(400, 'Verification token has expired.');
 }
 
-$pdo->prepare('UPDATE email_verification_tokens SET used_at = NOW() WHERE id = :id')->execute(['id' => $row['id']]);
-$pdo->prepare("UPDATE users SET status = 'active', email_verified_at = NOW(), updated_at = NOW() WHERE id = :id")->execute(['id' => $row['user_id']]);
+try {
+    $pdo->prepare('UPDATE email_verification_tokens SET used_at = NOW() WHERE id = :id')->execute(['id' => $row['id']]);
+    $pdo->prepare("UPDATE users SET status = 'active' WHERE id = :id")->execute(['id' => $row['user_id']]);
+} catch (Throwable $exception) {
+    php_backend_error(500, 'Email verification failed: ' . $exception->getMessage());
+}
 
 php_backend_json_response(200, [
     'ok' => true,

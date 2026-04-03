@@ -29,11 +29,15 @@ if (strtotime((string) $row['expires_at']) < time()) {
 }
 
 $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
-$pdo->prepare('UPDATE users SET password_hash = :password_hash, updated_at = NOW() WHERE id = :id')->execute([
-    'password_hash' => $passwordHash,
-    'id' => $row['user_id'],
-]);
-$pdo->prepare('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = :id')->execute(['id' => $row['id']]);
+try {
+    $pdo->prepare('UPDATE users SET password_hash = :password_hash WHERE id = :id')->execute([
+        'password_hash' => $passwordHash,
+        'id' => $row['user_id'],
+    ]);
+    $pdo->prepare('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = :id')->execute(['id' => $row['id']]);
+} catch (Throwable $exception) {
+    php_backend_error(500, 'Password reset failed: ' . $exception->getMessage());
+}
 
 php_backend_json_response(200, [
     'ok' => true,
