@@ -26,10 +26,16 @@ if ($user && ($user['status'] ?? '') === 'active') {
         'token_hash' => $tokenHash,
         'expires_at' => $expiresAt,
     ]);
+
+    auth_send_reset_email($config, $user['email'], (string) ($user['display_name'] ?? ''), $token);
 }
 
-php_backend_json_response(200, [
+$response = [
     'ok' => true,
     'message' => 'If the email exists, reset instructions were created.',
-    'resetToken' => $token,
-]);
+];
+if ($token && auth_should_return_tokens($config)) {
+    $response['resetToken'] = $token;
+}
+
+php_backend_json_response(200, $response);

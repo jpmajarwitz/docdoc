@@ -47,8 +47,14 @@ $tokenStmt->execute([
     'expires_at' => $expiresAt,
 ]);
 
-php_backend_json_response(201, [
+auth_send_verification_email($config, $email, $displayName, $token);
+
+$response = [
     'ok' => true,
     'message' => 'Registration successful. Verify your email to activate account.',
-    'verificationToken' => $token,
-]);
+];
+if (auth_should_return_tokens($config)) {
+    $response['verificationToken'] = $token;
+}
+
+php_backend_json_response(201, $response);

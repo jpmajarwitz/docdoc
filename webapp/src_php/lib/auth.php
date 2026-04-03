@@ -120,3 +120,148 @@ function auth_public_user($user)
         'status' => $user['status'] ?? '',
     ];
 }
+
+function auth_config_bool($value, $default = false)
+{
+    if ($value === null) {
+        return $default;
+    }
+    if (is_bool($value)) {
+        return $value;
+    }
+    if (is_numeric($value)) {
+        return ((int) $value) !== 0;
+    }
+    $normalized = strtolower(trim((string) $value));
+    return in_array($normalized, ['1', 'true', 'yes', 'on'], true);
+}
+
+function auth_should_return_tokens($config)
+{
+    return auth_config_bool($config['auth_return_tokens_in_response'] ?? false, false);
+}
+
+function auth_mailer_enabled($config)
+{
+    $envEnabled = getenv('SMTP_ENABLED');
+    if ($envEnabled !== false && $envEnabled !== '') {
+        return auth_config_bool($envEnabled, false);
+    }
+    return auth_config_bool($config['smtp_enabled'] ?? false, false);
+}
+
+function auth_mailer_src_path($config)
+{
+    if (!empty($config['phpmailer_src_path'])) {
+        return rtrim((string) $config['phpmailer_src_path'], '/');
+    }
+    $envPath = getenv('PHPMAILER_SRC_PATH');
+    if ($envPath) {
+        return rtrim((string) $envPath, '/');
+    }
+    return dirname(__DIR__) . '/third_party/PHPMailer/src';
+}
+
+function auth_mailer_require($config)
+{
+    if (class_exists('PHPMailer\\PHPMailer\\PHPMailer')) {
+        return;
+    }
+
+    $srcPath = auth_mailer_src_path($config);
+    $requiredFiles = [
+        $srcPath . '/Exception.php',
+        $srcPath . '/PHPMailer.php',
+        $srcPath . '/SMTP.php',
+    ];
+
+    foreach ($requiredFiles as $file) {
+        if (!file_exists($file)) {
+            php_backend_error(500, 'PHPMailer source files not found. Set `phpmailer_src_path` in config.php.');
+        }
+        require_once $file;
+    }
+}
+
+function auth_mailer_config($config)
+{
+    return [
+        'host' => (string) (getenv('SMTP_HOST') ?: ($config['smtp_host'] ?? '')),
+        'port' => (int) (getenv('SMTP_PORT') ?: ($config['smtp_port'] ?? 587)),
+        'username' => (string) (getenv('SMTP_USERNAME') ?: ($config['smtp_username'] ?? '')),
+        'password' => (string) (getenv('SMTP_PASSWORD') ?: ($config['smtp_password'] ?? '')),
+        'secure' => (string) (getenv('SMTP_SECURE') ?: ($config['smtp_secure'] ?? 'tls')),
+        'from_email' => (string) (getenv('SMTP_FROM_EMAIL') ?: ($config['smtp_from_email'] ?? '')),
+        'from_name' => (string) (getenv('SMTP_FROM_NAME') ?: ($config['smtp_from_name'] ?? 'A-Ideation')),
+    ];
+}
+
+function auth_base_url($config)
+{
+    if (!empty($config['app_base_url'])) {
+        return rtrim((string) $config['app_base_url'], '/');
+    }
+
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    $scriptDir = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/'))), '/');
+
+    // auth endpoints live in /api/auth/*/index.php, so strip /api/auth/* from script path.
+    $apiPos = strpos($scriptDir, '/api/auth');
+    if ($apiPos !== false) {
+        $scriptDir = substr($scriptDir, 0, $apiPos);
+    }
+
+    return rtrim($scheme . '://' . $host . $scriptDir, '/');
+}
+
+function auth_send_email($config, $toEmail, $toName, $subject, $htmlBody, $textBody)
+{
+    if (!auth_mailer_enabled($config)) {
+        return;
+    }
+
+    auth_mailer_require($config);
+    $smtp = auth_mailer_config($config);
+    if ($smtp['host'] === '' || $smtp['username'] === '' || $smtp['password'] === '' || $smtp['from_email'] === '') {
+        php_backend_error(500, 'SMTP is enabled but SMTP credentials are incomplete in config.php.');
+    }
+
+    $mailer = new PHPMailer\PHPMailer\PHPMailer(true);
+    $mailer->isSMTP();
+    $mailer->Host = $smtp['host'];
+    $mailer->Port = $smtp['port'];
+    $mailer->SMTPAuth = true;
+    $mailer->Username = $smtp['username'];
+    $mailer->Password = $smtp['password'];
+    $mailer->SMTPSecure = $smtp['secure'];
+    $mailer->setFrom($smtp['from_email'], $smtp['from_name']);
+    $mailer->addAddress($toEmail, $toName);
+    $mailer->isHTML(true);
+    $mailer->Subject = $subject;
+    $mailer->Body = $htmlBody;
+    $mailer->AltBody = $textBody;
+    $mailer->send();
+}
+
+function auth_send_verification_email($config, $toEmail, $toName, $token)
+{
+    $baseUrl = auth_base_url($config);
+    $verifyLink = $baseUrl . '/verify-email?token=' . urlencode((string) $token);
+    $subject = 'Verify your A-Ideation account';
+    $htmlBody = '<p>Welcome to A-Ideation.</p><p>Use this token to verify your email:</p><pre>' . htmlspecialchars((string) $token) . '</pre><p>Optional link: <a href=\"' . htmlspecialchars($verifyLink) . '\">' . htmlspecialchars($verifyLink) . '</a></p>';
+    $textBody = "Welcome to A-Ideation.\n\nUse this token to verify your email:\n" . $token . "\n\nOptional link:\n" . $verifyLink;
+
+    auth_send_email($config, $toEmail, $toName, $subject, $htmlBody, $textBody);
+}
+
+function auth_send_reset_email($config, $toEmail, $toName, $token)
+{
+    $baseUrl = auth_base_url($config);
+    $resetLink = $baseUrl . '/reset-password?token=' . urlencode((string) $token);
+    $subject = 'Reset your A-Ideation password';
+    $htmlBody = '<p>You requested a password reset.</p><p>Use this token to reset your password:</p><pre>' . htmlspecialchars((string) $token) . '</pre><p>Optional link: <a href=\"' . htmlspecialchars($resetLink) . '\">' . htmlspecialchars($resetLink) . '</a></p>';
+    $textBody = "You requested a password reset.\n\nUse this token to reset your password:\n" . $token . "\n\nOptional link:\n" . $resetLink;
+
+    auth_send_email($config, $toEmail, $toName, $subject, $htmlBody, $textBody);
+}
