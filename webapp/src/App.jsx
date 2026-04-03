@@ -170,10 +170,11 @@ async function readBackendJson(response) {
   if (!contentType.includes('application/json')) {
     const responseText = await response.text()
     const maybeHtml = responseText.trim().startsWith('<')
+    const preview = responseText.replace(/\s+/g, ' ').trim().slice(0, 220)
     throw new Error(
       maybeHtml
-        ? `Backend returned HTML instead of JSON (status ${response.status}). Verify VITE_API_BASE_URL points to your backend API and uses HTTPS when the site is served over HTTPS.`
-        : `Backend returned non-JSON response (status ${response.status}).`
+        ? `Backend returned HTML instead of JSON (status ${response.status}). Verify VITE_API_BASE_URL points to your backend API and uses HTTPS when the site is served over HTTPS. Response preview: ${preview}`
+        : `Backend returned non-JSON response (status ${response.status}). Response preview: ${preview}`
     )
   }
 
