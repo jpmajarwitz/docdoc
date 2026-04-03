@@ -103,11 +103,86 @@ function upload_file_to_openai(string $apiKey, array $file): ?string
     return $decoded['id'];
 }
 
+function run_database_connection_test(): void
+{
+    if (!function_exists('mysqli_init')) {
+        json_response(500, [
+            'ok' => false,
+            'error' => 'PHP mysqli extension is not available on this hosting account.',
+        ]);
+    }
+
+    $servername = trim($_POST['db_servername'] ?? '');
+    $username = trim($_POST['db_username'] ?? '');
+    $password = (string) ($_POST['db_password'] ?? '');
+    $dbname = trim($_POST['db_name'] ?? '');
+
+    if ($servername === '' || $username === '' || $dbname === '') {
+        json_response(400, [
+            'ok' => false,
+            'error' => 'db_servername, db_username, and db_name are required.',
+        ]);
+    }
+
+    mysqli_report(MYSQLI_REPORT_OFF);
+    $mysqli = mysqli_init();
+    if (!$mysqli) {
+        json_response(500, [
+            'ok' => false,
+            'error' => 'Failed to initialize mysqli client.',
+        ]);
+    }
+
+    $connected = @mysqli_real_connect($mysqli, $servername, $username, $password, $dbname);
+    if (!$connected) {
+        $errno = mysqli_connect_errno();
+        $error = mysqli_connect_error();
+        if ($mysqli instanceof mysqli) {
+            $mysqli->close();
+        }
+
+        json_response(502, [
+            'ok' => false,
+            'test_type' => 'db_connection',
+            'connected' => false,
+            'error' => 'Database connection failed.',
+            'details' => $error,
+            'mysql_errno' => $errno,
+            'server' => $servername,
+            'db_name' => $dbname,
+            'username' => $username,
+        ]);
+    }
+
+    $hostInfo = mysqli_get_host_info($mysqli);
+    $serverInfo = mysqli_get_server_info($mysqli);
+    $threadId = mysqli_thread_id($mysqli);
+    mysqli_close($mysqli);
+
+    json_response(200, [
+        'ok' => true,
+        'test_type' => 'db_connection',
+        'connected' => true,
+        'message' => 'Database connection succeeded and was closed cleanly.',
+        'server' => $servername,
+        'db_name' => $dbname,
+        'username' => $username,
+        'host_info' => $hostInfo,
+        'server_info' => $serverInfo,
+        'thread_id' => $threadId,
+    ]);
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_response(405, [
         'ok' => false,
         'error' => 'Use POST to call this endpoint.',
     ]);
+}
+
+$testType = trim($_POST['test_type'] ?? 'openai');
+if ($testType === 'db_connection') {
+    run_database_connection_test();
 }
 
 if (!function_exists('curl_init')) {
@@ -248,6 +323,7 @@ if (!$outputText && !empty($decoded['output']) && is_array($decoded['output'])) 
 
 json_response(200, [
     'ok' => true,
+    'test_type' => 'openai',
     'model' => $model,
     'uploaded_file_id' => $fileId,
     'output_text' => $outputText,

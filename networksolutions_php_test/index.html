@@ -27,7 +27,11 @@
         box-shadow: 0 12px 24px rgba(107, 33, 168, 0.08);
         margin-bottom: 1rem;
       }
-      h1, h2, p { margin-top: 0; }
+      h1,
+      h2,
+      p {
+        margin-top: 0;
+      }
       form {
         display: grid;
         gap: 1rem;
@@ -38,16 +42,21 @@
         font-weight: 700;
         color: #6b21a8;
       }
-      input, textarea, select, button {
+      input,
+      textarea,
+      select,
+      button {
         font: inherit;
       }
-      input, textarea, select {
+      input,
+      textarea,
+      select {
         border: 1px solid #ccb9e8;
         border-radius: 12px;
         padding: 0.85rem 1rem;
         background: #fff;
       }
-      input[type="file"]::file-selector-button {
+      input[type='file']::file-selector-button {
         margin-right: 1rem;
         border: 0;
         border-radius: 10px;
@@ -85,6 +94,15 @@
       .status {
         font-weight: 700;
       }
+      .grid-2 {
+        display: grid;
+        gap: 0.75rem;
+      }
+      @media (min-width: 720px) {
+        .grid-2 {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
     </style>
   </head>
   <body>
@@ -92,14 +110,15 @@
       <section class="card">
         <h1>Network Solutions PHP OpenAI Test</h1>
         <p class="muted">
-          This standalone page posts to <code>proxy_test.php</code> so you can verify whether your
-          Network Solutions basic hosting account can handle PHP, file uploads, outbound cURL,
-          and OpenAI API calls.
+          This standalone page posts to <code>proxy_test.php</code> so you can verify whether your Network Solutions
+          basic hosting account can handle PHP, file uploads, outbound cURL, OpenAI API calls, and MySQL connectivity.
         </p>
       </section>
 
       <section class="card">
+        <h2>OpenAI Proxy Test</h2>
         <form id="test-form">
+          <input type="hidden" name="test_type" value="openai" />
           <label>
             API Mode
             <select name="api_mode">
@@ -128,14 +147,51 @@
       </section>
 
       <section class="card">
-        <h2>Request</h2>
+        <h2>OpenAI Request</h2>
         <pre id="request-output">No request prepared yet.</pre>
       </section>
 
       <section class="card">
-        <h2>Result</h2>
+        <h2>OpenAI Result</h2>
         <p id="status" class="status">Ready.</p>
         <pre id="output">No request sent yet.</pre>
+      </section>
+
+      <section class="card">
+        <h2>Database Connection Test</h2>
+        <form id="db-test-form">
+          <input type="hidden" name="test_type" value="db_connection" />
+          <div class="grid-2">
+            <label>
+              Server Name
+              <input type="text" name="db_servername" placeholder="localhost" required />
+            </label>
+            <label>
+              Database Name
+              <input type="text" name="db_name" required />
+            </label>
+            <label>
+              Username
+              <input type="text" name="db_username" required />
+            </label>
+            <label>
+              Password
+              <input type="password" name="db_password" required />
+            </label>
+          </div>
+          <button type="submit">Test Database Connection</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Database Request</h2>
+        <pre id="db-request-output">No database request prepared yet.</pre>
+      </section>
+
+      <section class="card">
+        <h2>Database Result</h2>
+        <p id="db-status" class="status">Ready.</p>
+        <pre id="db-output">No database test sent yet.</pre>
       </section>
     </main>
 
@@ -144,6 +200,11 @@
       const statusEl = document.getElementById('status')
       const outputEl = document.getElementById('output')
       const requestOutputEl = document.getElementById('request-output')
+
+      const dbForm = document.getElementById('db-test-form')
+      const dbStatusEl = document.getElementById('db-status')
+      const dbOutputEl = document.getElementById('db-output')
+      const dbRequestOutputEl = document.getElementById('db-request-output')
 
       function buildRequestPreview(formData) {
         const model = formData.get('model') || ''
@@ -156,11 +217,27 @@
         return JSON.stringify(
           {
             endpoint: 'POST proxy_test.php',
+            test_type: 'openai',
             api_mode: apiMode,
             model,
             store: false,
             prompt,
             document: fileName,
+          },
+          null,
+          2
+        )
+      }
+
+      function buildDbRequestPreview(formData) {
+        return JSON.stringify(
+          {
+            endpoint: 'POST proxy_test.php',
+            test_type: 'db_connection',
+            db_servername: formData.get('db_servername') || '',
+            db_name: formData.get('db_name') || '',
+            db_username: formData.get('db_username') || '',
+            db_password: '(hidden)',
           },
           null,
           2
@@ -186,6 +263,28 @@
         } catch (error) {
           statusEl.textContent = 'Browser request failed.'
           outputEl.textContent = String(error)
+        }
+      })
+
+      dbForm.addEventListener('submit', async (event) => {
+        event.preventDefault()
+        dbStatusEl.textContent = 'Sending DB connection test to proxy_test.php...'
+        dbOutputEl.textContent = 'Waiting for response...'
+
+        try {
+          const formData = new FormData(dbForm)
+          dbRequestOutputEl.textContent = buildDbRequestPreview(formData)
+          const response = await fetch('proxy_test.php', {
+            method: 'POST',
+            body: formData,
+          })
+
+          const text = await response.text()
+          dbStatusEl.textContent = response.ok ? 'Database test completed.' : `Database test failed (${response.status}).`
+          dbOutputEl.textContent = text
+        } catch (error) {
+          dbStatusEl.textContent = 'Browser request failed.'
+          dbOutputEl.textContent = String(error)
         }
       })
     </script>
