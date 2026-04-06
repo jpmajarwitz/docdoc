@@ -108,7 +108,7 @@ The build now emits separate HTML entry points so each app shell can be linked d
 Deployment checklist for `/dd` style hosting:
 
 1. Ensure `webapp/.env.production` contains `VITE_API_BASE_URL=/dd` (or your HTTPS backend base URL).
-2. Set `VITE_DEPLOY_BASE_PATH` to the URL path where the static files are hosted (for example `/dd/`) so generated HTML references `/dd/assets/...` instead of `/assets/...`.
+2. Set `VITE_DEPLOY_BASE_PATH` to the URL path where the static files are hosted (for example `/dd/`) so generated HTML references `/dd/assets/...` instead of `/assets/...`. If `VITE_DEPLOY_BASE_PATH` is omitted, the build now falls back to a path-like `VITE_API_BASE_URL` value (for example `/dd`).
 3. Run `npm run build` from `webapp/`.
 4. Verify built assets do not contain `http://` backend URLs (for example: `rg -n "http://" webapp/dist/assets`).
 5. Upload the new `webapp/dist/*` files (overwrite old files).
