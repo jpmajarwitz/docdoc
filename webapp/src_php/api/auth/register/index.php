@@ -51,14 +51,18 @@ try {
     php_backend_error(500, 'Registration failed: ' . $exception->getMessage());
 }
 
-auth_send_verification_email($config, $email, $displayName, $token);
+$emailDispatch = auth_send_verification_email($config, $email, $displayName, $token);
 
 $response = [
     'ok' => true,
     'message' => 'Registration successful. Verify your email to activate account.',
+    'verificationEmailSent' => !empty($emailDispatch['sent']),
 ];
 if (auth_should_return_tokens($config)) {
     $response['verificationToken'] = $token;
+}
+if (empty($emailDispatch['sent'])) {
+    $response['verificationEmailError'] = $emailDispatch['error'] ?? 'Unable to send verification email from the server.';
 }
 
 php_backend_json_response(201, $response);

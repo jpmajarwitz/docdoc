@@ -19,6 +19,7 @@ return [
     'smtp_username' => 'smtp_user',
     'smtp_password' => 'smtp_password',
     'smtp_secure' => 'tls',
+    'smtp_timeout_seconds' => 15,
     'smtp_from_email' => 'no-reply@yourdomain.com',
     'smtp_from_name' => 'A-Ideation',
     'auth_return_tokens_in_response' => false,

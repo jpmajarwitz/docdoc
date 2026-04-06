@@ -32,7 +32,7 @@ Each endpoint returns JSON shaped to match the current frontend expectations.
 1. Copy `config.example.php` to `config.php`.
 2. Set `openai_api_key` in `config.php`.
 3. Set database values in `config.php`: `db_servername`, `db_username`, `db_password`, `db_name`, and optional `db_port`.
-4. For SMTP email delivery, set `smtp_enabled`, `phpmailer_src_path`, `smtp_host`, `smtp_port`, `smtp_username`, `smtp_password`, `smtp_secure`, `smtp_from_email`, and `smtp_from_name`.
+4. For SMTP email delivery, set `smtp_enabled`, `phpmailer_src_path`, `smtp_host`, `smtp_port`, `smtp_username`, `smtp_password`, `smtp_secure`, optional `smtp_timeout_seconds`, `smtp_from_email`, and `smtp_from_name`.
 5. (Optional) set `auth_return_tokens_in_response=true` only for local testing if you want verification/reset tokens returned in API responses.
 6. Update `cors_allow_origins` for your real frontend origin(s).
 7. Upload the contents of `src_php/` so the host serves the `api/` folder.

@@ -15,6 +15,7 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 $pdo = auth_get_pdo($config);
 $user = auth_get_user_by_email($pdo, auth_normalize_email($email));
 $token = null;
+$emailDispatch = ['attempted' => false, 'sent' => false, 'error' => 'No matching active account.'];
 if ($user && ($user['status'] ?? '') === 'active') {
     $token = auth_generate_token();
     $tokenHash = auth_token_hash($token);
@@ -28,7 +29,7 @@ if ($user && ($user['status'] ?? '') === 'active') {
             'expires_at' => $expiresAt,
         ]);
 
-        auth_send_reset_email($config, $user['email'], (string) ($user['display_name'] ?? ''), $token);
+        $emailDispatch = auth_send_reset_email($config, $user['email'], (string) ($user['display_name'] ?? ''), $token);
     } catch (Throwable $exception) {
         php_backend_error(500, 'Password reset request failed: ' . $exception->getMessage());
     }
@@ -37,9 +38,13 @@ if ($user && ($user['status'] ?? '') === 'active') {
 $response = [
     'ok' => true,
     'message' => 'If the email exists, reset instructions were created.',
+    'resetEmailSent' => !empty($emailDispatch['sent']),
 ];
 if ($token && auth_should_return_tokens($config)) {
     $response['resetToken'] = $token;
+}
+if ($token && empty($emailDispatch['sent'])) {
+    $response['resetEmailError'] = $emailDispatch['error'] ?? 'Unable to send reset email from the server.';
 }
 
 php_backend_json_response(200, $response);

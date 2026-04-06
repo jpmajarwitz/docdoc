@@ -245,6 +245,7 @@ export default function App() {
   const [authPassword, setAuthPassword] = useState('')
   const [authDisplayName, setAuthDisplayName] = useState('')
   const [authInfo, setAuthInfo] = useState('')
+  const [authSubmitting, setAuthSubmitting] = useState(false)
   const [verifyToken, setVerifyToken] = useState('')
   const [resetToken, setResetToken] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -315,18 +316,27 @@ export default function App() {
     event.preventDefault()
     setError('')
     setAuthInfo('')
+    setAuthSubmitting(true)
     try {
       if (authMode === 'register') {
+        setAuthInfo('Please wait while account is being created...')
         const response = await postJson(AUTH_ENDPOINTS.REGISTER, {
           email: authEmail,
           password: authPassword,
           displayName: authDisplayName
         })
-        setAuthInfo(
-          `Registration successful. Verify your email token, then sign in.${response.verificationToken ? ` Token: ${response.verificationToken}` : ''}`
-        )
+        if (response.verificationEmailSent) {
+          setAuthInfo(
+            `Registration successful. Verification email sent.${response.verificationToken ? ` Token: ${response.verificationToken}` : ''}`
+          )
+        } else {
+          setAuthInfo(
+            `Registration successful, but verification email could not be sent from the server. ${response.verificationEmailError || ''}${response.verificationToken ? ` Token: ${response.verificationToken}` : ''}`
+          )
+        }
         setAuthMode('login')
       } else {
+        setAuthInfo('Please wait while signing in...')
         const response = await postJson(AUTH_ENDPOINTS.LOGIN, {
           email: authEmail,
           password: authPassword
@@ -336,6 +346,8 @@ export default function App() {
       }
     } catch (authError) {
       setError(normalizeRequestError(authError))
+    } finally {
+      setAuthSubmitting(false)
     }
   }
 
@@ -1029,8 +1041,14 @@ export default function App() {
                 />
               </label>
             ) : null}
-            <button type="submit" className="primary-button">
-              {authMode === 'register' ? 'Create Account' : 'Sign In'}
+            <button type="submit" className="primary-button" disabled={authSubmitting}>
+              {authSubmitting
+                ? authMode === 'register'
+                  ? 'Creating Account...'
+                  : 'Signing In...'
+                : authMode === 'register'
+                  ? 'Create Account'
+                  : 'Sign In'}
             </button>
           </form>
 

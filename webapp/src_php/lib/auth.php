@@ -218,13 +218,21 @@ function auth_base_url($config)
 function auth_send_email($config, $toEmail, $toName, $subject, $htmlBody, $textBody)
 {
     if (!auth_mailer_enabled($config)) {
-        return;
+        return [
+            'attempted' => false,
+            'sent' => false,
+            'error' => 'SMTP is disabled.',
+        ];
     }
 
     auth_mailer_require($config);
     $smtp = auth_mailer_config($config);
     if ($smtp['host'] === '' || $smtp['username'] === '' || $smtp['password'] === '' || $smtp['from_email'] === '') {
-        php_backend_error(500, 'SMTP is enabled but SMTP credentials are incomplete in config.php.');
+        return [
+            'attempted' => true,
+            'sent' => false,
+            'error' => 'SMTP is enabled but SMTP credentials are incomplete in config.php.',
+        ];
     }
 
     try {
@@ -242,9 +250,25 @@ function auth_send_email($config, $toEmail, $toName, $subject, $htmlBody, $textB
         $mailer->Subject = $subject;
         $mailer->Body = $htmlBody;
         $mailer->AltBody = $textBody;
+        $mailer->Timeout = (int) ($config['smtp_timeout_seconds'] ?? 15);
         $mailer->send();
+
+        return [
+            'attempted' => true,
+            'sent' => true,
+            'error' => null,
+        ];
     } catch (Throwable $exception) {
-        php_backend_error(500, 'SMTP send failed: ' . $exception->getMessage());
+        php_backend_log('auth.smtp_send_failed', [
+            'to' => $toEmail,
+            'subject' => $subject,
+            'error' => $exception->getMessage(),
+        ]);
+        return [
+            'attempted' => true,
+            'sent' => false,
+            'error' => $exception->getMessage(),
+        ];
     }
 }
 
@@ -256,7 +280,7 @@ function auth_send_verification_email($config, $toEmail, $toName, $token)
     $htmlBody = '<p>Welcome to A-Ideation.</p><p>Use this token to verify your email:</p><pre>' . htmlspecialchars((string) $token) . '</pre><p>Optional link: <a href=\"' . htmlspecialchars($verifyLink) . '\">' . htmlspecialchars($verifyLink) . '</a></p>';
     $textBody = "Welcome to A-Ideation.\n\nUse this token to verify your email:\n" . $token . "\n\nOptional link:\n" . $verifyLink;
 
-    auth_send_email($config, $toEmail, $toName, $subject, $htmlBody, $textBody);
+    return auth_send_email($config, $toEmail, $toName, $subject, $htmlBody, $textBody);
 }
 
 function auth_send_reset_email($config, $toEmail, $toName, $token)
@@ -267,5 +291,5 @@ function auth_send_reset_email($config, $toEmail, $toName, $token)
     $htmlBody = '<p>You requested a password reset.</p><p>Use this token to reset your password:</p><pre>' . htmlspecialchars((string) $token) . '</pre><p>Optional link: <a href=\"' . htmlspecialchars($resetLink) . '\">' . htmlspecialchars($resetLink) . '</a></p>';
     $textBody = "You requested a password reset.\n\nUse this token to reset your password:\n" . $token . "\n\nOptional link:\n" . $resetLink;
 
-    auth_send_email($config, $toEmail, $toName, $subject, $htmlBody, $textBody);
+    return auth_send_email($config, $toEmail, $toName, $subject, $htmlBody, $textBody);
 }
