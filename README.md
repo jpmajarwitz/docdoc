@@ -121,6 +121,13 @@ VITE_API_BASE_URL=/dd
 VITE_DEPLOY_BASE_PATH=/dd/
 ```
 
+You can also override the prefix per build command:
+
+```bash
+cd /workspace/docdoc/webapp
+npm run build -- --base=/dd/
+```
+
 > Important: do **not** upload `webapp/src/*.jsx` expecting the host to compile it.
 
 ## Build and preview
