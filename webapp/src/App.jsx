@@ -247,6 +247,8 @@ export default function App() {
   const [authInfo, setAuthInfo] = useState('')
   const [authSubmitting, setAuthSubmitting] = useState(false)
   const [registrationReadyForVerify, setRegistrationReadyForVerify] = useState(false)
+  const [authOverlayOpen, setAuthOverlayOpen] = useState(false)
+  const [showAuthRequiredNotice, setShowAuthRequiredNotice] = useState(false)
   const [verifyToken, setVerifyToken] = useState('')
   const [resetToken, setResetToken] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -336,7 +338,6 @@ export default function App() {
             `Registration successful, but verification email could not be sent from the server. ${response.verificationEmailError || ''}${response.verificationToken ? ` Token: ${response.verificationToken}` : ''}`
           )
         }
-        setAuthMode('login')
       } else {
         setRegistrationReadyForVerify(false)
         setAuthInfo('Please wait while signing in...')
@@ -346,6 +347,8 @@ export default function App() {
         })
         setAuthUser(response.user || null)
         setAuthInfo('')
+        setAuthOverlayOpen(false)
+        setShowAuthRequiredNotice(false)
       }
     } catch (authError) {
       setError(normalizeRequestError(authError))
@@ -412,7 +415,18 @@ export default function App() {
       resetAuthInputs()
       setActiveView(APP_VIEWS.SUITE_HOME)
       setCurrentMode(MODES.DOC_DEFINE)
+      setAuthOverlayOpen(false)
+      setShowAuthRequiredNotice(false)
     }
+  }
+
+  function handleProtectedNavigation(view) {
+    if (authUser) {
+      setActiveView(view)
+      return
+    }
+
+    setShowAuthRequiredNotice(true)
   }
 
   function buildAntiGuidancePrompt() {
@@ -996,11 +1010,20 @@ export default function App() {
     )
   }
 
-  if (!authUser) {
+  function renderAuthOverlay() {
+    if (!authOverlayOpen) {
+      return null
+    }
+
     return (
-      <main className="layout">
-        <section className="card auth-card">
-          <h1>A-Ideation Access</h1>
+      <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Sign in or register">
+        <section className="card auth-card auth-overlay-card">
+          <div className="auth-overlay-header">
+            <h1>A-Ideation Access</h1>
+            <button type="button" className="secondary-button" onClick={() => setAuthOverlayOpen(false)}>
+              Close
+            </button>
+          </div>
           <p className="muted">Sign in or register to access the A-Ideation solution suite.</p>
           <div className="auth-toggle-row">
             <button
@@ -1112,12 +1135,12 @@ export default function App() {
             </details>
           ) : null}
         </section>
-      </main>
+      </div>
     )
   }
 
   if (activeView === APP_VIEWS.SUITE_HOME) {
-    const suiteDisplayName = authUser.displayName?.trim() ? authUser.displayName : authUser.email
+    const suiteDisplayName = authUser?.displayName?.trim() ? authUser.displayName : authUser?.email
 
     return (
       <main className="layout">
@@ -1129,11 +1152,26 @@ export default function App() {
           </div>
           <div className="hero-corner hero-right">
             <div className="hero-right-stack">
-              <div className="suite-user-info">
-                <span>{suiteDisplayName}</span>
-                <small>({authUser.email})</small>
-              </div>
-              {renderLogoutButton()}
+              {authUser ? (
+                <>
+                  <div className="suite-user-info">
+                    <span>{suiteDisplayName}</span>
+                    <small>({authUser.email})</small>
+                  </div>
+                  {renderLogoutButton()}
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="auth-link-toggle"
+                  onClick={() => {
+                    setAuthMode('login')
+                    setAuthOverlayOpen(true)
+                  }}
+                >
+                  Sign-In / Register
+                </button>
+              )}
             </div>
           </div>
         </header>
@@ -1141,20 +1179,44 @@ export default function App() {
         <section className="card suite-links">
           <h2>Solutions</h2>
           <div className="suite-link-grid">
-            <button type="button" className="suite-link-card" onClick={() => setActiveView(APP_VIEWS.DOCUMENT_DOCTOR)}>
+            <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.DOCUMENT_DOCTOR)}>
               <img src={logo} alt="Document Doctor logo" />
               <span>Document Doctor</span>
             </button>
-            <button type="button" className="suite-link-card" onClick={() => setActiveView(APP_VIEWS.DECK_MATE)}>
+            <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.DECK_MATE)}>
               <img src={deckMateLogo} alt="Deck Mate logo" />
               <span>Deck Mate</span>
             </button>
-            <button type="button" className="suite-link-card" onClick={() => setActiveView(APP_VIEWS.DOC2DECK)}>
+            <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.DOC2DECK)}>
               <img src={doc2DeckLogo} alt="Doc 2 Deck logo" />
               <span>Doc2Deck</span>
             </button>
           </div>
         </section>
+        {showAuthRequiredNotice ? (
+          <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Authentication required">
+            <section className="card auth-required-popup">
+              <p>Please sign in or register.</p>
+              <div className="auth-inline-row">
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => {
+                    setShowAuthRequiredNotice(false)
+                    setAuthMode('login')
+                    setAuthOverlayOpen(true)
+                  }}
+                >
+                  Open Sign-In
+                </button>
+                <button type="button" className="secondary-button" onClick={() => setShowAuthRequiredNotice(false)}>
+                  Close
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+        {renderAuthOverlay()}
       </main>
     )
   }

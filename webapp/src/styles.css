@@ -153,6 +153,34 @@ h1 {
   gap: 0.9rem;
 }
 
+.overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(36, 31, 49, 0.45);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  padding: 1rem;
+}
+
+.auth-overlay-card {
+  width: min(760px, 95vw);
+  max-height: 95vh;
+  overflow: auto;
+}
+
+.auth-overlay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.auth-required-popup {
+  width: min(420px, 94vw);
+  text-align: center;
+}
+
 .auth-toggle-row {
   display: flex;
   gap: 0.6rem;
