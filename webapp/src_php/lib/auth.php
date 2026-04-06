@@ -314,22 +314,18 @@ function auth_send_email($config, $toEmail, $toName, $subject, $htmlBody, $textB
 
 function auth_send_verification_email($config, $toEmail, $toName, $token)
 {
-    $baseUrl = auth_base_url($config);
-    $verifyLink = $baseUrl . '/verify-email?token=' . urlencode((string) $token);
     $subject = 'Verify your A-Ideation account';
-    $htmlBody = '<p>Welcome to A-Ideation.</p><p>Use this token to verify your email:</p><pre>' . htmlspecialchars((string) $token) . '</pre><p>Optional link: <a href=\"' . htmlspecialchars($verifyLink) . '\">' . htmlspecialchars($verifyLink) . '</a></p>';
-    $textBody = "Welcome to A-Ideation.\n\nUse this token to verify your email:\n" . $token . "\n\nOptional link:\n" . $verifyLink;
+    $htmlBody = '<p>Welcome to A-Ideation.</p><p>Use this token to verify your email:</p><pre>' . htmlspecialchars((string) $token) . '</pre>';
+    $textBody = "Welcome to A-Ideation.\n\nUse this token to verify your email:\n" . $token;
 
     return auth_send_email($config, $toEmail, $toName, $subject, $htmlBody, $textBody);
 }
 
 function auth_send_reset_email($config, $toEmail, $toName, $token)
 {
-    $baseUrl = auth_base_url($config);
-    $resetLink = $baseUrl . '/reset-password?token=' . urlencode((string) $token);
     $subject = 'Reset your A-Ideation password';
-    $htmlBody = '<p>You requested a password reset.</p><p>Use this token to reset your password:</p><pre>' . htmlspecialchars((string) $token) . '</pre><p>Optional link: <a href=\"' . htmlspecialchars($resetLink) . '\">' . htmlspecialchars($resetLink) . '</a></p>';
-    $textBody = "You requested a password reset.\n\nUse this token to reset your password:\n" . $token . "\n\nOptional link:\n" . $resetLink;
+    $htmlBody = '<p>You requested a password reset.</p><p>Use this token to reset your password:</p><pre>' . htmlspecialchars((string) $token) . '</pre>';
+    $textBody = "You requested a password reset.\n\nUse this token to reset your password:\n" . $token;
 
     return auth_send_email($config, $toEmail, $toName, $subject, $htmlBody, $textBody);
 }

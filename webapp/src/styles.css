@@ -159,6 +159,19 @@ h1 {
   flex-wrap: wrap;
 }
 
+.auth-link-toggle {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: #6b21a8;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.auth-link-toggle.active {
+  font-weight: 800;
+}
+
 .auth-form {
   display: grid;
   gap: 0.8rem;
@@ -171,6 +184,12 @@ h1 {
   padding: 0.9rem;
 }
 
+.auth-subpanel summary {
+  cursor: pointer;
+  font-weight: 700;
+  margin-bottom: 0.65rem;
+}
+
 .auth-inline-form {
   display: grid;
   gap: 0.55rem;
@@ -181,6 +200,13 @@ h1 {
   gap: 0.55rem;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.status-message {
+  margin: 0;
+  font-weight: 700;
+  font-style: italic;
+  color: #6b21a8;
 }
 
 .muted {

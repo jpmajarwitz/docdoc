@@ -246,6 +246,7 @@ export default function App() {
   const [authDisplayName, setAuthDisplayName] = useState('')
   const [authInfo, setAuthInfo] = useState('')
   const [authSubmitting, setAuthSubmitting] = useState(false)
+  const [registrationReadyForVerify, setRegistrationReadyForVerify] = useState(false)
   const [verifyToken, setVerifyToken] = useState('')
   const [resetToken, setResetToken] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -325,6 +326,7 @@ export default function App() {
           password: authPassword,
           displayName: authDisplayName
         })
+        setRegistrationReadyForVerify(true)
         if (response.verificationEmailSent) {
           setAuthInfo(
             `Registration successful. Verification email sent.${response.verificationToken ? ` Token: ${response.verificationToken}` : ''}`
@@ -336,6 +338,7 @@ export default function App() {
         }
         setAuthMode('login')
       } else {
+        setRegistrationReadyForVerify(false)
         setAuthInfo('Please wait while signing in...')
         const response = await postJson(AUTH_ENDPOINTS.LOGIN, {
           email: authEmail,
@@ -1002,19 +1005,28 @@ export default function App() {
           <div className="auth-toggle-row">
             <button
               type="button"
-              className={authMode === 'login' ? 'primary-button' : 'secondary-button'}
-              onClick={() => setAuthMode('login')}
+              className={authMode === 'login' ? 'auth-link-toggle active' : 'auth-link-toggle'}
+              onClick={() => {
+                setAuthMode('login')
+                setRegistrationReadyForVerify(false)
+              }}
             >
               Sign In
             </button>
             <button
               type="button"
-              className={authMode === 'register' ? 'primary-button' : 'secondary-button'}
-              onClick={() => setAuthMode('register')}
+              className={authMode === 'register' ? 'auth-link-toggle active' : 'auth-link-toggle'}
+              onClick={() => {
+                setAuthMode('register')
+                setRegistrationReadyForVerify(false)
+              }}
             >
               Register
             </button>
           </div>
+
+          {authInfo ? <p className="status-message">{authInfo}</p> : null}
+          {renderError()}
 
           <form className="auth-form" onSubmit={handleAuthSubmit}>
             <label>
@@ -1052,52 +1064,53 @@ export default function App() {
             </button>
           </form>
 
-          <section className="auth-subpanel">
-            <h3>Verify Email</h3>
-            <form className="auth-inline-form" onSubmit={handleVerifyEmail}>
-              <input
-                type="text"
-                value={verifyToken}
-                onChange={(event) => setVerifyToken(event.target.value)}
-                placeholder="Verification token"
-                required
-              />
-              <button type="submit" className="secondary-button">
-                Verify
-              </button>
-            </form>
-          </section>
+          {authMode === 'register' ? (
+            <details className="auth-subpanel" open={registrationReadyForVerify}>
+              <summary>Verify Email</summary>
+              <form className="auth-inline-form" onSubmit={handleVerifyEmail}>
+                <input
+                  type="text"
+                  value={verifyToken}
+                  onChange={(event) => setVerifyToken(event.target.value)}
+                  placeholder="Verification token"
+                  required
+                />
+                <button type="submit" className="secondary-button">
+                  Verify
+                </button>
+              </form>
+            </details>
+          ) : null}
 
-          <section className="auth-subpanel">
-            <h3>Password Reset</h3>
-            <div className="auth-inline-row">
-              <button type="button" className="secondary-button" onClick={handleForgotPassword}>
-                Request Reset Token
-              </button>
-            </div>
-            <form className="auth-inline-form" onSubmit={handleResetPassword}>
-              <input
-                type="text"
-                value={resetToken}
-                onChange={(event) => setResetToken(event.target.value)}
-                placeholder="Reset token"
-                required
-              />
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                placeholder="New password"
-                required
-              />
-              <button type="submit" className="secondary-button">
-                Reset Password
-              </button>
-            </form>
-          </section>
-
-          {authInfo ? <p className="status">{authInfo}</p> : null}
-          {renderError()}
+          {authMode === 'login' ? (
+            <details className="auth-subpanel">
+              <summary>Password Reset</summary>
+              <div className="auth-inline-row">
+                <button type="button" className="secondary-button" onClick={handleForgotPassword}>
+                  Request Reset Token
+                </button>
+              </div>
+              <form className="auth-inline-form" onSubmit={handleResetPassword}>
+                <input
+                  type="text"
+                  value={resetToken}
+                  onChange={(event) => setResetToken(event.target.value)}
+                  placeholder="Reset token"
+                  required
+                />
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  placeholder="New password"
+                  required
+                />
+                <button type="submit" className="secondary-button">
+                  Reset Password
+                </button>
+              </form>
+            </details>
+          ) : null}
         </section>
       </main>
     )
