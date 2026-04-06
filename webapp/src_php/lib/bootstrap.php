@@ -107,7 +107,16 @@ function php_backend_log($event, $context = [])
         'event' => $event,
         'context' => $context,
     ];
-    error_log('[docdoc] ' . json_encode($payload));
+    $serialized = '[docdoc] ' . json_encode($payload);
+    error_log($serialized);
+
+    $logsDir = dirname(__DIR__) . '/logs';
+    if (!is_dir($logsDir)) {
+        @mkdir($logsDir, 0775, true);
+    }
+
+    $logFile = $logsDir . '/docdoc.log';
+    @file_put_contents($logFile, $serialized . PHP_EOL, FILE_APPEND | LOCK_EX);
 }
 
 function php_backend_require_method($method)

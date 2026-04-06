@@ -39,6 +39,10 @@ Each endpoint returns JSON shaped to match the current frontend expectations.
 8. Build the React frontend with `npm run build` and upload only the generated `webapp/dist/` files to your web root (not the JSX source files).
 9. Point the frontend `VITE_API_BASE_URL` at the deployed PHP backend root.
 
+SMTP diagnostics are written to:
+- server `error_log`
+- `src_php/logs/docdoc.log` (auto-created on first log write)
+
 ## Important behavior
 
 - Multipart endpoints expect the same form field names as the FastAPI backend:

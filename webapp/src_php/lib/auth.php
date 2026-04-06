@@ -227,7 +227,28 @@ function auth_send_email($config, $toEmail, $toName, $subject, $htmlBody, $textB
 
     auth_mailer_require($config);
     $smtp = auth_mailer_config($config);
+    php_backend_log('auth.smtp_attempt', [
+        'to' => $toEmail,
+        'subject' => $subject,
+        'host' => $smtp['host'],
+        'port' => $smtp['port'],
+        'secure' => $smtp['secure'],
+        'username' => $smtp['username'],
+        'password' => $smtp['password'],
+        'from_email' => $smtp['from_email'],
+        'from_name' => $smtp['from_name'],
+    ]);
+
     if ($smtp['host'] === '' || $smtp['username'] === '' || $smtp['password'] === '' || $smtp['from_email'] === '') {
+        php_backend_log('auth.smtp_config_invalid', [
+            'host' => $smtp['host'],
+            'port' => $smtp['port'],
+            'secure' => $smtp['secure'],
+            'username' => $smtp['username'],
+            'password' => $smtp['password'],
+            'from_email' => $smtp['from_email'],
+            'from_name' => $smtp['from_name'],
+        ]);
         return [
             'attempted' => true,
             'sent' => false,
@@ -253,6 +274,18 @@ function auth_send_email($config, $toEmail, $toName, $subject, $htmlBody, $textB
         $mailer->Timeout = (int) ($config['smtp_timeout_seconds'] ?? 15);
         $mailer->send();
 
+        php_backend_log('auth.smtp_send_success', [
+            'to' => $toEmail,
+            'subject' => $subject,
+            'host' => $smtp['host'],
+            'port' => $smtp['port'],
+            'secure' => $smtp['secure'],
+            'username' => $smtp['username'],
+            'password' => $smtp['password'],
+            'from_email' => $smtp['from_email'],
+            'from_name' => $smtp['from_name'],
+        ]);
+
         return [
             'attempted' => true,
             'sent' => true,
@@ -263,6 +296,13 @@ function auth_send_email($config, $toEmail, $toName, $subject, $htmlBody, $textB
             'to' => $toEmail,
             'subject' => $subject,
             'error' => $exception->getMessage(),
+            'host' => $smtp['host'],
+            'port' => $smtp['port'],
+            'secure' => $smtp['secure'],
+            'username' => $smtp['username'],
+            'password' => $smtp['password'],
+            'from_email' => $smtp['from_email'],
+            'from_name' => $smtp['from_name'],
         ]);
         return [
             'attempted' => true,
