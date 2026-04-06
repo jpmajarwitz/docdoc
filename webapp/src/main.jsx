@@ -5,6 +5,6 @@ import './styles.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    <App appShell={document.documentElement.dataset.appShell || 'ai'} />
   </React.StrictMode>
 )

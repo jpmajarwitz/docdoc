@@ -237,7 +237,15 @@ async function getJson(endpoint) {
   return data
 }
 
-export default function App() {
+export default function App({ appShell = 'ai' }) {
+  const dedicatedViewByShell = {
+    dd: APP_VIEWS.DOCUMENT_DOCTOR,
+    dm: APP_VIEWS.DECK_MATE,
+    d2d: APP_VIEWS.DOC2DECK
+  }
+  const dedicatedView = dedicatedViewByShell[appShell] || APP_VIEWS.SUITE_HOME
+  const isSuiteShell = dedicatedView === APP_VIEWS.SUITE_HOME
+  const homeView = isSuiteShell ? APP_VIEWS.SUITE_HOME : dedicatedView
   const [authLoading, setAuthLoading] = useState(true)
   const [authUser, setAuthUser] = useState(null)
   const [authMode, setAuthMode] = useState('login')
@@ -247,12 +255,12 @@ export default function App() {
   const [authInfo, setAuthInfo] = useState('')
   const [authSubmitting, setAuthSubmitting] = useState(false)
   const [registrationReadyForVerify, setRegistrationReadyForVerify] = useState(false)
-  const [authOverlayOpen, setAuthOverlayOpen] = useState(false)
+  const [authOverlayOpen, setAuthOverlayOpen] = useState(!isSuiteShell)
   const [showAuthRequiredNotice, setShowAuthRequiredNotice] = useState(false)
   const [verifyToken, setVerifyToken] = useState('')
   const [resetToken, setResetToken] = useState('')
   const [newPassword, setNewPassword] = useState('')
-  const [activeView, setActiveView] = useState(APP_VIEWS.SUITE_HOME)
+  const [activeView, setActiveView] = useState(homeView)
   const [currentMode, setCurrentMode] = useState(MODES.DOC_DEFINE)
   const [docFile, setDocFile] = useState(null)
   const [supportingFile, setSupportingFile] = useState(null)
@@ -413,7 +421,7 @@ export default function App() {
     } finally {
       setAuthUser(null)
       resetAuthInputs()
-      setActiveView(APP_VIEWS.SUITE_HOME)
+      setActiveView(homeView)
       setCurrentMode(MODES.DOC_DEFINE)
       setAuthOverlayOpen(false)
       setShowAuthRequiredNotice(false)
@@ -760,7 +768,17 @@ export default function App() {
 
   function renderBackToSuiteButton() {
     return (
-      <button type="button" className="secondary-button" onClick={() => setActiveView(APP_VIEWS.SUITE_HOME)}>
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={() => {
+          if (isSuiteShell) {
+            setActiveView(APP_VIEWS.SUITE_HOME)
+            return
+          }
+          window.location.assign('./index-ai.html')
+        }}
+      >
         Back to A-Ideation
       </button>
     )

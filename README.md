@@ -98,6 +98,13 @@ npm run build
 Then upload the generated `webapp/dist/` contents to your hosting web root (or subdirectory).
 Those built files are production-ready HTML/CSS/JavaScript that browsers can run directly.
 
+The build now emits separate HTML entry points so each app shell can be linked directly:
+
+- `index-ai.html` (A-Ideation suite home)
+- `index-dd.html` (Document Doctor)
+- `index-dm.html` (Deck Mate)
+- `index-d2d.html` (Doc 2 Deck)
+
 Deployment checklist for `/dd` style hosting:
 
 1. Ensure `webapp/.env.production` contains `VITE_API_BASE_URL=/dd` (or your HTTPS backend base URL).
