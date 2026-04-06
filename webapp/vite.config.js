@@ -5,8 +5,11 @@ import { resolve } from 'node:path'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const backendUrl = env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+  const deployBasePath = env.VITE_DEPLOY_BASE_PATH || '/'
+  const normalizedBasePath = deployBasePath.endsWith('/') ? deployBasePath : `${deployBasePath}/`
 
   return {
+    base: normalizedBasePath,
     plugins: [react()],
     build: {
       rollupOptions: {
