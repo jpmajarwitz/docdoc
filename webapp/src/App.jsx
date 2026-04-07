@@ -149,13 +149,14 @@ async function fetchWithEndpointFallback(endpoint, init) {
   for (const candidate of candidates) {
     const response = await fetch(candidate, init)
     const isRedirect = [301, 302, 307, 308].includes(response.status)
+    const retryableGatewayStatus = [502, 503, 504].includes(response.status)
     const redirectTarget = response.headers.get('location') || ''
     const insecureRedirect =
       typeof window !== 'undefined' &&
       window.location.protocol === 'https:' &&
       redirectTarget.startsWith('http://')
 
-    if (response.status !== 404 && !(isRedirect && insecureRedirect)) {
+    if (response.status !== 404 && !retryableGatewayStatus && !(isRedirect && insecureRedirect)) {
       return response
     }
 
