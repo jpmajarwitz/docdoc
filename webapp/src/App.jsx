@@ -142,6 +142,11 @@ function endpointCandidates(endpoint) {
   return [...new Set(candidates)]
 }
 
+function isRetryableGatewayError(error) {
+  const message = (error && error.message ? String(error.message) : '').toLowerCase()
+  return message.includes('status 502') || message.includes('status 503') || message.includes('status 504')
+}
+
 async function fetchWithEndpointFallback(endpoint, init) {
   const candidates = endpointCandidates(endpoint)
   let lastResponse = null
@@ -732,36 +737,58 @@ export default function App({ appShell = 'ai' }) {
         operation === OPERATIONS.CRITIQUE_PRIMARY
           ? await (async () => {
               const requestPayload = buildPrimaryCritiqueRequest()
-              requestPayload.messages = await maybeBypassFileMessages(requestPayload.messages, {
+              const directFileEntries = {
                 primary_document: docFile,
                 supporting_document: supportingFile,
                 prior_response_document: priorResponseFile
-              })
+              }
+              const requestPayloadBypassed = {
+                ...requestPayload,
+                messages: await maybeBypassFileMessages(requestPayload.messages, directFileEntries)
+              }
 
-              return postMultipart(
-                API_ENDPOINTS[operation],
-                requestPayload,
-                bypassFileInput
-                  ? {}
-                  : {
-                      primary_document: docFile,
-                      supporting_document: supportingFile,
-                      prior_response_document: priorResponseFile
-                    }
-              )
+              try {
+                return await postMultipart(
+                  API_ENDPOINTS[operation],
+                  requestPayloadBypassed,
+                  bypassFileInput ? {} : directFileEntries
+                )
+              } catch (primaryError) {
+                if (!bypassFileInput || !isRetryableGatewayError(primaryError)) {
+                  throw primaryError
+                }
+
+                setBypassFileInput(false)
+                setStatus('Gateway timeout detected. Retrying with direct file upload...')
+                return postMultipart(API_ENDPOINTS[operation], requestPayload, directFileEntries)
+              }
             })()
           : operation === OPERATIONS.APPLY_CHANGE_ITEMS
             ? await (async () => {
                 const requestPayload = buildApplyChangeItemsRequest()
-                requestPayload.messages = await maybeBypassFileMessages(requestPayload.messages, {
+                const directFileEntries = {
                   original_document: docFile
-                })
+                }
+                const requestPayloadBypassed = {
+                  ...requestPayload,
+                  messages: await maybeBypassFileMessages(requestPayload.messages, directFileEntries)
+                }
 
-                return postMultipart(
-                  API_ENDPOINTS[operation],
-                  requestPayload,
-                  bypassFileInput ? {} : { original_document: docFile }
-                )
+                try {
+                  return await postMultipart(
+                    API_ENDPOINTS[operation],
+                    requestPayloadBypassed,
+                    bypassFileInput ? {} : directFileEntries
+                  )
+                } catch (applyError) {
+                  if (!bypassFileInput || !isRetryableGatewayError(applyError)) {
+                    throw applyError
+                  }
+
+                  setBypassFileInput(false)
+                  setStatus('Gateway timeout detected. Retrying with direct file upload...')
+                  return postMultipart(API_ENDPOINTS[operation], requestPayload, directFileEntries)
+                }
               })()
             : await postJson(API_ENDPOINTS[operation], buildChangedDocCritiqueRequest())
 
