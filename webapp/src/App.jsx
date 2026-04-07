@@ -3,6 +3,7 @@ import logo from './assets/docdoc-logo.svg'
 import deckMateLogo from './assets/deck-mate-logo.svg'
 import doc2DeckLogo from './assets/doc2deck-logo.svg'
 import { APP_SETTINGS } from './config/appSettings'
+import { DECK_MATE_SETTINGS } from './config/deckMateSettings'
 
 const APP_VIEWS = {
   SUITE_HOME: 'suite_home',
@@ -261,6 +262,11 @@ export default function App({ appShell = 'ai' }) {
   const [resetToken, setResetToken] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [activeView, setActiveView] = useState(homeView)
+  const isDeckMateWorkflow = activeView === APP_VIEWS.DECK_MATE
+  const activeSettings = isDeckMateWorkflow ? DECK_MATE_SETTINGS : APP_SETTINGS
+  const contentNoun = isDeckMateWorkflow ? 'presentation' : 'document'
+  const contentNounPlural = isDeckMateWorkflow ? 'presentations' : 'documents'
+  const contentNounTitle = isDeckMateWorkflow ? 'Presentation' : 'Document'
   const [currentMode, setCurrentMode] = useState(MODES.DOC_DEFINE)
   const [docFile, setDocFile] = useState(null)
   const [supportingFile, setSupportingFile] = useState(null)
@@ -278,22 +284,82 @@ export default function App({ appShell = 'ai' }) {
   const [promptPreviewText, setPromptPreviewText] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsDropdownRef = useRef(null)
-  const [topic, setTopic] = useState(APP_SETTINGS.defaults.topic)
-  const [objective, setObjective] = useState(APP_SETTINGS.defaults.reviewObjective)
-  const [guidance, setGuidance] = useState(APP_SETTINGS.defaults.formattingGuidance)
-  const [antiGuidance, setAntiGuidance] = useState(APP_SETTINGS.defaults.antiGuidance)
-  const [supportInstructions, setSupportInstructions] = useState(defaults.supportInstructions)
-  const [priorInstructions, setPriorInstructions] = useState(defaults.priorInstructions)
+  const [docTopic, setDocTopic] = useState(APP_SETTINGS.defaults.topic)
+  const [docObjective, setDocObjective] = useState(APP_SETTINGS.defaults.reviewObjective)
+  const [docGuidance, setDocGuidance] = useState(APP_SETTINGS.defaults.formattingGuidance)
+  const [docAntiGuidance, setDocAntiGuidance] = useState(APP_SETTINGS.defaults.antiGuidance)
+  const [deckTopic, setDeckTopic] = useState(DECK_MATE_SETTINGS.defaults.topic)
+  const [deckObjective, setDeckObjective] = useState(DECK_MATE_SETTINGS.defaults.reviewObjective)
+  const [deckGuidance, setDeckGuidance] = useState(DECK_MATE_SETTINGS.defaults.formattingGuidance)
+  const [deckAntiGuidance, setDeckAntiGuidance] = useState(DECK_MATE_SETTINGS.defaults.antiGuidance)
+  const [docSupportInstructions, setDocSupportInstructions] = useState(defaults.supportInstructions)
+  const [docPriorInstructions, setDocPriorInstructions] = useState(defaults.priorInstructions)
+  const [deckSupportInstructions, setDeckSupportInstructions] = useState(defaults.supportInstructions)
+  const [deckPriorInstructions, setDeckPriorInstructions] = useState(defaults.priorInstructions)
+  const topic = isDeckMateWorkflow ? deckTopic : docTopic
+  const objective = isDeckMateWorkflow ? deckObjective : docObjective
+  const guidance = isDeckMateWorkflow ? deckGuidance : docGuidance
+  const antiGuidance = isDeckMateWorkflow ? deckAntiGuidance : docAntiGuidance
+  const supportInstructions = isDeckMateWorkflow ? deckSupportInstructions : docSupportInstructions
+  const priorInstructions = isDeckMateWorkflow ? deckPriorInstructions : docPriorInstructions
   const [critiqueMarkdown, setCritiqueMarkdown] = useState('')
   const [changedDocumentMarkdown, setChangedDocumentMarkdown] = useState('')
   const [critiqueOutputFileName, setCritiqueOutputFileName] = useState('critique.md')
   const [changedOutputFileName, setChangedOutputFileName] = useState('changes.md')
-  const [status, setStatus] = useState('Ready for document definition.')
+  const [status, setStatus] = useState(`Ready for ${contentNoun} definition.`)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [lastOperation, setLastOperation] = useState(null)
   const [changeItems, setChangeItems] = useState([])
   const [changeItemDraft, setChangeItemDraft] = useState(emptyChangeDraft())
+
+  function setTopicForActive(value) {
+    if (isDeckMateWorkflow) {
+      setDeckTopic(value)
+      return
+    }
+    setDocTopic(value)
+  }
+
+  function setObjectiveForActive(value) {
+    if (isDeckMateWorkflow) {
+      setDeckObjective(value)
+      return
+    }
+    setDocObjective(value)
+  }
+
+  function setGuidanceForActive(value) {
+    if (isDeckMateWorkflow) {
+      setDeckGuidance(value)
+      return
+    }
+    setDocGuidance(value)
+  }
+
+  function setAntiGuidanceForActive(value) {
+    if (isDeckMateWorkflow) {
+      setDeckAntiGuidance(value)
+      return
+    }
+    setDocAntiGuidance(value)
+  }
+
+  function setSupportInstructionsForActive(value) {
+    if (isDeckMateWorkflow) {
+      setDeckSupportInstructions(value)
+      return
+    }
+    setDocSupportInstructions(value)
+  }
+
+  function setPriorInstructionsForActive(value) {
+    if (isDeckMateWorkflow) {
+      setDeckPriorInstructions(value)
+      return
+    }
+    setDocPriorInstructions(value)
+  }
 
   function resetAuthInputs() {
     setAuthEmail('')
@@ -440,8 +506,8 @@ export default function App({ appShell = 'ai' }) {
   function buildAntiGuidancePrompt() {
     const parts = [antiGuidance.trim()]
 
-    if (ignoreOcrErrors && APP_SETTINGS.ocrGuidanceText.trim()) {
-      parts.push(APP_SETTINGS.ocrGuidanceText.trim())
+    if (ignoreOcrErrors && activeSettings.ocrGuidanceText.trim()) {
+      parts.push(activeSettings.ocrGuidanceText.trim())
     }
 
     return parts.filter(Boolean).join(' ')
@@ -574,7 +640,7 @@ export default function App({ appShell = 'ai' }) {
     const messages = [
       {
         type: 'input_text',
-        text: `Primary document to critique. Topic: ${topic} Objective: ${objective} Guidance: ${guidance} Anti-Guidance: ${buildAntiGuidancePrompt()}`
+        text: `Primary ${contentNoun} to critique. Topic: ${topic} Objective: ${objective} Guidance: ${guidance} Anti-Guidance: ${buildAntiGuidancePrompt()}`
       },
       { type: 'input_file', source: 'primary_document' }
     ]
@@ -582,7 +648,7 @@ export default function App({ appShell = 'ai' }) {
     if (supportingFile) {
       messages.push({
         type: 'input_text',
-        text: `Supporting document included for context. Instructions: ${supportInstructions || 'None provided.'}`
+        text: `Supporting ${contentNoun} included for context. Instructions: ${supportInstructions || 'None provided.'}`
       })
       messages.push({ type: 'input_file', source: 'supporting_document' })
     }
@@ -590,7 +656,7 @@ export default function App({ appShell = 'ai' }) {
     if (priorResponseFile) {
       messages.push({
         type: 'input_text',
-        text: `Prior response document included for context. Instructions: ${priorInstructions || 'None provided.'}`
+        text: `Prior response ${contentNoun} included for context. Instructions: ${priorInstructions || 'None provided.'}`
       })
       messages.push({ type: 'input_file', source: 'prior_response_document' })
     }
@@ -602,7 +668,7 @@ export default function App({ appShell = 'ai' }) {
     return buildLlmRequest([
       {
         type: 'input_text',
-        text: `Main Instruction: Apply all requested change items directly to the original document and return the changed document in markdown. Anti-Guidance: ${buildAntiGuidancePrompt()}`
+        text: `Main Instruction: Apply all requested change items directly to the original ${contentNoun} and return the changed ${contentNoun} in markdown. Anti-Guidance: ${buildAntiGuidancePrompt()}`
       },
       {
         type: 'input_text',
@@ -614,7 +680,7 @@ export default function App({ appShell = 'ai' }) {
       },
       {
         type: 'input_text',
-        text: 'Original document:'
+        text: `Original ${contentNoun}:`
       },
       { type: 'input_file', source: 'original_document' }
     ])
@@ -624,18 +690,18 @@ export default function App({ appShell = 'ai' }) {
     return buildLlmRequest([
       {
         type: 'input_text',
-        text: `Critique the included changed document using the original review configuration. Topic: ${topic} Objective: ${objective} Guidance: ${guidance} Anti-Guidance: ${buildAntiGuidancePrompt()}`
+        text: `Critique the included changed ${contentNoun} using the original review configuration. Topic: ${topic} Objective: ${objective} Guidance: ${guidance} Anti-Guidance: ${buildAntiGuidancePrompt()}`
       },
       {
         type: 'input_text',
-        text: `Changed document body:\n${changedDocumentMarkdown}`
+        text: `Changed ${contentNoun} body:\n${changedDocumentMarkdown}`
       }
     ])
   }
 
   async function invokeOperation(operation) {
     if (!docFile) {
-      setError('Upload the primary document before invoking the model.')
+      setError(`Upload the primary ${contentNoun} before invoking the model.`)
       setCurrentMode(MODES.DOC_DEFINE)
       return
     }
@@ -647,7 +713,7 @@ export default function App({ appShell = 'ai' }) {
     }
 
     if (operation === OPERATIONS.CRITIQUE_CHANGED && !changedDocumentMarkdown.trim()) {
-      setError('There is no changed document to critique yet.')
+      setError(`There is no changed ${contentNoun} to critique yet.`)
       setCurrentMode(MODES.RESULT_SAVED)
       return
     }
@@ -720,8 +786,8 @@ export default function App({ appShell = 'ai' }) {
         }
         setStatus(
           operation === OPERATIONS.CRITIQUE_CHANGED
-            ? 'Changed-document critique completed successfully.'
-            : 'Primary document critique completed successfully.'
+            ? `Changed-${contentNoun} critique completed successfully.`
+            : `Primary ${contentNoun} critique completed successfully.`
         )
       }
 
@@ -763,7 +829,7 @@ export default function App({ appShell = 'ai' }) {
     setCurrentMode(MODES.DOC_DEFINE)
     setDocFile(null)
     setError('')
-    setStatus('Ready for document definition.')
+    setStatus(`Ready for ${contentNoun} definition.`)
   }
 
   function renderBackToSuiteButton() {
@@ -831,8 +897,8 @@ export default function App({ appShell = 'ai' }) {
   }, [settingsOpen])
 
   function renderSettingsControl() {
-    const settingsLabels = APP_SETTINGS.settingsPanelLabels || {}
-    const settingsPanelOrder = APP_SETTINGS.settingsPanelOrder || []
+    const settingsLabels = activeSettings.settingsPanelLabels || {}
+    const settingsPanelOrder = activeSettings.settingsPanelOrder || []
 
     function renderSettingsField(settingKey) {
       switch (settingKey) {
@@ -841,7 +907,7 @@ export default function App({ appShell = 'ai' }) {
             <label key={settingKey}>
               {settingsLabels.apiMode || 'API Mode'}
               <select name="api_mode" value={selectedApiMode} onChange={(event) => setSelectedApiMode(event.target.value)}>
-                {APP_SETTINGS.apiModes.map((apiModeOption) => (
+                {activeSettings.apiModes.map((apiModeOption) => (
                   <option key={apiModeOption.value} value={apiModeOption.value}>
                     {apiModeOption.label}
                   </option>
@@ -854,7 +920,7 @@ export default function App({ appShell = 'ai' }) {
             <label key={settingKey}>
               {settingsLabels.llmModel || 'LLM Model'}
               <select name="llm_model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
-                {APP_SETTINGS.llmModels.map((modelOption) => (
+                {activeSettings.llmModels.map((modelOption) => (
                   <option key={modelOption.value} value={modelOption.value}>
                     {modelOption.label}
                   </option>
@@ -865,29 +931,29 @@ export default function App({ appShell = 'ai' }) {
         case 'defaultTopic':
           return (
             <label key={settingKey}>
-              {settingsLabels.defaultTopic || APP_SETTINGS.labels.defaultTopic}
-              <textarea name="default_topic" value={topic} onChange={(event) => setTopic(event.target.value)} rows={3} />
+              {settingsLabels.defaultTopic || activeSettings.labels.defaultTopic}
+              <textarea name="default_topic" value={topic} onChange={(event) => setTopicForActive(event.target.value)} rows={3} />
             </label>
           )
         case 'reviewObjective':
           return (
             <label key={settingKey}>
-              {settingsLabels.reviewObjective || APP_SETTINGS.labels.reviewObjective}
-              <textarea name="review_objective" value={objective} onChange={(event) => setObjective(event.target.value)} rows={3} />
+              {settingsLabels.reviewObjective || activeSettings.labels.reviewObjective}
+              <textarea name="review_objective" value={objective} onChange={(event) => setObjectiveForActive(event.target.value)} rows={3} />
             </label>
           )
         case 'formattingGuidance':
           return (
             <label key={settingKey}>
-              {settingsLabels.formattingGuidance || APP_SETTINGS.labels.formattingGuidance}
-              <textarea name="formatting_guidance" value={guidance} onChange={(event) => setGuidance(event.target.value)} rows={3} />
+              {settingsLabels.formattingGuidance || activeSettings.labels.formattingGuidance}
+              <textarea name="formatting_guidance" value={guidance} onChange={(event) => setGuidanceForActive(event.target.value)} rows={3} />
             </label>
           )
         case 'antiGuidance':
           return (
             <label key={settingKey}>
-              {settingsLabels.antiGuidance || APP_SETTINGS.labels.antiGuidance}
-              <textarea name="anti_guidance" value={antiGuidance} onChange={(event) => setAntiGuidance(event.target.value)} rows={3} />
+              {settingsLabels.antiGuidance || activeSettings.labels.antiGuidance}
+              <textarea name="anti_guidance" value={antiGuidance} onChange={(event) => setAntiGuidanceForActive(event.target.value)} rows={3} />
             </label>
           )
         case 'ignoreOcrErrors':
@@ -1239,33 +1305,11 @@ export default function App({ appShell = 'ai' }) {
     )
   }
 
-  if (activeView === APP_VIEWS.DECK_MATE) {
-    return (
-      <PageShell
-        mode={MODES.DOC_DEFINE}
-        topRightControls={
-          <>
-            {renderBackToSuiteButton()}
-            {renderLogoutButton()}
-          </>
-        }
-        appTitle="Deck Mate"
-        appSubtitle="A Professional Review Tool for Powerpoint Authors"
-        brandLogo={deckMateLogo}
-        brandAlt="Cartoon sailor on a boat presentation logo"
-      >
-        <section className="card compact-panel">
-          <h2>Deck Mate</h2>
-          <p className="muted">Deck Mate home screen placeholder.</p>
-        </section>
-      </PageShell>
-    )
-  }
-
   if (activeView === APP_VIEWS.DOC2DECK) {
     return (
       <PageShell
         mode={MODES.DOC_DEFINE}
+        {...workflowShellProps}
         topRightControls={
           <>
             {renderBackToSuiteButton()}
@@ -1273,7 +1317,7 @@ export default function App({ appShell = 'ai' }) {
           </>
         }
         appTitle="Doc 2 Deck"
-        appSubtitle="Create Powerpoint Decks  from Published Documents"
+        appSubtitle="A Professional Review Tool for Presentation Authors"
         brandLogo={doc2DeckLogo}
         brandAlt="Document Doctor and Deck Mate shaking hands logo"
       >
@@ -1285,10 +1329,25 @@ export default function App({ appShell = 'ai' }) {
     )
   }
 
+  const workflowShellProps = isDeckMateWorkflow
+    ? {
+        appTitle: 'Deck Mate',
+        appSubtitle: 'A Professional Review Tool for Presentation Authors',
+        brandLogo: deckMateLogo,
+        brandAlt: 'Cartoon sailor on a boat presentation logo'
+      }
+    : {
+        appTitle: 'The Document Doctor',
+        appSubtitle: 'A Professional Review Tool for Document Authors',
+        brandLogo: logo,
+        brandAlt: 'Cartoon paper doctor logo'
+      }
+
   if (currentMode === MODES.DOC_DEFINE) {
     return (
       <PageShell
         mode={MODES.DOC_DEFINE}
+        {...workflowShellProps}
         topRightControls={
           <>
             {renderBackToSuiteButton()}
@@ -1302,7 +1361,7 @@ export default function App({ appShell = 'ai' }) {
         <section className="card primary-upload-card">
           <div className="primary-upload-inner split">
             <div className="primary-upload-left">
-              <h2>Select primary document</h2>
+              <h2>{`Select primary ${contentNoun}`}</h2>
               <div className="file-selector-row">
                 <input
                   name="primary_document"
@@ -1324,7 +1383,7 @@ export default function App({ appShell = 'ai' }) {
             </div>
             <div className="primary-upload-actions">
               <button type="button" disabled={!docFile} onClick={() => invokeOperation(OPERATIONS.CRITIQUE_PRIMARY)}>
-                Critique Document
+                {`Critique ${contentNounTitle}`}
               </button>
               {viewPromptEnabled ? (
                 <button
@@ -1349,34 +1408,49 @@ export default function App({ appShell = 'ai' }) {
 
         <section className="card grid two-column-grid">
           <div className="field-group">
-            <h2>Primary document definition</h2>
+            <h2>{`Primary ${contentNoun} definition`}</h2>
             <label>
-              {APP_SETTINGS.labels.defaultTopic}
-              <textarea name="topic_main" value={topic} onChange={(event) => setTopic(event.target.value)} rows={3} />
+              {activeSettings.labels.defaultTopic}
+              <textarea name="topic_main" value={topic} onChange={(event) => setTopicForActive(event.target.value)} rows={3} />
             </label>
             <label>
-              {APP_SETTINGS.labels.reviewObjective}
-              <textarea name="objective_main" value={objective} onChange={(event) => setObjective(event.target.value)} rows={3} />
+              {activeSettings.labels.reviewObjective}
+              <textarea
+                name="objective_main"
+                value={objective}
+                onChange={(event) => setObjectiveForActive(event.target.value)}
+                rows={3}
+              />
             </label>
           </div>
 
           <div className="field-group">
             <h2>Response guidance</h2>
             <label>
-              {APP_SETTINGS.labels.formattingGuidance}
-              <textarea name="guidance_main" value={guidance} onChange={(event) => setGuidance(event.target.value)} rows={3} />
+              {activeSettings.labels.formattingGuidance}
+              <textarea
+                name="guidance_main"
+                value={guidance}
+                onChange={(event) => setGuidanceForActive(event.target.value)}
+                rows={3}
+              />
             </label>
             <label>
-              {APP_SETTINGS.labels.antiGuidance}
-              <textarea name="anti_guidance_main" value={antiGuidance} onChange={(event) => setAntiGuidance(event.target.value)} rows={3} />
+              {activeSettings.labels.antiGuidance}
+              <textarea
+                name="anti_guidance_main"
+                value={antiGuidance}
+                onChange={(event) => setAntiGuidanceForActive(event.target.value)}
+                rows={3}
+              />
             </label>
           </div>
 
           <details className="collapsible-panel">
-            <summary>Supporting documents</summary>
+            <summary>{`Supporting ${contentNounPlural}`}</summary>
             <div className="collapsible-panel-body field-group">
               <label>
-                Supporting Document
+                {`Supporting ${contentNounTitle}`}
                 <input
                   name="supporting_document"
                   type="file"
@@ -1384,11 +1458,11 @@ export default function App({ appShell = 'ai' }) {
                 />
               </label>
               <label>
-                Supporting Document Context
+                {`Supporting ${contentNounTitle} Context`}
                 <textarea
                   name="support_instructions"
                   value={supportInstructions}
-                  onChange={(event) => setSupportInstructions(event.target.value)}
+                  onChange={(event) => setSupportInstructionsForActive(event.target.value)}
                   rows={4}
                 />
               </label>
@@ -1399,7 +1473,7 @@ export default function App({ appShell = 'ai' }) {
             <summary>Prior response</summary>
             <div className="collapsible-panel-body field-group">
               <label>
-                Prior Response Document
+                {`Prior Response ${contentNounTitle}`}
                 <input
                   name="prior_response_document"
                   type="file"
@@ -1411,7 +1485,7 @@ export default function App({ appShell = 'ai' }) {
                 <textarea
                   name="prior_instructions"
                   value={priorInstructions}
-                  onChange={(event) => setPriorInstructions(event.target.value)}
+                  onChange={(event) => setPriorInstructionsForActive(event.target.value)}
                   rows={4}
                 />
               </label>
@@ -1433,6 +1507,7 @@ export default function App({ appShell = 'ai' }) {
     return (
       <PageShell
         mode={MODES.INVOKE}
+        {...workflowShellProps}
         topRightControls={
           <>
             {renderBackToSuiteButton()}
@@ -1452,6 +1527,7 @@ export default function App({ appShell = 'ai' }) {
     return (
       <PageShell
         mode={MODES.RESULT_SAVED}
+        {...workflowShellProps}
         topRightControls={
           <>
             {renderBackToSuiteButton()}
@@ -1465,7 +1541,7 @@ export default function App({ appShell = 'ai' }) {
           <div className="action-row wrap-actions center-actions">
             {lastOperation === OPERATIONS.APPLY_CHANGE_ITEMS ? (
               <button type="button" onClick={() => setCurrentMode(MODES.VIEW_CHANGED)}>
-                View Changed Document
+                {`View Changed ${contentNounTitle}`}
               </button>
             ) : (
               <button type="button" onClick={() => setCurrentMode(MODES.CRITIQUE_REVIEW)}>
@@ -1485,6 +1561,7 @@ export default function App({ appShell = 'ai' }) {
     return (
       <PageShell
         mode={MODES.CRITIQUE_REVIEW}
+        {...workflowShellProps}
         topRightControls={
           <>
             {renderBackToSuiteButton()}
@@ -1505,7 +1582,7 @@ export default function App({ appShell = 'ai' }) {
             </button>
             {changeItems.length ? (
               <label className="output-file-field inline-output-field">
-                Changed Document Output File
+                {`Changed ${contentNounTitle} Output File`}
                 <input
                   type="text"
                   name="changed_output_file"
@@ -1534,7 +1611,7 @@ export default function App({ appShell = 'ai' }) {
           <aside className="side-panel change-composer">
             <div className="side-panel-header">
               <h3>Create change items</h3>
-              <p className="muted">Capture concise edits, then apply them to the document.</p>
+              <p className="muted">{`Capture concise edits, then apply them to the ${contentNoun}.`}</p>
             </div>
 
             <div className="change-composer-card">
@@ -1592,6 +1669,7 @@ export default function App({ appShell = 'ai' }) {
   return (
     <PageShell
       mode={MODES.VIEW_CHANGED}
+      {...workflowShellProps}
       topRightControls={
         <>
           {renderBackToSuiteButton()}
@@ -1601,7 +1679,7 @@ export default function App({ appShell = 'ai' }) {
     >
       <section className="card action-row wrap-actions center-actions compact-panel">
         <button type="button" onClick={() => invokeOperation(OPERATIONS.CRITIQUE_CHANGED)}>
-          Critique Changed Document
+          {`Critique Changed ${contentNounTitle}`}
         </button>
         <button
           type="button"
@@ -1622,7 +1700,7 @@ export default function App({ appShell = 'ai' }) {
 
       <section className="card field-group tall-document-panel">
         <label>
-          Changed document content
+          {`Changed ${contentNoun} content`}
           <textarea
             value={changedDocumentMarkdown}
             onChange={(event) => setChangedDocumentMarkdown(event.target.value)}
