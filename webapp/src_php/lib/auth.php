@@ -126,18 +126,72 @@ function auth_expiry_timestamp($timeoutSeconds)
     return gmdate('Y-m-d H:i:s', time() + (int) $timeoutSeconds);
 }
 
+function auth_user_sessions_columns(PDO $pdo)
+{
+    static $cached = null;
+    if (is_array($cached)) {
+        return $cached;
+    }
+
+    $cached = [];
+    $stmt = $pdo->query('SHOW COLUMNS FROM user_sessions');
+    foreach ($stmt->fetchAll() as $row) {
+        $field = isset($row['Field']) ? strtolower((string) $row['Field']) : '';
+        if ($field !== '') {
+            $cached[$field] = true;
+        }
+    }
+
+    return $cached;
+}
+
+function auth_user_sessions_has_column(PDO $pdo, $columnName)
+{
+    $columns = auth_user_sessions_columns($pdo);
+    return isset($columns[strtolower((string) $columnName)]);
+}
+
 function auth_create_or_refresh_session_record(PDO $pdo, $sessionId, $userId, $timeoutSeconds)
 {
+    $hasCreatedAt = auth_user_sessions_has_column($pdo, 'created_at');
+    $hasLastActivityAt = auth_user_sessions_has_column($pdo, 'last_activity_at');
+    $hasRevokedAt = auth_user_sessions_has_column($pdo, 'revoked_at');
     $expiresAt = auth_expiry_timestamp($timeoutSeconds);
-    $stmt = $pdo->prepare(
-        'INSERT INTO user_sessions (session_id, user_id, created_at, last_activity_at, expires_at, revoked_at)
-         VALUES (:session_id, :user_id, UTC_TIMESTAMP(), UTC_TIMESTAMP(), :expires_at, NULL)
-         ON DUPLICATE KEY UPDATE
-            user_id = VALUES(user_id),
-            last_activity_at = UTC_TIMESTAMP(),
-            expires_at = VALUES(expires_at),
-            revoked_at = NULL'
+
+    $insertColumns = ['session_id', 'user_id', 'expires_at'];
+    $insertValues = [':session_id', ':user_id', ':expires_at'];
+    if ($hasCreatedAt) {
+        $insertColumns[] = 'created_at';
+        $insertValues[] = 'UTC_TIMESTAMP()';
+    }
+    if ($hasLastActivityAt) {
+        $insertColumns[] = 'last_activity_at';
+        $insertValues[] = 'UTC_TIMESTAMP()';
+    }
+    if ($hasRevokedAt) {
+        $insertColumns[] = 'revoked_at';
+        $insertValues[] = 'NULL';
+    }
+
+    $updateFragments = [
+        'user_id = VALUES(user_id)',
+        'expires_at = VALUES(expires_at)',
+    ];
+    if ($hasLastActivityAt) {
+        $updateFragments[] = 'last_activity_at = UTC_TIMESTAMP()';
+    }
+    if ($hasRevokedAt) {
+        $updateFragments[] = 'revoked_at = NULL';
+    }
+
+    $sql = sprintf(
+        'INSERT INTO user_sessions (%s) VALUES (%s) ON DUPLICATE KEY UPDATE %s',
+        implode(', ', $insertColumns),
+        implode(', ', $insertValues),
+        implode(', ', $updateFragments)
     );
+
+    $stmt = $pdo->prepare($sql);
     $stmt->execute([
         'session_id' => $sessionId,
         'user_id' => (int) $userId,
@@ -147,19 +201,24 @@ function auth_create_or_refresh_session_record(PDO $pdo, $sessionId, $userId, $t
 
 function auth_get_active_session_record(PDO $pdo, $sessionId)
 {
-    $stmt = $pdo->prepare(
-        'SELECT session_id, user_id, expires_at, revoked_at
-         FROM user_sessions
-         WHERE session_id = :session_id
-         LIMIT 1'
+    $hasRevokedAt = auth_user_sessions_has_column($pdo, 'revoked_at');
+    $selectColumns = ['session_id', 'user_id', 'expires_at'];
+    if ($hasRevokedAt) {
+        $selectColumns[] = 'revoked_at';
+    }
+
+    $sql = sprintf(
+        'SELECT %s FROM user_sessions WHERE session_id = :session_id LIMIT 1',
+        implode(', ', $selectColumns)
     );
+    $stmt = $pdo->prepare($sql);
     $stmt->execute(['session_id' => $sessionId]);
     $record = $stmt->fetch();
     if (!$record) {
         return null;
     }
 
-    if (!empty($record['revoked_at'])) {
+    if ($hasRevokedAt && !empty($record['revoked_at'])) {
         return null;
     }
 
@@ -172,12 +231,23 @@ function auth_get_active_session_record(PDO $pdo, $sessionId)
 
 function auth_touch_session_record(PDO $pdo, $sessionId, $timeoutSeconds)
 {
+    $hasLastActivityAt = auth_user_sessions_has_column($pdo, 'last_activity_at');
+    $hasRevokedAt = auth_user_sessions_has_column($pdo, 'revoked_at');
     $expiresAt = auth_expiry_timestamp($timeoutSeconds);
-    $stmt = $pdo->prepare(
-        'UPDATE user_sessions
-         SET last_activity_at = UTC_TIMESTAMP(), expires_at = :expires_at
-         WHERE session_id = :session_id AND revoked_at IS NULL'
+    $setFragments = ['expires_at = :expires_at'];
+    if ($hasLastActivityAt) {
+        $setFragments[] = 'last_activity_at = UTC_TIMESTAMP()';
+    }
+    $whereFragments = ['session_id = :session_id'];
+    if ($hasRevokedAt) {
+        $whereFragments[] = 'revoked_at IS NULL';
+    }
+    $sql = sprintf(
+        'UPDATE user_sessions SET %s WHERE %s',
+        implode(', ', $setFragments),
+        implode(' AND ', $whereFragments)
     );
+    $stmt = $pdo->prepare($sql);
     $stmt->execute([
         'expires_at' => $expiresAt,
         'session_id' => $sessionId,
@@ -186,11 +256,18 @@ function auth_touch_session_record(PDO $pdo, $sessionId, $timeoutSeconds)
 
 function auth_revoke_session_record(PDO $pdo, $sessionId)
 {
-    $stmt = $pdo->prepare(
-        'UPDATE user_sessions
-         SET revoked_at = UTC_TIMESTAMP()
-         WHERE session_id = :session_id AND revoked_at IS NULL'
-    );
+    $hasRevokedAt = auth_user_sessions_has_column($pdo, 'revoked_at');
+    if ($hasRevokedAt) {
+        $stmt = $pdo->prepare(
+            'UPDATE user_sessions
+             SET revoked_at = UTC_TIMESTAMP()
+             WHERE session_id = :session_id AND revoked_at IS NULL'
+        );
+        $stmt->execute(['session_id' => $sessionId]);
+        return;
+    }
+
+    $stmt = $pdo->prepare('DELETE FROM user_sessions WHERE session_id = :session_id');
     $stmt->execute(['session_id' => $sessionId]);
 }
 

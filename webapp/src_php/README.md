@@ -39,9 +39,9 @@ Each endpoint returns JSON shaped to match the current frontend expectations.
    - `session_id` (string primary key)
    - `user_id` (int)
    - `created_at` (datetime)
-   - `last_activity_at` (datetime)
    - `expires_at` (datetime)
    - `revoked_at` (datetime nullable)
+   - `last_activity_at` (datetime, optional)
 8. Update `cors_allow_origins` for your real frontend origin(s).
 9. Upload the contents of `src_php/` so the host serves the `api/` folder.
 10. Build the React frontend with `npm run build` and upload only the generated `webapp/dist/` files to your web root (not the JSX source files).
