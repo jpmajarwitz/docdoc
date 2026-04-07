@@ -24,9 +24,13 @@ if (($user['status'] ?? '') !== 'active') {
     php_backend_error(403, 'Account is not active. Verify your email first.');
 }
 
+session_regenerate_id(true);
 $_SESSION['auth_user_id'] = (int) $user['id'];
 $_SESSION['auth_email'] = $user['email'];
 $_SESSION['auth_logged_in_at'] = time();
+
+$sessionTimeoutSeconds = auth_session_timeout_seconds($config);
+auth_create_or_refresh_session_record($pdo, session_id(), (int) $user['id'], $sessionTimeoutSeconds);
 
 try {
     $pdo->prepare('UPDATE users SET last_login_at = NOW() WHERE id = :id')->execute(['id' => $user['id']]);

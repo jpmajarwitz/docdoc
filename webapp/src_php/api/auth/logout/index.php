@@ -6,11 +6,8 @@ php_backend_apply_cors($config);
 php_backend_require_method('POST');
 auth_start_session($config);
 
-$_SESSION = [];
-if (ini_get('session.use_cookies')) {
-    $params = session_get_cookie_params();
-    setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
-}
-session_destroy();
+$pdo = auth_get_pdo($config);
+auth_revoke_session_record($pdo, session_id());
+auth_clear_session_state();
 
 php_backend_json_response(200, ['ok' => true]);

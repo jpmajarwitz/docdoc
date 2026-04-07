@@ -111,6 +111,99 @@ function auth_get_user_by_id(PDO $pdo, $userId)
     return $stmt->fetch() ?: null;
 }
 
+function auth_session_timeout_seconds($config)
+{
+    $raw = $config['auth_session_timeout_seconds'] ?? getenv('AUTH_SESSION_TIMEOUT_SECONDS') ?: 43200;
+    $timeout = (int) $raw;
+    if ($timeout < 60) {
+        $timeout = 60;
+    }
+    return $timeout;
+}
+
+function auth_expiry_timestamp($timeoutSeconds)
+{
+    return gmdate('Y-m-d H:i:s', time() + (int) $timeoutSeconds);
+}
+
+function auth_create_or_refresh_session_record(PDO $pdo, $sessionId, $userId, $timeoutSeconds)
+{
+    $expiresAt = auth_expiry_timestamp($timeoutSeconds);
+    $stmt = $pdo->prepare(
+        'INSERT INTO user_sessions (session_id, user_id, created_at, last_activity_at, expires_at, revoked_at)
+         VALUES (:session_id, :user_id, UTC_TIMESTAMP(), UTC_TIMESTAMP(), :expires_at, NULL)
+         ON DUPLICATE KEY UPDATE
+            user_id = VALUES(user_id),
+            last_activity_at = UTC_TIMESTAMP(),
+            expires_at = VALUES(expires_at),
+            revoked_at = NULL'
+    );
+    $stmt->execute([
+        'session_id' => $sessionId,
+        'user_id' => (int) $userId,
+        'expires_at' => $expiresAt,
+    ]);
+}
+
+function auth_get_active_session_record(PDO $pdo, $sessionId)
+{
+    $stmt = $pdo->prepare(
+        'SELECT session_id, user_id, expires_at, revoked_at
+         FROM user_sessions
+         WHERE session_id = :session_id
+         LIMIT 1'
+    );
+    $stmt->execute(['session_id' => $sessionId]);
+    $record = $stmt->fetch();
+    if (!$record) {
+        return null;
+    }
+
+    if (!empty($record['revoked_at'])) {
+        return null;
+    }
+
+    if (empty($record['expires_at']) || strtotime((string) $record['expires_at']) <= time()) {
+        return null;
+    }
+
+    return $record;
+}
+
+function auth_touch_session_record(PDO $pdo, $sessionId, $timeoutSeconds)
+{
+    $expiresAt = auth_expiry_timestamp($timeoutSeconds);
+    $stmt = $pdo->prepare(
+        'UPDATE user_sessions
+         SET last_activity_at = UTC_TIMESTAMP(), expires_at = :expires_at
+         WHERE session_id = :session_id AND revoked_at IS NULL'
+    );
+    $stmt->execute([
+        'expires_at' => $expiresAt,
+        'session_id' => $sessionId,
+    ]);
+}
+
+function auth_revoke_session_record(PDO $pdo, $sessionId)
+{
+    $stmt = $pdo->prepare(
+        'UPDATE user_sessions
+         SET revoked_at = UTC_TIMESTAMP()
+         WHERE session_id = :session_id AND revoked_at IS NULL'
+    );
+    $stmt->execute(['session_id' => $sessionId]);
+}
+
+function auth_clear_session_state()
+{
+    $_SESSION = [];
+    if (ini_get('session.use_cookies')) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+    }
+    session_destroy();
+}
+
 function auth_public_user($user)
 {
     return [

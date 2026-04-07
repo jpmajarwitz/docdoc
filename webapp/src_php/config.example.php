@@ -23,4 +23,5 @@ return [
     'smtp_from_email' => 'no-reply@yourdomain.com',
     'smtp_from_name' => 'A-Ideation',
     'auth_return_tokens_in_response' => false,
+    'auth_session_timeout_seconds' => 43200,
 ];
