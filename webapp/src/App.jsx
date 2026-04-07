@@ -758,9 +758,12 @@ export default function App({ appShell = 'ai' }) {
                   throw primaryError
                 }
 
-                setBypassFileInput(false)
-                setStatus('Gateway timeout detected. Retrying with direct file upload...')
-                return postMultipart(API_ENDPOINTS[operation], requestPayload, directFileEntries)
+                setStatus('Gateway timeout detected. Retrying request...')
+                return postMultipart(
+                  API_ENDPOINTS[operation],
+                  requestPayloadBypassed,
+                  bypassFileInput ? {} : directFileEntries
+                )
               }
             })()
           : operation === OPERATIONS.APPLY_CHANGE_ITEMS
@@ -785,9 +788,12 @@ export default function App({ appShell = 'ai' }) {
                     throw applyError
                   }
 
-                  setBypassFileInput(false)
-                  setStatus('Gateway timeout detected. Retrying with direct file upload...')
-                  return postMultipart(API_ENDPOINTS[operation], requestPayload, directFileEntries)
+                  setStatus('Gateway timeout detected. Retrying request...')
+                  return postMultipart(
+                    API_ENDPOINTS[operation],
+                    requestPayloadBypassed,
+                    bypassFileInput ? {} : directFileEntries
+                  )
                 }
               })()
             : await postJson(API_ENDPOINTS[operation], buildChangedDocCritiqueRequest())
