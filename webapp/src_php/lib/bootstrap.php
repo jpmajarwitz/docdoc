@@ -112,8 +112,10 @@ function php_backend_log($event, $context = [])
     $loginName = php_backend_login_name();
     $applicationName = php_backend_application_name();
 
+    $timeZone = new DateTimeZone('America/New_York');
+    $nowEastern = new DateTimeImmutable('now', $timeZone);
     $payload = [
-        'ts' => gmdate('c'),
+        'ts' => $nowEastern->format(DateTimeInterface::ATOM),
         'event' => $event,
         'application' => $applicationName,
         'ip_address' => $ipAddress,

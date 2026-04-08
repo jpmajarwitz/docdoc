@@ -152,6 +152,10 @@ function detectAppNameFromPath() {
     return 'a-ideation'
   }
 
+  if (window.__AIDEATION_APP_NAME) {
+    return String(window.__AIDEATION_APP_NAME).toLowerCase()
+  }
+
   const path = `${window.location.pathname}`.toLowerCase()
   if (path.includes('index-dd')) {
     return 'docdoc'
@@ -322,10 +326,16 @@ export default function App({ appShell = 'ai' }) {
   const [docObjective, setDocObjective] = useState(APP_SETTINGS.defaults.reviewObjective)
   const [docGuidance, setDocGuidance] = useState(APP_SETTINGS.defaults.formattingGuidance)
   const [docAntiGuidance, setDocAntiGuidance] = useState(APP_SETTINGS.defaults.antiGuidance)
+  const [docApplyChangeItemsGuidance, setDocApplyChangeItemsGuidance] = useState(
+    APP_SETTINGS.defaults.applyChangeItemsGuidance || ''
+  )
   const [deckTopic, setDeckTopic] = useState(DECK_MATE_SETTINGS.defaults.topic)
   const [deckObjective, setDeckObjective] = useState(DECK_MATE_SETTINGS.defaults.reviewObjective)
   const [deckGuidance, setDeckGuidance] = useState(DECK_MATE_SETTINGS.defaults.formattingGuidance)
   const [deckAntiGuidance, setDeckAntiGuidance] = useState(DECK_MATE_SETTINGS.defaults.antiGuidance)
+  const [deckApplyChangeItemsGuidance, setDeckApplyChangeItemsGuidance] = useState(
+    DECK_MATE_SETTINGS.defaults.applyChangeItemsGuidance || ''
+  )
   const [docSupportInstructions, setDocSupportInstructions] = useState(defaults.supportInstructions)
   const [docPriorInstructions, setDocPriorInstructions] = useState(defaults.priorInstructions)
   const [deckSupportInstructions, setDeckSupportInstructions] = useState(defaults.supportInstructions)
@@ -336,6 +346,7 @@ export default function App({ appShell = 'ai' }) {
   const antiGuidance = isDeckMateWorkflow ? deckAntiGuidance : docAntiGuidance
   const supportInstructions = isDeckMateWorkflow ? deckSupportInstructions : docSupportInstructions
   const priorInstructions = isDeckMateWorkflow ? deckPriorInstructions : docPriorInstructions
+  const applyChangeItemsGuidance = isDeckMateWorkflow ? deckApplyChangeItemsGuidance : docApplyChangeItemsGuidance
   const [critiqueMarkdown, setCritiqueMarkdown] = useState('')
   const [changedDocumentMarkdown, setChangedDocumentMarkdown] = useState('')
   const [critiqueOutputFileName, setCritiqueOutputFileName] = useState('critique.md')
@@ -393,6 +404,14 @@ export default function App({ appShell = 'ai' }) {
       return
     }
     setDocPriorInstructions(value)
+  }
+
+  function setApplyChangeItemsGuidanceForActive(value) {
+    if (isDeckMateWorkflow) {
+      setDeckApplyChangeItemsGuidance(value)
+      return
+    }
+    setDocApplyChangeItemsGuidance(value)
   }
 
   function resetAuthInputs() {
@@ -625,7 +644,7 @@ export default function App({ appShell = 'ai' }) {
     return built
   }
 
-  async function buildPrimaryPromptPreviewText() {
+async function buildPrimaryPromptPreviewText() {
     const requestPayload = buildPrimaryCritiqueRequest()
     requestPayload.messages = await maybeBypassFileMessages(requestPayload.messages, {
       primary_document: docFile,
@@ -702,7 +721,9 @@ export default function App({ appShell = 'ai' }) {
     return buildLlmRequest([
       {
         type: 'input_text',
-        text: `Main Instruction: Apply all requested change items directly to the original ${contentNoun} and return the changed ${contentNoun} in markdown. Anti-Guidance: ${buildAntiGuidancePrompt()}`
+        text: `Main Instruction: Apply all requested change items directly to the original ${contentNoun} and return the changed ${contentNoun} in markdown.${
+          applyChangeItemsGuidance ? ` ${applyChangeItemsGuidance}` : ''
+        } Anti-Guidance: ${buildAntiGuidancePrompt()}`
       },
       {
         type: 'input_text',
@@ -933,6 +954,27 @@ export default function App({ appShell = 'ai' }) {
   }, [])
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (activeView === APP_VIEWS.DOCUMENT_DOCTOR) {
+      window.__AIDEATION_APP_NAME = 'docdoc'
+      return
+    }
+    if (activeView === APP_VIEWS.DECK_MATE) {
+      window.__AIDEATION_APP_NAME = 'deckmate'
+      return
+    }
+    if (activeView === APP_VIEWS.DOC2DECK) {
+      window.__AIDEATION_APP_NAME = 'doc2deck'
+      return
+    }
+
+    window.__AIDEATION_APP_NAME = 'a-ideation'
+  }, [activeView])
+
+  useEffect(() => {
     if (isDeckMateWorkflow && bypassFileInput) {
       setBypassFileInput(false)
     }
@@ -1022,6 +1064,18 @@ export default function App({ appShell = 'ai' }) {
             <label key={settingKey}>
               {settingsLabels.antiGuidance || activeSettings.labels.antiGuidance}
               <textarea name="anti_guidance" value={antiGuidance} onChange={(event) => setAntiGuidanceForActive(event.target.value)} rows={3} />
+            </label>
+          )
+        case 'applyChangeItemsGuidance':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.applyChangeItemsGuidance || activeSettings.labels.applyChangeItemsGuidance || 'Apply_Change_Items_Guidance'}
+              <textarea
+                name="apply_change_items_guidance"
+                value={applyChangeItemsGuidance}
+                onChange={(event) => setApplyChangeItemsGuidanceForActive(event.target.value)}
+                rows={3}
+              />
             </label>
           )
         case 'ignoreOcrErrors':
@@ -1648,6 +1702,23 @@ export default function App({ appShell = 'ai' }) {
             >
               Apply Change Items
             </button>
+            {viewPromptEnabled ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (showPromptPanel) {
+                    setShowPromptPanel(false)
+                    return
+                  }
+
+                  setPromptPreviewText('Building prompt preview...')
+                  setShowPromptPanel(true)
+                  setPromptPreviewText(await buildApplyChangeItemsPromptPreviewText())
+                }}
+              >
+                View Prompt
+              </button>
+            ) : null}
             {changeItems.length ? (
               <label className="output-file-field inline-output-field">
                 {`Changed ${contentNounTitle} Output File`}
@@ -1730,6 +1801,13 @@ export default function App({ appShell = 'ai' }) {
             </div>
           </aside>
         </section>
+
+        {viewPromptEnabled && showPromptPanel ? (
+          <section className="card prompt-preview-card">
+            <h2>Prompt Preview</h2>
+            <pre>{promptPreviewText}</pre>
+          </section>
+        ) : null}
       </PageShell>
     )
   }
@@ -1779,3 +1857,46 @@ export default function App({ appShell = 'ai' }) {
     </PageShell>
   )
 }
+
+  async function buildApplyChangeItemsPromptPreviewText() {
+    const requestPayload = buildApplyChangeItemsRequest()
+    requestPayload.messages = await maybeBypassFileMessages(requestPayload.messages, {
+      original_document: docFile
+    })
+
+    const openAiEndpoint =
+      selectedApiMode === 'chat'
+        ? 'https://api.openai.com/v1/chat/completions'
+        : 'https://api.openai.com/v1/responses'
+
+    if (selectedApiMode !== 'chat') {
+      return JSON.stringify(
+        {
+          openAiEndpoint,
+          ...requestPayload
+        },
+        null,
+        2
+      )
+    }
+
+    const chatContent = requestPayload.messages.map((item) =>
+      item.type === 'input_text'
+        ? { type: 'text', text: item.text || '' }
+        : { type: 'file', file: { source: item.source || 'file_reference' } }
+    )
+
+    return JSON.stringify(
+      {
+        openAiEndpoint,
+        model: requestPayload.model,
+        store: requestPayload.store,
+        messages: [
+          { role: 'system', content: requestPayload.systemPrompt },
+          { role: 'user', content: chatContent }
+        ]
+      },
+      null,
+      2
+    )
+  }

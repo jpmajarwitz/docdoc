@@ -15,7 +15,8 @@ export const DECK_MATE_SETTINGS = {
     defaultTopic: 'Default Topic',
     reviewObjective: 'Review Objective',
     formattingGuidance: 'Formatting Guidance',
-    antiGuidance: 'Anti-Guidance'
+    antiGuidance: 'Anti-Guidance',
+    applyChangeItemsGuidance: 'Apply_Change_Items_Guidance'
   },
   settingsPanelLabels: {
     apiMode: 'API Mode',
@@ -24,6 +25,7 @@ export const DECK_MATE_SETTINGS = {
     reviewObjective: 'Review Objective',
     formattingGuidance: 'Formatting Guidance',
     antiGuidance: 'Anti-Guidance',
+    applyChangeItemsGuidance: 'Apply_Change_Items_Guidance',
     ignoreOcrErrors: 'Ignore obvious OCR misspellings',
     disableResponseLogging: 'Disable response logging',
     viewPrompt: 'View Prompt',
@@ -36,6 +38,7 @@ export const DECK_MATE_SETTINGS = {
     'reviewObjective',
     'formattingGuidance',
     'antiGuidance',
+    'applyChangeItemsGuidance',
     'ignoreOcrErrors',
     'disableResponseLogging',
     'viewPrompt',
@@ -48,7 +51,9 @@ export const DECK_MATE_SETTINGS = {
     formattingGuidance:
       'Your response should be in Markdown format. Provide your output critique on a slide by slide basis with enumerated issues per slide, e.g., slide-1, issue-1, issue-2 … slide-2, issue1, issue2 …',
     antiGuidance:
-      'Do not add new ideas into the presentation. Your job is to sharpen up what is already being communicated.'
+      'Do not add new ideas into the presentation. Your job is to sharpen up what is already being communicated.',
+    applyChangeItemsGuidance:
+      'Limit the response to just the changed slides of the original presentation. Do not return slide content if no changes are made.'
   },
   ocrGuidanceText:
     'Ignore any OCR errors related to the mis-spelling of words that seems obvious. Do not report back these types of errors. For example: Objec@ive instead of Objective.',
