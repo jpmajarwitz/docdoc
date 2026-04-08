@@ -54,7 +54,7 @@ export const APP_SETTINGS = {
   ocrGuidanceText:
     'Ignore any OCR errors related to the mis-spelling of words that seems obvious. Do not report back these types of errors. For example: Objec@ive instead of Objective.',
   disableResponseLoggingDefault: true,
-  viewPromptDefault: true,
-  bypassFileInputDefault: true,
+  viewPromptDefault: false,
+  bypassFileInputDefault: false,
   deleteFileOnLlmDefault: true
 }

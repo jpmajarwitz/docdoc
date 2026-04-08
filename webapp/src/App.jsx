@@ -905,6 +905,12 @@ export default function App({ appShell = 'ai' }) {
   }, [])
 
   useEffect(() => {
+    if (isDeckMateWorkflow && bypassFileInput) {
+      setBypassFileInput(false)
+    }
+  }, [isDeckMateWorkflow, bypassFileInput])
+
+  useEffect(() => {
     function handlePointerDown(event) {
       if (!settingsOpen) {
         return

@@ -26,7 +26,6 @@ export const DECK_MATE_SETTINGS = {
     ignoreOcrErrors: 'Ignore obvious OCR misspellings',
     disableResponseLogging: 'Disable response logging',
     viewPrompt: 'View Prompt',
-    bypassFileInput: 'Bypass_File_Input',
     deleteFileOnLlm: 'Delete_File_On_LLM'
   },
   settingsPanelOrder: [
@@ -39,7 +38,6 @@ export const DECK_MATE_SETTINGS = {
     'ignoreOcrErrors',
     'disableResponseLogging',
     'viewPrompt',
-    'bypassFileInput',
     'deleteFileOnLlm'
   ],
   defaults: {
@@ -54,7 +52,7 @@ export const DECK_MATE_SETTINGS = {
   ocrGuidanceText:
     'Ignore any OCR errors related to the mis-spelling of words that seems obvious. Do not report back these types of errors. For example: Objec@ive instead of Objective.',
   disableResponseLoggingDefault: true,
-  viewPromptDefault: true,
-  bypassFileInputDefault: true,
+  viewPromptDefault: false,
+  bypassFileInputDefault: false,
   deleteFileOnLlmDefault: true
 }
