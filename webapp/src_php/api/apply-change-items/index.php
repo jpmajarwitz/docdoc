@@ -1,8 +1,9 @@
 <?php
-require_once dirname(__DIR__, 2) . '/lib/bootstrap.php';
+require_once dirname(__DIR__, 2) . '/lib/auth.php';
 $config = php_backend_load_config();
 php_backend_apply_cors($config);
 php_backend_require_method('POST');
+auth_require_active_session($config);
 
 $llmRequest = php_backend_parse_form_request();
 $response = php_backend_invoke_llm($llmRequest, [

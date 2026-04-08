@@ -39,13 +39,15 @@ Each endpoint returns JSON shaped to match the current frontend expectations.
    - `session_id` (string primary key)
    - `user_id` (int)
    - `created_at` (datetime)
-   - `expires_at` (datetime)
-   - `revoked_at` (datetime nullable)
-   - `last_activity_at` (datetime, optional)
-8. Update `cors_allow_origins` for your real frontend origin(s).
-9. Upload the contents of `src_php/` so the host serves the `api/` folder.
-10. Build the React frontend with `npm run build` and upload only the generated `webapp/dist/` files to your web root (not the JSX source files).
-11. Point the frontend `VITE_API_BASE_URL` at the deployed PHP backend root.
+   - `last_activity_at` (datetime)
+   - `session_timeout_duration` (int seconds)
+   - `session_status` (enum/string: `active` or `terminated`)
+   - `revoked_at` (datetime nullable, optional)
+8. LLM operation endpoints (`critique`, `apply-change-items`, `critique-changed-document`) now require an active auth session and will return a session-expired response when timeout rules fail.
+9. Update `cors_allow_origins` for your real frontend origin(s).
+10. Upload the contents of `src_php/` so the host serves the `api/` folder.
+11. Build the React frontend with `npm run build` and upload only the generated `webapp/dist/` files to your web root (not the JSX source files).
+12. Point the frontend `VITE_API_BASE_URL` at the deployed PHP backend root.
 
 SMTP diagnostics are written to:
 - server `error_log`

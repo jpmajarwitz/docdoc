@@ -121,11 +121,6 @@ function auth_session_timeout_seconds($config)
     return $timeout;
 }
 
-function auth_expiry_timestamp($timeoutSeconds)
-{
-    return gmdate('Y-m-d H:i:s', time() + (int) $timeoutSeconds);
-}
-
 function auth_user_sessions_columns(PDO $pdo)
 {
     static $cached = null;
@@ -155,11 +150,12 @@ function auth_create_or_refresh_session_record(PDO $pdo, $sessionId, $userId, $t
 {
     $hasCreatedAt = auth_user_sessions_has_column($pdo, 'created_at');
     $hasLastActivityAt = auth_user_sessions_has_column($pdo, 'last_activity_at');
+    $hasTimeoutDuration = auth_user_sessions_has_column($pdo, 'session_timeout_duration');
+    $hasSessionStatus = auth_user_sessions_has_column($pdo, 'session_status');
     $hasRevokedAt = auth_user_sessions_has_column($pdo, 'revoked_at');
-    $expiresAt = auth_expiry_timestamp($timeoutSeconds);
 
-    $insertColumns = ['session_id', 'user_id', 'expires_at'];
-    $insertValues = [':session_id', ':user_id', ':expires_at'];
+    $insertColumns = ['session_id', 'user_id'];
+    $insertValues = [':session_id', ':user_id'];
     if ($hasCreatedAt) {
         $insertColumns[] = 'created_at';
         $insertValues[] = 'UTC_TIMESTAMP()';
@@ -168,6 +164,14 @@ function auth_create_or_refresh_session_record(PDO $pdo, $sessionId, $userId, $t
         $insertColumns[] = 'last_activity_at';
         $insertValues[] = 'UTC_TIMESTAMP()';
     }
+    if ($hasTimeoutDuration) {
+        $insertColumns[] = 'session_timeout_duration';
+        $insertValues[] = ':session_timeout_duration';
+    }
+    if ($hasSessionStatus) {
+        $insertColumns[] = 'session_status';
+        $insertValues[] = ':session_status';
+    }
     if ($hasRevokedAt) {
         $insertColumns[] = 'revoked_at';
         $insertValues[] = 'NULL';
@@ -175,10 +179,15 @@ function auth_create_or_refresh_session_record(PDO $pdo, $sessionId, $userId, $t
 
     $updateFragments = [
         'user_id = VALUES(user_id)',
-        'expires_at = VALUES(expires_at)',
     ];
     if ($hasLastActivityAt) {
         $updateFragments[] = 'last_activity_at = UTC_TIMESTAMP()';
+    }
+    if ($hasTimeoutDuration) {
+        $updateFragments[] = 'session_timeout_duration = VALUES(session_timeout_duration)';
+    }
+    if ($hasSessionStatus) {
+        $updateFragments[] = "session_status = 'active'";
     }
     if ($hasRevokedAt) {
         $updateFragments[] = 'revoked_at = NULL';
@@ -191,18 +200,41 @@ function auth_create_or_refresh_session_record(PDO $pdo, $sessionId, $userId, $t
         implode(', ', $updateFragments)
     );
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
+    $params = [
         'session_id' => $sessionId,
         'user_id' => (int) $userId,
-        'expires_at' => $expiresAt,
-    ]);
+    ];
+    if ($hasTimeoutDuration) {
+        $params['session_timeout_duration'] = (int) $timeoutSeconds;
+    }
+    if ($hasSessionStatus) {
+        $params['session_status'] = 'active';
+    }
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
 }
 
 function auth_get_active_session_record(PDO $pdo, $sessionId)
 {
     $hasRevokedAt = auth_user_sessions_has_column($pdo, 'revoked_at');
-    $selectColumns = ['session_id', 'user_id', 'expires_at'];
+    $hasCreatedAt = auth_user_sessions_has_column($pdo, 'created_at');
+    $hasLastActivityAt = auth_user_sessions_has_column($pdo, 'last_activity_at');
+    $hasTimeoutDuration = auth_user_sessions_has_column($pdo, 'session_timeout_duration');
+    $hasSessionStatus = auth_user_sessions_has_column($pdo, 'session_status');
+    $selectColumns = ['session_id', 'user_id'];
+    if ($hasCreatedAt) {
+        $selectColumns[] = 'created_at';
+    }
+    if ($hasLastActivityAt) {
+        $selectColumns[] = 'last_activity_at';
+    }
+    if ($hasTimeoutDuration) {
+        $selectColumns[] = 'session_timeout_duration';
+    }
+    if ($hasSessionStatus) {
+        $selectColumns[] = 'session_status';
+    }
     if ($hasRevokedAt) {
         $selectColumns[] = 'revoked_at';
     }
@@ -222,21 +254,49 @@ function auth_get_active_session_record(PDO $pdo, $sessionId)
         return null;
     }
 
-    if (empty($record['expires_at']) || strtotime((string) $record['expires_at']) <= time()) {
+    if ($hasSessionStatus && strtolower((string) ($record['session_status'] ?? '')) !== 'active') {
         return null;
     }
 
     return $record;
 }
 
+function auth_session_record_is_expired($record)
+{
+    if (!is_array($record)) {
+        return true;
+    }
+
+    $createdAt = isset($record['created_at']) ? strtotime((string) $record['created_at']) : false;
+    $lastActivityAt = isset($record['last_activity_at']) ? strtotime((string) $record['last_activity_at']) : false;
+    $timeoutSeconds = isset($record['session_timeout_duration']) ? (int) $record['session_timeout_duration'] : 0;
+
+    if ($createdAt === false || $lastActivityAt === false || $timeoutSeconds <= 0) {
+        return false;
+    }
+
+    $elapsed = $lastActivityAt - $createdAt;
+    return $elapsed > $timeoutSeconds;
+}
+
 function auth_touch_session_record(PDO $pdo, $sessionId, $timeoutSeconds)
 {
     $hasLastActivityAt = auth_user_sessions_has_column($pdo, 'last_activity_at');
+    $hasTimeoutDuration = auth_user_sessions_has_column($pdo, 'session_timeout_duration');
+    $hasSessionStatus = auth_user_sessions_has_column($pdo, 'session_status');
     $hasRevokedAt = auth_user_sessions_has_column($pdo, 'revoked_at');
-    $expiresAt = auth_expiry_timestamp($timeoutSeconds);
-    $setFragments = ['expires_at = :expires_at'];
+    $setFragments = [];
     if ($hasLastActivityAt) {
         $setFragments[] = 'last_activity_at = UTC_TIMESTAMP()';
+    }
+    if ($hasTimeoutDuration) {
+        $setFragments[] = 'session_timeout_duration = :session_timeout_duration';
+    }
+    if ($hasSessionStatus) {
+        $setFragments[] = "session_status = 'active'";
+    }
+    if (empty($setFragments)) {
+        return;
     }
     $whereFragments = ['session_id = :session_id'];
     if ($hasRevokedAt) {
@@ -247,16 +307,33 @@ function auth_touch_session_record(PDO $pdo, $sessionId, $timeoutSeconds)
         implode(', ', $setFragments),
         implode(' AND ', $whereFragments)
     );
+    $params = ['session_id' => $sessionId];
+    if ($hasTimeoutDuration) {
+        $params['session_timeout_duration'] = (int) $timeoutSeconds;
+    }
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        'expires_at' => $expiresAt,
-        'session_id' => $sessionId,
-    ]);
+    $stmt->execute($params);
 }
 
 function auth_revoke_session_record(PDO $pdo, $sessionId)
 {
+    $hasSessionStatus = auth_user_sessions_has_column($pdo, 'session_status');
     $hasRevokedAt = auth_user_sessions_has_column($pdo, 'revoked_at');
+    if ($hasSessionStatus) {
+        $setFragments = ["session_status = 'terminated'"];
+        if ($hasRevokedAt) {
+            $setFragments[] = 'revoked_at = UTC_TIMESTAMP()';
+        }
+        $stmt = $pdo->prepare(
+            sprintf(
+                'UPDATE user_sessions SET %s WHERE session_id = :session_id',
+                implode(', ', $setFragments)
+            )
+        );
+        $stmt->execute(['session_id' => $sessionId]);
+        return;
+    }
+
     if ($hasRevokedAt) {
         $stmt = $pdo->prepare(
             'UPDATE user_sessions
@@ -279,6 +356,32 @@ function auth_clear_session_state()
         setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
     }
     session_destroy();
+}
+
+function auth_require_active_session($config)
+{
+    auth_start_session($config);
+    if (empty($_SESSION['auth_user_id'])) {
+        php_backend_error(401, 'Session expired. Please login again.');
+    }
+
+    $pdo = auth_get_pdo($config);
+    $sessionId = session_id();
+    $sessionRecord = auth_get_active_session_record($pdo, $sessionId);
+    if (!$sessionRecord || (int) $sessionRecord['user_id'] !== (int) $_SESSION['auth_user_id']) {
+        auth_revoke_session_record($pdo, $sessionId);
+        auth_clear_session_state();
+        php_backend_error(401, 'Session expired. Please login again.');
+    }
+
+    if (auth_session_record_is_expired($sessionRecord)) {
+        auth_revoke_session_record($pdo, $sessionId);
+        auth_clear_session_state();
+        php_backend_error(401, 'Session expired. Please login again.');
+    }
+
+    auth_touch_session_record($pdo, $sessionId, auth_session_timeout_seconds($config));
+    return auth_get_user_by_id($pdo, (int) $_SESSION['auth_user_id']);
 }
 
 function auth_public_user($user)
