@@ -47,6 +47,8 @@ try {
         'token_hash' => $tokenHash,
         'expires_at' => $expiresAt,
     ]);
+
+    auth_initialize_user_profile($pdo, $userId);
 } catch (Throwable $exception) {
     php_backend_error(500, 'Registration failed: ' . $exception->getMessage());
 }

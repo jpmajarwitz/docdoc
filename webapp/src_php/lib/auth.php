@@ -394,6 +394,80 @@ function auth_public_user($user)
     ];
 }
 
+function auth_default_user_profile()
+{
+    return [
+        'apiMode' => 'responses',
+        'model' => 'gpt-5-mini',
+        'ignoreOcrErrors' => true,
+        'disableResponseLogging' => true,
+        'viewPromptEnabled' => false,
+        'bypassFileInput' => false,
+        'deleteFileOnLlm' => true,
+        'doc' => [
+            'topic' => 'This is a professional journal article in the <XXX> profession covering <YYY>',
+            'objective' => 'Proofread the document for consistency in tone, scope, and level of detail. Consider the document to be a refined draft that is complete in scope and intent. Suggest improvements only where necessary.',
+            'guidance' => 'Your response should be in Markdown format. Provide a section of major changes needed and a section of minor changes needed. Use enumerations for each change recommended, e.g., major-1, major-2,... minor-1, minor-2....',
+            'antiGuidance' => 'Do not add new ideas into the document. Your job is to sharpen up what is already being communicated',
+            'applyChangeItemsGuidance' => '',
+        ],
+        'deck' => [
+            'topic' => 'This is a professional presentation covering <XXX>.',
+            'objective' => 'Proofread the presentation for consistency in tone, scope, and level of detail. Consider the presentation to be a refined draft that is complete in scope and intent. Suggest improvements only where necessary.',
+            'guidance' => 'Your response should be in Markdown format. Provide your output critique on a slide by slide basis with enumerated issues per slide, e.g., slide-1, issue-1, issue-2 … slide-2, issue1, issue2 …',
+            'antiGuidance' => 'Do not add new ideas into the presentation. Your job is to sharpen up what is already being communicated.',
+            'applyChangeItemsGuidance' => 'Limit the response to just the changed slides of the original presentation. Do not return slide content if no changes are made.',
+        ],
+    ];
+}
+
+function auth_initialize_user_profile(PDO $pdo, $userId)
+{
+    $profile = auth_default_user_profile();
+    $stmt = $pdo->prepare(
+        'INSERT INTO user_profile (user_id, settings_json, created_at, updated_at)
+         VALUES (:user_id, :settings_json, UTC_TIMESTAMP(), UTC_TIMESTAMP())
+         ON DUPLICATE KEY UPDATE user_id = user_id'
+    );
+    $stmt->execute([
+        'user_id' => (int) $userId,
+        'settings_json' => json_encode($profile),
+    ]);
+}
+
+function auth_get_user_profile(PDO $pdo, $userId)
+{
+    $stmt = $pdo->prepare('SELECT settings_json FROM user_profile WHERE user_id = :user_id LIMIT 1');
+    $stmt->execute(['user_id' => (int) $userId]);
+    $row = $stmt->fetch();
+    if (!$row || empty($row['settings_json'])) {
+        return auth_default_user_profile();
+    }
+
+    $decoded = json_decode((string) $row['settings_json'], true);
+    if (!is_array($decoded)) {
+        return auth_default_user_profile();
+    }
+
+    return array_replace_recursive(auth_default_user_profile(), $decoded);
+}
+
+function auth_save_user_profile(PDO $pdo, $userId, $settings)
+{
+    $merged = array_replace_recursive(auth_default_user_profile(), is_array($settings) ? $settings : []);
+    $stmt = $pdo->prepare(
+        'INSERT INTO user_profile (user_id, settings_json, created_at, updated_at)
+         VALUES (:user_id, :settings_json, UTC_TIMESTAMP(), UTC_TIMESTAMP())
+         ON DUPLICATE KEY UPDATE settings_json = VALUES(settings_json), updated_at = UTC_TIMESTAMP()'
+    );
+    $stmt->execute([
+        'user_id' => (int) $userId,
+        'settings_json' => json_encode($merged),
+    ]);
+
+    return $merged;
+}
+
 function auth_config_bool($value, $default = false)
 {
     if ($value === null) {

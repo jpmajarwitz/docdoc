@@ -52,6 +52,7 @@ const AUTH_ENDPOINTS = {
   VERIFY_EMAIL: `${API_BASE_URL}/api/auth/verify-email/`,
   LOGIN: `${API_BASE_URL}/api/auth/login/`,
   LOGOUT: `${API_BASE_URL}/api/auth/logout/`,
+  PROFILE: `${API_BASE_URL}/api/auth/profile/`,
   FORGOT_PASSWORD: `${API_BASE_URL}/api/auth/forgot-password/`,
   RESET_PASSWORD: `${API_BASE_URL}/api/auth/reset-password/`
 }
@@ -322,6 +323,8 @@ export default function App({ appShell = 'ai' }) {
   const [promptPreviewText, setPromptPreviewText] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsDropdownRef = useRef(null)
+  const profileSaveTimerRef = useRef(null)
+  const [profileLoaded, setProfileLoaded] = useState(false)
   const [docTopic, setDocTopic] = useState(APP_SETTINGS.defaults.topic)
   const [docObjective, setDocObjective] = useState(APP_SETTINGS.defaults.reviewObjective)
   const [docGuidance, setDocGuidance] = useState(APP_SETTINGS.defaults.formattingGuidance)
@@ -414,6 +417,51 @@ export default function App({ appShell = 'ai' }) {
     setDocApplyChangeItemsGuidance(value)
   }
 
+  function applyUserProfileSettings(settings = {}) {
+    setSelectedApiMode(settings.apiMode || APP_SETTINGS.defaultApiMode || 'responses')
+    setSelectedModel(settings.model || APP_SETTINGS.defaultModel)
+    setIgnoreOcrErrors(settings.ignoreOcrErrors ?? true)
+    setDisableResponseLogging(settings.disableResponseLogging ?? (APP_SETTINGS.disableResponseLoggingDefault ?? true))
+    setViewPromptEnabled(settings.viewPromptEnabled ?? (APP_SETTINGS.viewPromptDefault ?? false))
+    setBypassFileInput(settings.bypassFileInput ?? (APP_SETTINGS.bypassFileInputDefault ?? false))
+    setDeleteFileOnLlm(settings.deleteFileOnLlm ?? (APP_SETTINGS.deleteFileOnLlmDefault ?? true))
+
+    const docProfile = settings.doc || {}
+    const deckProfile = settings.deck || {}
+    setDocTopic(docProfile.topic || APP_SETTINGS.defaults.topic)
+    setDocObjective(docProfile.objective || APP_SETTINGS.defaults.reviewObjective)
+    setDocGuidance(docProfile.guidance || APP_SETTINGS.defaults.formattingGuidance)
+    setDocAntiGuidance(docProfile.antiGuidance || APP_SETTINGS.defaults.antiGuidance)
+    setDocApplyChangeItemsGuidance(docProfile.applyChangeItemsGuidance || '')
+
+    setDeckTopic(deckProfile.topic || DECK_MATE_SETTINGS.defaults.topic)
+    setDeckObjective(deckProfile.objective || DECK_MATE_SETTINGS.defaults.reviewObjective)
+    setDeckGuidance(deckProfile.guidance || DECK_MATE_SETTINGS.defaults.formattingGuidance)
+    setDeckAntiGuidance(deckProfile.antiGuidance || DECK_MATE_SETTINGS.defaults.antiGuidance)
+    setDeckApplyChangeItemsGuidance(deckProfile.applyChangeItemsGuidance || DECK_MATE_SETTINGS.defaults.applyChangeItemsGuidance || '')
+  }
+
+  async function loadUserProfileSettings() {
+    try {
+      const data = await getJson(AUTH_ENDPOINTS.PROFILE)
+      if (data.settings && typeof data.settings === 'object') {
+        applyUserProfileSettings(data.settings)
+      }
+    } catch (_profileError) {
+      // keep local defaults when profile read fails
+    } finally {
+      setProfileLoaded(true)
+    }
+  }
+
+  async function saveUserProfileSettings(settings) {
+    try {
+      await postJson(AUTH_ENDPOINTS.PROFILE, { settings })
+    } catch (_profileSaveError) {
+      // ignore persistence failure to avoid blocking UI
+    }
+  }
+
   function resetAuthInputs() {
     setAuthEmail('')
     setAuthPassword('')
@@ -431,11 +479,14 @@ export default function App({ appShell = 'ai' }) {
       const data = await getJson(AUTH_ENDPOINTS.SESSION)
       if (data.authenticated && data.user) {
         setAuthUser(data.user)
+        await loadUserProfileSettings()
       } else {
         setAuthUser(null)
+        setProfileLoaded(false)
       }
     } catch (sessionError) {
       setAuthUser(null)
+      setProfileLoaded(false)
       setAuthInfo(`Session check failed: ${normalizeRequestError(sessionError)}`)
     } finally {
       setAuthLoading(false)
@@ -476,6 +527,7 @@ export default function App({ appShell = 'ai' }) {
         setAuthInfo('')
         setAuthOverlayOpen(false)
         setShowAuthRequiredNotice(false)
+        await loadUserProfileSettings()
       }
     } catch (authError) {
       setError(normalizeRequestError(authError))
@@ -539,6 +591,7 @@ export default function App({ appShell = 'ai' }) {
       setError(normalizeRequestError(logoutError))
     } finally {
       setAuthUser(null)
+      setProfileLoaded(false)
       resetAuthInputs()
       setActiveView(homeView)
       setCurrentMode(MODES.DOC_DEFINE)
@@ -979,6 +1032,70 @@ async function buildPrimaryPromptPreviewText() {
       setBypassFileInput(false)
     }
   }, [isDeckMateWorkflow, bypassFileInput])
+
+  useEffect(() => {
+    if (!authUser || !profileLoaded) {
+      return
+    }
+
+    if (profileSaveTimerRef.current) {
+      window.clearTimeout(profileSaveTimerRef.current)
+    }
+
+    const settings = {
+      apiMode: selectedApiMode,
+      model: selectedModel,
+      ignoreOcrErrors,
+      disableResponseLogging,
+      viewPromptEnabled,
+      bypassFileInput,
+      deleteFileOnLlm,
+      doc: {
+        topic: docTopic,
+        objective: docObjective,
+        guidance: docGuidance,
+        antiGuidance: docAntiGuidance,
+        applyChangeItemsGuidance: docApplyChangeItemsGuidance
+      },
+      deck: {
+        topic: deckTopic,
+        objective: deckObjective,
+        guidance: deckGuidance,
+        antiGuidance: deckAntiGuidance,
+        applyChangeItemsGuidance: deckApplyChangeItemsGuidance
+      }
+    }
+
+    profileSaveTimerRef.current = window.setTimeout(() => {
+      saveUserProfileSettings(settings)
+    }, 500)
+
+    return () => {
+      if (profileSaveTimerRef.current) {
+        window.clearTimeout(profileSaveTimerRef.current)
+      }
+    }
+  }, [
+    authUser,
+    profileLoaded,
+    selectedApiMode,
+    selectedModel,
+    ignoreOcrErrors,
+    disableResponseLogging,
+    viewPromptEnabled,
+    bypassFileInput,
+    deleteFileOnLlm,
+    docTopic,
+    docObjective,
+    docGuidance,
+    docAntiGuidance,
+    docApplyChangeItemsGuidance,
+    deckTopic,
+    deckObjective,
+    deckGuidance,
+    deckAntiGuidance,
+    deckApplyChangeItemsGuidance
+  ])
 
   useEffect(() => {
     function handlePointerDown(event) {
