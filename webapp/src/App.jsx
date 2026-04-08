@@ -147,6 +147,32 @@ function isRetryableGatewayError(error) {
   return message.includes('status 502') || message.includes('status 503') || message.includes('status 504')
 }
 
+function detectAppNameFromPath() {
+  if (typeof window === 'undefined') {
+    return 'a-ideation'
+  }
+
+  const path = `${window.location.pathname}`.toLowerCase()
+  if (path.includes('index-dd')) {
+    return 'docdoc'
+  }
+  if (path.includes('index-dm')) {
+    return 'deckmate'
+  }
+  if (path.includes('index-d2d')) {
+    return 'doc2deck'
+  }
+
+  return 'a-ideation'
+}
+
+function withAppHeaders(headers = {}) {
+  return {
+    ...headers,
+    'X-App-Name': detectAppNameFromPath()
+  }
+}
+
 async function fetchWithEndpointFallback(endpoint, init) {
   const candidates = endpointCandidates(endpoint)
   let lastResponse = null
@@ -200,6 +226,7 @@ async function postMultipart(endpoint, payload, fileEntries = {}) {
 
   const response = await fetchWithEndpointFallback(endpoint, {
     method: 'POST',
+    headers: withAppHeaders(),
     body: formData,
     credentials: 'include'
   })
@@ -215,9 +242,9 @@ async function postMultipart(endpoint, payload, fileEntries = {}) {
 async function postJson(endpoint, payload) {
   const response = await fetchWithEndpointFallback(endpoint, {
     method: 'POST',
-    headers: {
+    headers: withAppHeaders({
       'Content-Type': 'application/json'
-    },
+    }),
     body: JSON.stringify(payload),
     credentials: 'include'
   })
@@ -233,6 +260,7 @@ async function postJson(endpoint, payload) {
 async function getJson(endpoint) {
   const response = await fetchWithEndpointFallback(endpoint, {
     method: 'GET',
+    headers: withAppHeaders(),
     credentials: 'include'
   })
 

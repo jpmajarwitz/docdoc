@@ -49,7 +49,7 @@ Each endpoint returns JSON shaped to match the current frontend expectations.
 
 SMTP diagnostics are written to:
 - server `error_log`
-- `src_php/logs/docdoc.log` (auto-created on first log write)
+- `src_php/logs/a-ideation.log` (auto-created on first log write)
 
 ## Important behavior
 

@@ -78,7 +78,7 @@ function php_backend_apply_cors($config)
         header('Vary: Origin');
         header('Access-Control-Allow-Credentials: true');
         header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-        header('Access-Control-Allow-Headers: Content-Type');
+        header('Access-Control-Allow-Headers: Content-Type, X-App-Name');
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -89,6 +89,12 @@ function php_backend_apply_cors($config)
 
 function php_backend_json_response($status, $payload)
 {
+    php_backend_log('operation_result', [
+        'operation' => php_backend_operation_name(),
+        'status' => (int) $status,
+        'success' => ((int) $status) < 400,
+    ]);
+
     http_response_code($status);
     header('Content-Type: application/json');
     echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
@@ -102,9 +108,16 @@ function php_backend_error($status, $detail)
 
 function php_backend_log($event, $context = [])
 {
+    $ipAddress = php_backend_client_ip();
+    $loginName = php_backend_login_name();
+    $applicationName = php_backend_application_name();
+
     $payload = [
         'ts' => gmdate('c'),
         'event' => $event,
+        'application' => $applicationName,
+        'ip_address' => $ipAddress,
+        'login_name' => $loginName,
         'context' => $context,
     ];
     $serialized = '[docdoc] ' . json_encode($payload);
@@ -115,8 +128,67 @@ function php_backend_log($event, $context = [])
         @mkdir($logsDir, 0775, true);
     }
 
-    $logFile = $logsDir . '/docdoc.log';
+    $logFile = $logsDir . '/a-ideation.log';
     @file_put_contents($logFile, $serialized . PHP_EOL, FILE_APPEND | LOCK_EX);
+}
+
+function php_backend_operation_name()
+{
+    $script = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
+    $script = str_replace('\\', '/', $script);
+    $parts = array_values(array_filter(explode('/', $script)));
+    if (!$parts) {
+        return 'unknown_operation';
+    }
+
+    $indexPos = array_search('index.php', $parts, true);
+    if ($indexPos !== false && $indexPos > 0) {
+        return $parts[$indexPos - 1];
+    }
+
+    return end($parts) ?: 'unknown_operation';
+}
+
+function php_backend_client_ip()
+{
+    $forwardedFor = (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
+    if ($forwardedFor !== '') {
+        $items = array_map('trim', explode(',', $forwardedFor));
+        if (!empty($items[0])) {
+            return $items[0];
+        }
+    }
+    return (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+}
+
+function php_backend_login_name()
+{
+    if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['auth_email'])) {
+        return (string) $_SESSION['auth_email'];
+    }
+
+    return 'anonymous';
+}
+
+function php_backend_application_name()
+{
+    $headerName = trim((string) ($_SERVER['HTTP_X_APP_NAME'] ?? ''));
+    if ($headerName !== '') {
+        return strtolower($headerName);
+    }
+
+    $referer = strtolower((string) ($_SERVER['HTTP_REFERER'] ?? ''));
+    if (strpos($referer, 'index-dm') !== false) {
+        return 'deckmate';
+    }
+    if (strpos($referer, 'index-dd') !== false) {
+        return 'docdoc';
+    }
+    if (strpos($referer, 'index-d2d') !== false) {
+        return 'doc2deck';
+    }
+
+    return 'a-ideation';
 }
 
 function php_backend_require_method($method)
