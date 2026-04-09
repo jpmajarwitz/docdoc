@@ -30,6 +30,7 @@ export const DECK_MATE_SETTINGS = {
     disableResponseLogging: 'Disable response logging',
     viewPrompt: 'View Prompt',
     deleteFileOnLlm: 'Delete_File_On_LLM',
+    logPanelEnabled: 'Log_Panel_Enabled',
     chunkingEnabled: 'Enable slide chunking',
     deckTotalSlides: 'Total slides in deck',
     chunkSize: 'Slides per chunk',
@@ -47,6 +48,7 @@ export const DECK_MATE_SETTINGS = {
     'disableResponseLogging',
     'viewPrompt',
     'deleteFileOnLlm',
+    'logPanelEnabled',
     'chunkingEnabled',
     'deckTotalSlides',
     'chunkSize',
@@ -69,6 +71,7 @@ export const DECK_MATE_SETTINGS = {
   viewPromptDefault: false,
   bypassFileInputDefault: false,
   deleteFileOnLlmDefault: true,
+  logPanelEnabledDefault: false,
   chunkingEnabledDefault: false,
   chunkSizeDefault: 6,
   chunkConcurrencyDefault: 2

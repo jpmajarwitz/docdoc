@@ -29,6 +29,7 @@ export const APP_SETTINGS = {
     viewPrompt: 'View Prompt',
     bypassFileInput: 'Bypass_File_Input',
     deleteFileOnLlm: 'Delete_File_On_LLM',
+    logPanelEnabled: 'Log_Panel_Enabled',
     chunkingEnabled: 'Enable slide chunking',
     deckTotalSlides: 'Total slides in deck',
     chunkSize: 'Slides per chunk',
@@ -46,6 +47,7 @@ export const APP_SETTINGS = {
     'viewPrompt',
     'bypassFileInput',
     'deleteFileOnLlm',
+    'logPanelEnabled',
     'chunkingEnabled',
     'deckTotalSlides',
     'chunkSize',
@@ -66,6 +68,7 @@ export const APP_SETTINGS = {
   viewPromptDefault: false,
   bypassFileInputDefault: false,
   deleteFileOnLlmDefault: true,
+  logPanelEnabledDefault: false,
   chunkingEnabledDefault: false,
   chunkSizeDefault: 6,
   chunkConcurrencyDefault: 2

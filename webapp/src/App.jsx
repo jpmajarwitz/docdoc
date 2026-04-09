@@ -327,6 +327,7 @@ export default function App({ appShell = 'ai' }) {
   const [viewPromptEnabled, setViewPromptEnabled] = useState(APP_SETTINGS.viewPromptDefault ?? true)
   const [bypassFileInput, setBypassFileInput] = useState(APP_SETTINGS.bypassFileInputDefault ?? true)
   const [deleteFileOnLlm, setDeleteFileOnLlm] = useState(APP_SETTINGS.deleteFileOnLlmDefault ?? true)
+  const [logPanelEnabled, setLogPanelEnabled] = useState(APP_SETTINGS.logPanelEnabledDefault ?? false)
   const [chunkingEnabled, setChunkingEnabled] = useState(APP_SETTINGS.chunkingEnabledDefault ?? false)
   const [chunkSize, setChunkSize] = useState(APP_SETTINGS.chunkSizeDefault ?? 6)
   const [chunkConcurrency, setChunkConcurrency] = useState(APP_SETTINGS.chunkConcurrencyDefault ?? 2)
@@ -372,6 +373,24 @@ export default function App({ appShell = 'ai' }) {
   const [lastOperation, setLastOperation] = useState(null)
   const [changeItems, setChangeItems] = useState([])
   const [changeItemDraft, setChangeItemDraft] = useState(emptyChangeDraft())
+  const [requestLogLines, setRequestLogLines] = useState([])
+
+  function appendRequestLog(message, details = null) {
+    if (!logPanelEnabled) {
+      return
+    }
+
+    const timestamp = new Date().toISOString()
+    const body =
+      details && typeof details === 'object'
+        ? `${message}\n${JSON.stringify(details, null, 2)}`
+        : `${message}${details ? ` ${details}` : ''}`
+    setRequestLogLines((lines) => [...lines, `[${timestamp}] ${body}`])
+  }
+
+  function clearRequestLog() {
+    setRequestLogLines([])
+  }
 
   function setTopicForActive(value) {
     if (isDeckMateWorkflow) {
@@ -437,6 +456,7 @@ export default function App({ appShell = 'ai' }) {
     setViewPromptEnabled(settings.viewPromptEnabled ?? (APP_SETTINGS.viewPromptDefault ?? false))
     setBypassFileInput(settings.bypassFileInput ?? (APP_SETTINGS.bypassFileInputDefault ?? false))
     setDeleteFileOnLlm(settings.deleteFileOnLlm ?? (APP_SETTINGS.deleteFileOnLlmDefault ?? true))
+    setLogPanelEnabled(settings.logPanelEnabled ?? (APP_SETTINGS.logPanelEnabledDefault ?? false))
     setChunkingEnabled(settings.chunkingEnabled ?? (APP_SETTINGS.chunkingEnabledDefault ?? false))
     setChunkSize(clampPositiveInteger(settings.chunkSize, APP_SETTINGS.chunkSizeDefault ?? 6))
     setChunkConcurrency(clampPositiveInteger(settings.chunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2))
@@ -871,6 +891,18 @@ async function buildPrimaryPromptPreviewText() {
 
     setLoading(true)
     setError('')
+    clearRequestLog()
+    appendRequestLog('New user submission started.', {
+      operation,
+      operationLabel: operationLabels[operation],
+      contentNoun,
+      selectedApiMode,
+      selectedModel,
+      chunkingEnabled,
+      chunkSize,
+      chunkConcurrency,
+      deckTotalSlides
+    })
     setCurrentMode(MODES.INVOKE)
     setLastOperation(operation)
     setStatus(`Invoking ${operationLabels[operation]} via the backend proxy...`)
@@ -891,24 +923,52 @@ async function buildPrimaryPromptPreviewText() {
                   ...requestPayload,
                   messages: await maybeBypassFileMessages(requestPayload.messages, directFileEntries)
                 }
+                appendRequestLog('Submitting primary critique request to backend.', {
+                  endpoint: API_ENDPOINTS[operation],
+                  bypassFileInput,
+                  deleteFileOnLlm,
+                  apiMode: selectedApiMode,
+                  model: selectedModel,
+                  requestPayload: requestPayloadBypassed,
+                  fileEntries: Object.fromEntries(
+                    Object.entries(directFileEntries).map(([key, file]) => [
+                      key,
+                      file ? { name: file.name, size: file.size, type: file.type } : null
+                    ])
+                  )
+                })
 
                 try {
-                  return await postMultipart(
+                  const response = await postMultipart(
                     API_ENDPOINTS[operation],
                     requestPayloadBypassed,
                     bypassFileInput ? {} : directFileEntries
                   )
+                  appendRequestLog('Primary critique response received.', {
+                    outputTextLength: (response.outputText || '').length,
+                    deleteLogs: response.deleteLogs || null
+                  })
+                  return response
                 } catch (primaryError) {
+                  appendRequestLog('Primary critique request failed.', {
+                    error: normalizeRequestError(primaryError)
+                  })
                   if (!bypassFileInput || !isRetryableGatewayError(primaryError)) {
                     throw primaryError
                   }
 
                   setStatus('Gateway timeout detected. Retrying request...')
-                  return postMultipart(
+                  appendRequestLog('Retrying primary critique request after retryable gateway error.')
+                  const retryResponse = await postMultipart(
                     API_ENDPOINTS[operation],
                     requestPayloadBypassed,
                     bypassFileInput ? {} : directFileEntries
                   )
+                  appendRequestLog('Primary critique retry response received.', {
+                    outputTextLength: (retryResponse.outputText || '').length,
+                    deleteLogs: retryResponse.deleteLogs || null
+                  })
+                  return retryResponse
                 }
               }
 
@@ -919,10 +979,21 @@ async function buildPrimaryPromptPreviewText() {
 
               const totalSlides = clampPositiveInteger(deckTotalSlides, 0)
               const chunkedRequests = buildPrimaryChunkedRequests(totalSlides)
+              const normalizedChunkSize = clampPositiveInteger(chunkSize, APP_SETTINGS.chunkSizeDefault ?? 6)
+              const calculatedParallel = Math.max(1, Math.ceil(totalSlides / normalizedChunkSize))
               const maxParallel = Math.min(
+                calculatedParallel,
                 clampPositiveInteger(chunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
                 chunkedRequests.length
               )
+              appendRequestLog('Chunking plan calculated for primary critique.', {
+                totalSlides,
+                chunkSize: normalizedChunkSize,
+                chunkCount: chunkedRequests.length,
+                calculatedParallel,
+                chunkConcurrencyCap: clampPositiveInteger(chunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
+                maxParallel
+              })
               const completedResults = []
               let nextChunkIndex = 0
               let completedCount = 0
@@ -935,6 +1006,11 @@ async function buildPrimaryPromptPreviewText() {
                   setStatus(
                     `Invoking ${operationLabels[operation]} chunk ${assignedIndex + 1} of ${chunkedRequests.length} (slides ${assignedChunk.range.start}-${assignedChunk.range.end})...`
                   )
+                  appendRequestLog('Invoking chunk request.', {
+                    chunkIndex: assignedIndex + 1,
+                    chunkCount: chunkedRequests.length,
+                    range: assignedChunk.range
+                  })
                   const chunkResult = await runSinglePrimaryRequest(assignedChunk.requestPayload)
                   completedResults.push({
                     index: assignedIndex,
@@ -967,27 +1043,55 @@ async function buildPrimaryPromptPreviewText() {
                   ...requestPayload,
                   messages: await maybeBypassFileMessages(requestPayload.messages, directFileEntries)
                 }
+                appendRequestLog('Submitting apply-change-items request to backend.', {
+                  endpoint: API_ENDPOINTS[operation],
+                  bypassFileInput,
+                  requestPayload: requestPayloadBypassed
+                })
 
                 try {
-                  return await postMultipart(
+                  const response = await postMultipart(
                     API_ENDPOINTS[operation],
                     requestPayloadBypassed,
                     bypassFileInput ? {} : directFileEntries
                   )
+                  appendRequestLog('Apply-change-items response received.', {
+                    outputTextLength: (response.outputText || '').length
+                  })
+                  return response
                 } catch (applyError) {
+                  appendRequestLog('Apply-change-items request failed.', {
+                    error: normalizeRequestError(applyError)
+                  })
                   if (!bypassFileInput || !isRetryableGatewayError(applyError)) {
                     throw applyError
                   }
 
                   setStatus('Gateway timeout detected. Retrying request...')
-                  return postMultipart(
+                  appendRequestLog('Retrying apply-change-items request after retryable gateway error.')
+                  const retryResponse = await postMultipart(
                     API_ENDPOINTS[operation],
                     requestPayloadBypassed,
                     bypassFileInput ? {} : directFileEntries
                   )
+                  appendRequestLog('Apply-change-items retry response received.', {
+                    outputTextLength: (retryResponse.outputText || '').length
+                  })
+                  return retryResponse
                 }
               })()
-            : await postJson(API_ENDPOINTS[operation], buildChangedDocCritiqueRequest())
+            : await (async () => {
+                const payload = buildChangedDocCritiqueRequest()
+                appendRequestLog('Submitting changed-document critique request to backend.', {
+                  endpoint: API_ENDPOINTS[operation],
+                  payload
+                })
+                const response = await postJson(API_ENDPOINTS[operation], payload)
+                appendRequestLog('Changed-document critique response received.', {
+                  outputTextLength: (response.outputText || '').length
+                })
+                return response
+              })()
 
       const outputText = llmData.outputText
 
@@ -1018,6 +1122,7 @@ async function buildPrimaryPromptPreviewText() {
 
       setCurrentMode(MODES.RESULT_SAVED)
     } catch (invocationError) {
+      appendRequestLog('Invocation ended in failure.', { error: normalizeRequestError(invocationError) })
       setError(`Invocation failed: ${normalizeRequestError(invocationError)}`)
       setStatus('The request did not complete.')
       setCurrentMode(
@@ -1091,6 +1196,25 @@ async function buildPrimaryPromptPreviewText() {
     return <div className="error-banner">{error}</div>
   }
 
+  function renderRequestLogPanel() {
+    if (!logPanelEnabled) {
+      return null
+    }
+
+    return (
+      <section className="card">
+        <h2>Request Log</h2>
+        <textarea
+          name="request_log_panel"
+          value={requestLogLines.join('\n\n')}
+          readOnly
+          rows={12}
+          className="critique-editor"
+        />
+      </section>
+    )
+  }
+
   useEffect(() => {
     loadSession()
   }, [])
@@ -1139,6 +1263,7 @@ async function buildPrimaryPromptPreviewText() {
       viewPromptEnabled,
       bypassFileInput,
       deleteFileOnLlm,
+      logPanelEnabled,
       chunkingEnabled,
       chunkSize,
       chunkConcurrency,
@@ -1178,6 +1303,7 @@ async function buildPrimaryPromptPreviewText() {
     viewPromptEnabled,
     bypassFileInput,
     deleteFileOnLlm,
+    logPanelEnabled,
     chunkingEnabled,
     chunkSize,
     chunkConcurrency,
@@ -1356,6 +1482,18 @@ async function buildPrimaryPromptPreviewText() {
                 onChange={(event) => setDeleteFileOnLlm(event.target.checked)}
               />
               {settingsLabels.deleteFileOnLlm || 'Delete_File_On_LLM'}
+            </label>
+          )
+        case 'logPanelEnabled':
+          return (
+            <label key={settingKey} className="checkbox-label">
+              <input
+                name="log_panel_enabled"
+                type="checkbox"
+                checked={logPanelEnabled}
+                onChange={(event) => setLogPanelEnabled(event.target.checked)}
+              />
+              {settingsLabels.logPanelEnabled || 'Log_Panel_Enabled'}
             </label>
           )
         case 'chunkingEnabled':
@@ -1761,6 +1899,7 @@ async function buildPrimaryPromptPreviewText() {
         }
       >
         {renderError()}
+        {renderRequestLogPanel()}
 
         <section className="card primary-upload-card">
           <div className="primary-upload-inner split">
@@ -1936,6 +2075,7 @@ async function buildPrimaryPromptPreviewText() {
           <div className="spinner" aria-hidden="true" />
           <h2>Invoking the AI Model</h2>
         </section>
+        {renderRequestLogPanel()}
       </PageShell>
     )
   }
@@ -1955,6 +2095,7 @@ async function buildPrimaryPromptPreviewText() {
         <section className="card result-card compact-panel">
           <h2>AI Model Result Saved</h2>
           {renderError()}
+          {renderRequestLogPanel()}
           <div className="action-row wrap-actions center-actions">
             {lastOperation === OPERATIONS.APPLY_CHANGE_ITEMS ? (
               <button type="button" onClick={() => setCurrentMode(MODES.VIEW_CHANGED)}>
@@ -2028,6 +2169,7 @@ async function buildPrimaryPromptPreviewText() {
         </section>
 
         {renderError()}
+        {renderRequestLogPanel()}
 
         <section className="card review-grid critique-review-layout">
           <div className="field-group critique-panel">
@@ -2138,6 +2280,7 @@ async function buildPrimaryPromptPreviewText() {
       </section>
 
       {renderError()}
+      {renderRequestLogPanel()}
 
       <section className="card field-group tall-document-panel">
         <label>
