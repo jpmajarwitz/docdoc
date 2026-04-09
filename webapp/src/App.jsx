@@ -337,6 +337,7 @@ export default function App({ appShell = 'ai' }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsDropdownRef = useRef(null)
   const profileSaveTimerRef = useRef(null)
+  const activeSubmissionIdRef = useRef(null)
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [docTopic, setDocTopic] = useState(APP_SETTINGS.defaults.topic)
   const [docObjective, setDocObjective] = useState(APP_SETTINGS.defaults.reviewObjective)
@@ -375,8 +376,11 @@ export default function App({ appShell = 'ai' }) {
   const [changeItemDraft, setChangeItemDraft] = useState(emptyChangeDraft())
   const [requestLogLines, setRequestLogLines] = useState([])
 
-  function appendRequestLog(message, details = null) {
+  function appendRequestLog(message, details = null, options = {}) {
     if (!logPanelEnabled) {
+      return
+    }
+    if (options.submissionId && activeSubmissionIdRef.current !== options.submissionId) {
       return
     }
 
@@ -889,6 +893,8 @@ async function buildPrimaryPromptPreviewText() {
       return
     }
 
+    const submissionId = `submission-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    activeSubmissionIdRef.current = submissionId
     setLoading(true)
     setError('')
     clearRequestLog()
@@ -902,7 +908,7 @@ async function buildPrimaryPromptPreviewText() {
       chunkSize,
       chunkConcurrency,
       deckTotalSlides
-    })
+    }, { submissionId })
     setCurrentMode(MODES.INVOKE)
     setLastOperation(operation)
     setStatus(`Invoking ${operationLabels[operation]} via the backend proxy...`)
@@ -918,7 +924,7 @@ async function buildPrimaryPromptPreviewText() {
                 supporting_document: supportingFile,
                 prior_response_document: priorResponseFile
               }
-              const runSinglePrimaryRequest = async (requestPayload) => {
+              const runSinglePrimaryRequest = async (requestPayload, chunkContext = null) => {
                 const requestPayloadBypassed = {
                   ...requestPayload,
                   messages: await maybeBypassFileMessages(requestPayload.messages, directFileEntries)
@@ -930,13 +936,14 @@ async function buildPrimaryPromptPreviewText() {
                   apiMode: selectedApiMode,
                   model: selectedModel,
                   requestPayload: requestPayloadBypassed,
+                  chunkContext,
                   fileEntries: Object.fromEntries(
                     Object.entries(directFileEntries).map(([key, file]) => [
                       key,
                       file ? { name: file.name, size: file.size, type: file.type } : null
                     ])
                   )
-                })
+                }, { submissionId })
 
                 try {
                   const response = await postMultipart(
@@ -945,29 +952,32 @@ async function buildPrimaryPromptPreviewText() {
                     bypassFileInput ? {} : directFileEntries
                   )
                   appendRequestLog('Primary critique response received.', {
+                    chunkContext,
                     outputTextLength: (response.outputText || '').length,
                     deleteLogs: response.deleteLogs || null
-                  })
+                  }, { submissionId })
                   return response
                 } catch (primaryError) {
                   appendRequestLog('Primary critique request failed.', {
+                    chunkContext,
                     error: normalizeRequestError(primaryError)
-                  })
+                  }, { submissionId })
                   if (!bypassFileInput || !isRetryableGatewayError(primaryError)) {
                     throw primaryError
                   }
 
                   setStatus('Gateway timeout detected. Retrying request...')
-                  appendRequestLog('Retrying primary critique request after retryable gateway error.')
+                  appendRequestLog('Retrying primary critique request after retryable gateway error.', { chunkContext }, { submissionId })
                   const retryResponse = await postMultipart(
                     API_ENDPOINTS[operation],
                     requestPayloadBypassed,
                     bypassFileInput ? {} : directFileEntries
                   )
                   appendRequestLog('Primary critique retry response received.', {
+                    chunkContext,
                     outputTextLength: (retryResponse.outputText || '').length,
                     deleteLogs: retryResponse.deleteLogs || null
-                  })
+                  }, { submissionId })
                   return retryResponse
                 }
               }
@@ -993,8 +1003,9 @@ async function buildPrimaryPromptPreviewText() {
                 calculatedParallel,
                 chunkConcurrencyCap: clampPositiveInteger(chunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
                 maxParallel
-              })
+              }, { submissionId })
               const completedResults = []
+              const failedResults = []
               let nextChunkIndex = 0
               let completedCount = 0
 
@@ -1010,19 +1021,47 @@ async function buildPrimaryPromptPreviewText() {
                     chunkIndex: assignedIndex + 1,
                     chunkCount: chunkedRequests.length,
                     range: assignedChunk.range
-                  })
-                  const chunkResult = await runSinglePrimaryRequest(assignedChunk.requestPayload)
-                  completedResults.push({
-                    index: assignedIndex,
-                    range: assignedChunk.range,
-                    outputText: chunkResult.outputText
-                  })
-                  completedCount += 1
-                  setStatus(`Completed ${completedCount}/${chunkedRequests.length} chunks...`)
+                  }, { submissionId })
+                  try {
+                    const chunkResult = await runSinglePrimaryRequest(assignedChunk.requestPayload, {
+                      chunkIndex: assignedIndex + 1,
+                      range: assignedChunk.range
+                    })
+                    completedResults.push({
+                      index: assignedIndex,
+                      range: assignedChunk.range,
+                      outputText: chunkResult.outputText
+                    })
+                    completedCount += 1
+                    setStatus(`Completed ${completedCount}/${chunkedRequests.length} chunks...`)
+                  } catch (chunkError) {
+                    failedResults.push({
+                      index: assignedIndex,
+                      range: assignedChunk.range,
+                      error: normalizeRequestError(chunkError)
+                    })
+                  }
                 }
               }
 
               await Promise.all(Array.from({ length: maxParallel }, () => worker()))
+              appendRequestLog('Chunking run completed.', {
+                successCount: completedResults.length,
+                failedCount: failedResults.length,
+                failedChunks: failedResults.map((item) => ({
+                  chunkIndex: item.index + 1,
+                  range: item.range,
+                  error: item.error
+                }))
+              }, { submissionId })
+
+              if (failedResults.length) {
+                const failureSummary = failedResults
+                  .map((item) => `chunk ${item.index + 1} (${item.range.start}-${item.range.end})`)
+                  .join(', ')
+                throw new Error(`Chunked critique failed for ${failedResults.length}/${chunkedRequests.length} chunks: ${failureSummary}`)
+              }
+
               const orderedOutput = completedResults
                 .sort((left, right) => left.index - right.index)
                 .map(
@@ -1047,7 +1086,7 @@ async function buildPrimaryPromptPreviewText() {
                   endpoint: API_ENDPOINTS[operation],
                   bypassFileInput,
                   requestPayload: requestPayloadBypassed
-                })
+                }, { submissionId })
 
                 try {
                   const response = await postMultipart(
@@ -1057,18 +1096,18 @@ async function buildPrimaryPromptPreviewText() {
                   )
                   appendRequestLog('Apply-change-items response received.', {
                     outputTextLength: (response.outputText || '').length
-                  })
+                  }, { submissionId })
                   return response
                 } catch (applyError) {
                   appendRequestLog('Apply-change-items request failed.', {
                     error: normalizeRequestError(applyError)
-                  })
+                  }, { submissionId })
                   if (!bypassFileInput || !isRetryableGatewayError(applyError)) {
                     throw applyError
                   }
 
                   setStatus('Gateway timeout detected. Retrying request...')
-                  appendRequestLog('Retrying apply-change-items request after retryable gateway error.')
+                  appendRequestLog('Retrying apply-change-items request after retryable gateway error.', null, { submissionId })
                   const retryResponse = await postMultipart(
                     API_ENDPOINTS[operation],
                     requestPayloadBypassed,
@@ -1076,7 +1115,7 @@ async function buildPrimaryPromptPreviewText() {
                   )
                   appendRequestLog('Apply-change-items retry response received.', {
                     outputTextLength: (retryResponse.outputText || '').length
-                  })
+                  }, { submissionId })
                   return retryResponse
                 }
               })()
@@ -1085,11 +1124,11 @@ async function buildPrimaryPromptPreviewText() {
                 appendRequestLog('Submitting changed-document critique request to backend.', {
                   endpoint: API_ENDPOINTS[operation],
                   payload
-                })
+                }, { submissionId })
                 const response = await postJson(API_ENDPOINTS[operation], payload)
                 appendRequestLog('Changed-document critique response received.', {
                   outputTextLength: (response.outputText || '').length
-                })
+                }, { submissionId })
                 return response
               })()
 
@@ -1122,7 +1161,7 @@ async function buildPrimaryPromptPreviewText() {
 
       setCurrentMode(MODES.RESULT_SAVED)
     } catch (invocationError) {
-      appendRequestLog('Invocation ended in failure.', { error: normalizeRequestError(invocationError) })
+      appendRequestLog('Invocation ended in failure.', { error: normalizeRequestError(invocationError) }, { submissionId })
       setError(`Invocation failed: ${normalizeRequestError(invocationError)}`)
       setStatus('The request did not complete.')
       setCurrentMode(
