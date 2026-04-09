@@ -28,7 +28,11 @@ export const APP_SETTINGS = {
     disableResponseLogging: 'Disable response logging',
     viewPrompt: 'View Prompt',
     bypassFileInput: 'Bypass_File_Input',
-    deleteFileOnLlm: 'Delete_File_On_LLM'
+    deleteFileOnLlm: 'Delete_File_On_LLM',
+    chunkingEnabled: 'Enable slide chunking',
+    deckTotalSlides: 'Total slides in deck',
+    chunkSize: 'Slides per chunk',
+    chunkConcurrency: 'Parallel chunk requests'
   },
   settingsPanelOrder: [
     'apiMode',
@@ -41,7 +45,11 @@ export const APP_SETTINGS = {
     'disableResponseLogging',
     'viewPrompt',
     'bypassFileInput',
-    'deleteFileOnLlm'
+    'deleteFileOnLlm',
+    'chunkingEnabled',
+    'deckTotalSlides',
+    'chunkSize',
+    'chunkConcurrency'
   ],
   defaults: {
     topic: 'This is a professional journal article in the <XXX> profession covering <YYY>',
@@ -57,5 +65,8 @@ export const APP_SETTINGS = {
   disableResponseLoggingDefault: true,
   viewPromptDefault: false,
   bypassFileInputDefault: false,
-  deleteFileOnLlmDefault: true
+  deleteFileOnLlmDefault: true,
+  chunkingEnabledDefault: false,
+  chunkSizeDefault: 6,
+  chunkConcurrencyDefault: 2
 }

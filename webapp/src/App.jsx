@@ -85,6 +85,14 @@ function formatChangeItems(changeItems) {
   return changeItems.map((item) => `- ${item.id}: ${item.instruction}`).join('\n')
 }
 
+function clampPositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(`${value ?? ''}`, 10)
+  if (Number.isNaN(parsed) || parsed < 1) {
+    return fallback
+  }
+  return parsed
+}
+
 function PageShell({
   mode,
   topRightControls = null,
@@ -319,6 +327,10 @@ export default function App({ appShell = 'ai' }) {
   const [viewPromptEnabled, setViewPromptEnabled] = useState(APP_SETTINGS.viewPromptDefault ?? true)
   const [bypassFileInput, setBypassFileInput] = useState(APP_SETTINGS.bypassFileInputDefault ?? true)
   const [deleteFileOnLlm, setDeleteFileOnLlm] = useState(APP_SETTINGS.deleteFileOnLlmDefault ?? true)
+  const [chunkingEnabled, setChunkingEnabled] = useState(APP_SETTINGS.chunkingEnabledDefault ?? false)
+  const [chunkSize, setChunkSize] = useState(APP_SETTINGS.chunkSizeDefault ?? 6)
+  const [chunkConcurrency, setChunkConcurrency] = useState(APP_SETTINGS.chunkConcurrencyDefault ?? 2)
+  const [deckTotalSlides, setDeckTotalSlides] = useState(0)
   const [showPromptPanel, setShowPromptPanel] = useState(false)
   const [promptPreviewText, setPromptPreviewText] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -425,6 +437,10 @@ export default function App({ appShell = 'ai' }) {
     setViewPromptEnabled(settings.viewPromptEnabled ?? (APP_SETTINGS.viewPromptDefault ?? false))
     setBypassFileInput(settings.bypassFileInput ?? (APP_SETTINGS.bypassFileInputDefault ?? false))
     setDeleteFileOnLlm(settings.deleteFileOnLlm ?? (APP_SETTINGS.deleteFileOnLlmDefault ?? true))
+    setChunkingEnabled(settings.chunkingEnabled ?? (APP_SETTINGS.chunkingEnabledDefault ?? false))
+    setChunkSize(clampPositiveInteger(settings.chunkSize, APP_SETTINGS.chunkSizeDefault ?? 6))
+    setChunkConcurrency(clampPositiveInteger(settings.chunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2))
+    setDeckTotalSlides(clampPositiveInteger(settings.deckTotalSlides, 0))
 
     const docProfile = settings.doc || {}
     const deckProfile = settings.deck || {}
@@ -770,6 +786,33 @@ async function buildPrimaryPromptPreviewText() {
     return buildLlmRequest(messages)
   }
 
+  function buildPrimaryChunkedRequests(totalSlides) {
+    const normalizedChunkSize = clampPositiveInteger(chunkSize, APP_SETTINGS.chunkSizeDefault ?? 6)
+    const ranges = []
+    for (let start = 1; start <= totalSlides; start += normalizedChunkSize) {
+      const end = Math.min(start + normalizedChunkSize - 1, totalSlides)
+      ranges.push({ start, end })
+    }
+
+    return ranges.map((range) => {
+      const requestPayload = buildPrimaryCritiqueRequest()
+      const chunkInstruction = `Chunk instruction: Process only slides ${range.start} through ${range.end}. If a requested slide does not exist, continue with available slides in this range only.`
+      return {
+        range,
+        requestPayload: {
+          ...requestPayload,
+          messages: [
+            ...requestPayload.messages,
+            {
+              type: 'input_text',
+              text: chunkInstruction
+            }
+          ]
+        }
+      }
+    })
+  }
+
   function buildApplyChangeItemsRequest() {
     return buildLlmRequest([
       {
@@ -838,35 +881,81 @@ async function buildPrimaryPromptPreviewText() {
       const llmData =
         operation === OPERATIONS.CRITIQUE_PRIMARY
           ? await (async () => {
-              const requestPayload = buildPrimaryCritiqueRequest()
               const directFileEntries = {
                 primary_document: docFile,
                 supporting_document: supportingFile,
                 prior_response_document: priorResponseFile
               }
-              const requestPayloadBypassed = {
-                ...requestPayload,
-                messages: await maybeBypassFileMessages(requestPayload.messages, directFileEntries)
-              }
-
-              try {
-                return await postMultipart(
-                  API_ENDPOINTS[operation],
-                  requestPayloadBypassed,
-                  bypassFileInput ? {} : directFileEntries
-                )
-              } catch (primaryError) {
-                if (!bypassFileInput || !isRetryableGatewayError(primaryError)) {
-                  throw primaryError
+              const runSinglePrimaryRequest = async (requestPayload) => {
+                const requestPayloadBypassed = {
+                  ...requestPayload,
+                  messages: await maybeBypassFileMessages(requestPayload.messages, directFileEntries)
                 }
 
-                setStatus('Gateway timeout detected. Retrying request...')
-                return postMultipart(
-                  API_ENDPOINTS[operation],
-                  requestPayloadBypassed,
-                  bypassFileInput ? {} : directFileEntries
-                )
+                try {
+                  return await postMultipart(
+                    API_ENDPOINTS[operation],
+                    requestPayloadBypassed,
+                    bypassFileInput ? {} : directFileEntries
+                  )
+                } catch (primaryError) {
+                  if (!bypassFileInput || !isRetryableGatewayError(primaryError)) {
+                    throw primaryError
+                  }
+
+                  setStatus('Gateway timeout detected. Retrying request...')
+                  return postMultipart(
+                    API_ENDPOINTS[operation],
+                    requestPayloadBypassed,
+                    bypassFileInput ? {} : directFileEntries
+                  )
+                }
               }
+
+              const isChunkedPrimaryCritique = isDeckMateWorkflow && chunkingEnabled && deckTotalSlides > 1
+              if (!isChunkedPrimaryCritique) {
+                return runSinglePrimaryRequest(buildPrimaryCritiqueRequest())
+              }
+
+              const totalSlides = clampPositiveInteger(deckTotalSlides, 0)
+              const chunkedRequests = buildPrimaryChunkedRequests(totalSlides)
+              const maxParallel = Math.min(
+                clampPositiveInteger(chunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
+                chunkedRequests.length
+              )
+              const completedResults = []
+              let nextChunkIndex = 0
+              let completedCount = 0
+
+              const worker = async () => {
+                while (nextChunkIndex < chunkedRequests.length) {
+                  const assignedIndex = nextChunkIndex
+                  nextChunkIndex += 1
+                  const assignedChunk = chunkedRequests[assignedIndex]
+                  setStatus(
+                    `Invoking ${operationLabels[operation]} chunk ${assignedIndex + 1} of ${chunkedRequests.length} (slides ${assignedChunk.range.start}-${assignedChunk.range.end})...`
+                  )
+                  const chunkResult = await runSinglePrimaryRequest(assignedChunk.requestPayload)
+                  completedResults.push({
+                    index: assignedIndex,
+                    range: assignedChunk.range,
+                    outputText: chunkResult.outputText
+                  })
+                  completedCount += 1
+                  setStatus(`Completed ${completedCount}/${chunkedRequests.length} chunks...`)
+                }
+              }
+
+              await Promise.all(Array.from({ length: maxParallel }, () => worker()))
+              const orderedOutput = completedResults
+                .sort((left, right) => left.index - right.index)
+                .map(
+                  (item) =>
+                    `### Slides ${item.range.start}-${item.range.end}\n\n${item.outputText || '_No critique returned for this chunk._'}`
+                )
+                .join('\n\n')
+
+              return { outputText: orderedOutput, chunked: true }
             })()
           : operation === OPERATIONS.APPLY_CHANGE_ITEMS
             ? await (async () => {
@@ -1050,6 +1139,10 @@ async function buildPrimaryPromptPreviewText() {
       viewPromptEnabled,
       bypassFileInput,
       deleteFileOnLlm,
+      chunkingEnabled,
+      chunkSize,
+      chunkConcurrency,
+      deckTotalSlides,
       doc: {
         topic: docTopic,
         objective: docObjective,
@@ -1085,6 +1178,10 @@ async function buildPrimaryPromptPreviewText() {
     viewPromptEnabled,
     bypassFileInput,
     deleteFileOnLlm,
+    chunkingEnabled,
+    chunkSize,
+    chunkConcurrency,
+    deckTotalSlides,
     docTopic,
     docObjective,
     docGuidance,
@@ -1259,6 +1356,74 @@ async function buildPrimaryPromptPreviewText() {
                 onChange={(event) => setDeleteFileOnLlm(event.target.checked)}
               />
               {settingsLabels.deleteFileOnLlm || 'Delete_File_On_LLM'}
+            </label>
+          )
+        case 'chunkingEnabled':
+          if (!isDeckMateWorkflow) {
+            return null
+          }
+          return (
+            <label key={settingKey} className="checkbox-label">
+              <input
+                name="chunking_enabled"
+                type="checkbox"
+                checked={chunkingEnabled}
+                onChange={(event) => setChunkingEnabled(event.target.checked)}
+              />
+              {settingsLabels.chunkingEnabled || 'Enable slide chunking'}
+            </label>
+          )
+        case 'chunkSize':
+          if (!isDeckMateWorkflow) {
+            return null
+          }
+          return (
+            <label key={settingKey}>
+              {settingsLabels.chunkSize || 'Slides per chunk'}
+              <input
+                name="chunk_size"
+                type="number"
+                min={1}
+                step={1}
+                value={chunkSize}
+                onChange={(event) => setChunkSize(clampPositiveInteger(event.target.value, APP_SETTINGS.chunkSizeDefault ?? 6))}
+              />
+            </label>
+          )
+        case 'deckTotalSlides':
+          if (!isDeckMateWorkflow) {
+            return null
+          }
+          return (
+            <label key={settingKey}>
+              {settingsLabels.deckTotalSlides || 'Total slides in deck'}
+              <input
+                name="deck_total_slides"
+                type="number"
+                min={0}
+                step={1}
+                value={deckTotalSlides}
+                onChange={(event) => setDeckTotalSlides(clampPositiveInteger(event.target.value, 0))}
+              />
+            </label>
+          )
+        case 'chunkConcurrency':
+          if (!isDeckMateWorkflow) {
+            return null
+          }
+          return (
+            <label key={settingKey}>
+              {settingsLabels.chunkConcurrency || 'Parallel chunk requests'}
+              <input
+                name="chunk_concurrency"
+                type="number"
+                min={1}
+                step={1}
+                value={chunkConcurrency}
+                onChange={(event) =>
+                  setChunkConcurrency(clampPositiveInteger(event.target.value, APP_SETTINGS.chunkConcurrencyDefault ?? 2))
+                }
+              />
             </label>
           )
         default:
@@ -1607,6 +1772,19 @@ async function buildPrimaryPromptPreviewText() {
                   type="file"
                   onChange={(event) => setDocFile(event.target.files?.[0] || null)}
                 />
+                {isDeckMateWorkflow ? (
+                  <label className="output-file-field">
+                    Total Slides
+                    <input
+                      type="number"
+                      name="deck_total_slides_main"
+                      min={0}
+                      step={1}
+                      value={deckTotalSlides}
+                      onChange={(event) => setDeckTotalSlides(clampPositiveInteger(event.target.value, 0))}
+                    />
+                  </label>
+                ) : null}
                 {docFile ? (
                   <label className="output-file-field">
                     Critique Output File

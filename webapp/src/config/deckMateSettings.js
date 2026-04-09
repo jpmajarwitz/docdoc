@@ -29,7 +29,11 @@ export const DECK_MATE_SETTINGS = {
     ignoreOcrErrors: 'Ignore obvious OCR misspellings',
     disableResponseLogging: 'Disable response logging',
     viewPrompt: 'View Prompt',
-    deleteFileOnLlm: 'Delete_File_On_LLM'
+    deleteFileOnLlm: 'Delete_File_On_LLM',
+    chunkingEnabled: 'Enable slide chunking',
+    deckTotalSlides: 'Total slides in deck',
+    chunkSize: 'Slides per chunk',
+    chunkConcurrency: 'Parallel chunk requests'
   },
   settingsPanelOrder: [
     'apiMode',
@@ -42,7 +46,11 @@ export const DECK_MATE_SETTINGS = {
     'ignoreOcrErrors',
     'disableResponseLogging',
     'viewPrompt',
-    'deleteFileOnLlm'
+    'deleteFileOnLlm',
+    'chunkingEnabled',
+    'deckTotalSlides',
+    'chunkSize',
+    'chunkConcurrency'
   ],
   defaults: {
     topic: 'This is a professional presentation covering <XXX>.',
@@ -60,5 +68,8 @@ export const DECK_MATE_SETTINGS = {
   disableResponseLoggingDefault: true,
   viewPromptDefault: false,
   bypassFileInputDefault: false,
-  deleteFileOnLlmDefault: true
+  deleteFileOnLlmDefault: true,
+  chunkingEnabledDefault: false,
+  chunkSizeDefault: 6,
+  chunkConcurrencyDefault: 2
 }
