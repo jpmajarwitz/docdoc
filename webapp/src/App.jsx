@@ -2168,7 +2168,7 @@ async function buildPrimaryPromptPreviewText() {
         <section className="card primary-upload-card">
           <div className="primary-upload-inner split">
             <div className="primary-upload-left">
-              <label className="panel-label">
+              <label className={isDeckMateWorkflow ? 'panel-label deck-file-label' : 'panel-label'}>
                 {isDeckMateWorkflow ? 'Select presentation' : `Select primary ${contentNoun}`}
               </label>
               {isDeckMateWorkflow ? (
