@@ -1828,12 +1828,14 @@ async function buildPrimaryPromptPreviewText() {
             </button>
             {isDeckMateWorkflow ? (
               <>
-                <div className="action-row wrap-actions">
+                <div className="settings-tabs" role="tablist" aria-label="Deck Mate settings tabs">
                   {deckSettingsTabs.map((tab) => (
                     <button
                       key={tab.id}
                       type="button"
-                      className="secondary-button"
+                      className={deckSettingsTab === tab.id ? 'settings-tab active' : 'settings-tab'}
+                      role="tab"
+                      aria-selected={deckSettingsTab === tab.id}
                       aria-pressed={deckSettingsTab === tab.id}
                       onClick={() => setDeckSettingsTab(tab.id)}
                     >
