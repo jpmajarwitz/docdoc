@@ -1382,7 +1382,7 @@ async function buildPrimaryPromptPreviewText() {
     return (
       <button
         type="button"
-        className="secondary-button"
+        className="header-text-link"
         onClick={() => {
           if (isSuiteShell) {
             setActiveView(APP_VIEWS.SUITE_HOME)
@@ -1398,7 +1398,7 @@ async function buildPrimaryPromptPreviewText() {
 
   function renderLogoutButton() {
     return (
-      <button type="button" className="secondary-button" onClick={handleLogout}>
+      <button type="button" className="header-text-link" onClick={handleLogout}>
         Logout
       </button>
     )
@@ -1819,7 +1819,7 @@ async function buildPrimaryPromptPreviewText() {
           aria-expanded={settingsOpen}
           aria-controls="settings-panel"
         >
-          ⚙ Settings
+          ⚙
         </button>
         {settingsOpen ? (
           <div id="settings-panel" className="gear-settings-panel field-group">
@@ -2178,7 +2178,7 @@ async function buildPrimaryPromptPreviewText() {
                   onChange={handlePrimaryDocumentChange}
                 />
                 {isDeckMateWorkflow ? (
-                  <label className="output-file-field">
+                  <label className="output-file-field compact-output-field">
                     Total Slides
                     <input
                       type="number"
@@ -2192,7 +2192,7 @@ async function buildPrimaryPromptPreviewText() {
                   </label>
                 ) : null}
                 {isDeckMateWorkflow && deckTotalSlidesInput > 0 ? (
-                  <label className="output-file-field">
+                  <label className="output-file-field compact-output-field">
                     Slides To Review
                     <input
                       type="text"
@@ -2205,7 +2205,7 @@ async function buildPrimaryPromptPreviewText() {
                   </label>
                 ) : null}
                 {docFile ? (
-                  <label className="output-file-field">
+                  <label className="output-file-field compact-output-field">
                     Critique Output File
                     <input
                       type="text"
@@ -2229,7 +2229,6 @@ async function buildPrimaryPromptPreviewText() {
               >
                 {`Critique ${contentNounTitle}`}
               </button>
-              {isDeckMateWorkflow && isCalculatingSlides ? <p className="muted">calculating number of slides</p> : null}
               {viewPromptEnabled ? (
                 <button
                   type="button"
@@ -2384,6 +2383,9 @@ async function buildPrimaryPromptPreviewText() {
         <section className="card result-card compact-panel">
           <h2>AI Model Result Saved</h2>
           {renderError()}
+          {lastCritiqueWaitMs !== null ? (
+            <p className="muted">{`Wait Time: ${(lastCritiqueWaitMs / 1000).toFixed(1)}s`}</p>
+          ) : null}
           {renderRequestLogPanel()}
           <div className="action-row wrap-actions center-actions">
             {lastOperation === OPERATIONS.APPLY_CHANGE_ITEMS ? (
@@ -2536,6 +2538,13 @@ async function buildPrimaryPromptPreviewText() {
             <h2>Prompt Preview</h2>
             <pre>{promptPreviewText}</pre>
           </section>
+        ) : null}
+        {isDeckMateWorkflow && isCalculatingSlides ? (
+          <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Calculating number of slides">
+            <section className="card auth-required-popup">
+              <p>calculating number of slides</p>
+            </section>
+          </div>
         ) : null}
       </PageShell>
     )

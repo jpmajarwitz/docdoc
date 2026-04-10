@@ -49,8 +49,9 @@ textarea {
 }
 
 .hero-right-stack {
-  display: grid;
-  justify-items: end;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   gap: 0.45rem;
 }
 
@@ -359,6 +360,10 @@ h1 {
   min-width: 280px;
 }
 
+.compact-output-field {
+  min-width: 132px;
+}
+
 .primary-upload-inner input {
   max-width: 100%;
 }
@@ -409,17 +414,28 @@ h1 {
 .settings-button {
   appearance: none;
   cursor: pointer;
+  width: 2rem;
+  height: 2rem;
   min-height: 2rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.2rem 0.6rem;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
   border: 1px solid #d9c2f3;
   border-radius: 999px;
   background: #faf5ff;
   color: #6b21a8;
   font-weight: 600;
   white-space: nowrap;
+}
+
+.header-text-link {
+  border: none;
+  background: transparent;
+  color: #6b21a8;
+  text-decoration: underline;
+  padding: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
 }
 
 .gear-settings-panel {
@@ -737,7 +753,8 @@ code {
   }
 
   .hero-right-stack {
-    justify-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
   }
 
   .brand-logo,
