@@ -2166,7 +2166,9 @@ async function buildPrimaryPromptPreviewText() {
         <section className="card primary-upload-card">
           <div className="primary-upload-inner split">
             <div className="primary-upload-left">
-              <h2>{`Select primary ${contentNoun}`}</h2>
+              <label className="panel-label">
+                {isDeckMateWorkflow ? 'Select presentation' : `Select primary ${contentNoun}`}
+              </label>
               <div className="file-selector-row">
                 <input
                   name="primary_document"
@@ -2181,17 +2183,19 @@ async function buildPrimaryPromptPreviewText() {
                       name="deck_total_slides_main"
                       min={0}
                       step={1}
+                      className="slide-count-input"
                       value={deckTotalSlidesInput}
                       onChange={(event) => setDeckTotalSlidesInput(clampPositiveInteger(event.target.value, 0))}
                     />
                   </label>
                 ) : null}
-                {isDeckMateWorkflow ? (
+                {isDeckMateWorkflow && deckTotalSlidesInput > 0 ? (
                   <label className="output-file-field">
                     Slides To Review
                     <input
                       type="text"
                       name="slides_to_review_main"
+                      className="slides-to-review-input"
                       value={slidesToReviewInput}
                       onChange={(event) => setSlidesToReviewInput(event.target.value)}
                       placeholder="6-11; 15; 19; 22-26"

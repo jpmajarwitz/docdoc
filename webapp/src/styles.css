@@ -345,12 +345,18 @@ h1 {
   width: 100%;
 }
 
-.inline-output-field {
-  min-width: 280px;
+.slide-count-input {
+  width: 40%;
+  min-width: 88px;
 }
 
-.primary-upload-inner h2 {
-  margin-bottom: 0;
+.slides-to-review-input {
+  width: 70%;
+  min-width: 180px;
+}
+
+.inline-output-field {
+  min-width: 280px;
 }
 
 .primary-upload-inner input {
