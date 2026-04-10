@@ -101,14 +101,10 @@ function extractFirstInteger(value) {
   return Number.parseInt(match[1], 10)
 }
 
-function buildSlideSelection(totalSlides) {
-  return Array.from({ length: totalSlides }, (_, index) => index + 1)
-}
-
-function parseSlidesToReviewInput(value, totalSlides) {
+function parseSlidesToReviewInput(value) {
   const trimmed = `${value || ''}`.trim()
   if (!trimmed) {
-    return buildSlideSelection(totalSlides)
+    return []
   }
 
   const selections = new Set()
@@ -118,15 +114,15 @@ function parseSlidesToReviewInput(value, totalSlides) {
     .filter(Boolean)
 
   if (!tokens.length) {
-    return buildSlideSelection(totalSlides)
+    return []
   }
 
   tokens.forEach((token) => {
-    const rangeMatch = token.match(/^(\d+)\s*-\s*(\d+)$/)
-    if (rangeMatch) {
-      const start = Number.parseInt(rangeMatch[1], 10)
-      const end = Number.parseInt(rangeMatch[2], 10)
-      if (start < 1 || end < 1 || start > totalSlides || end > totalSlides) {
+      const rangeMatch = token.match(/^(\d+)\s*-\s*(\d+)$/)
+      if (rangeMatch) {
+        const start = Number.parseInt(rangeMatch[1], 10)
+        const end = Number.parseInt(rangeMatch[2], 10)
+      if (start < 1 || end < 1) {
         throw new Error(`Slides To Review contains an out-of-range value: ${token}`)
       }
       const low = Math.min(start, end)
@@ -143,7 +139,7 @@ function parseSlidesToReviewInput(value, totalSlides) {
     }
 
     const slide = Number.parseInt(token, 10)
-    if (slide < 1 || slide > totalSlides) {
+    if (slide < 1) {
       throw new Error(`Slides To Review contains an out-of-range value: ${token}`)
     }
     selections.add(slide)
@@ -1151,8 +1147,12 @@ async function buildPrimaryPromptPreviewText() {
 
               const totalSlides = clampPositiveInteger(deckTotalSlidesInput, 0)
               const selectedSlides = isDeckMateWorkflow
-                ? parseSlidesToReviewInput(slidesToReviewInput, totalSlides)
-                : buildSlideSelection(totalSlides)
+                ? parseSlidesToReviewInput(slidesToReviewInput)
+                : []
+
+              if (isDeckMateWorkflow && !selectedSlides.length) {
+                throw new Error('Enter Slides To Review before invoking critique.')
+              }
 
               const isChunkedPrimaryCritique = isDeckMateWorkflow && chunkingEnabled && selectedSlides.length > 1
               if (!isChunkedPrimaryCritique) {
@@ -1168,7 +1168,7 @@ async function buildPrimaryPromptPreviewText() {
                 chunkedRequests.length
               )
               appendRequestLog('Chunking plan calculated for primary critique.', {
-                totalSlides,
+                totalSlidesForDisplay: totalSlides,
                 selectedSlidesCount: selectedSlides.length,
                 chunkSize: normalizedChunkSize,
                 chunkCount: chunkedRequests.length,
@@ -2218,7 +2218,11 @@ async function buildPrimaryPromptPreviewText() {
             <div className="primary-upload-actions">
               <button
                 type="button"
-                disabled={!docFile || (isDeckMateWorkflow && (isCalculatingSlides || deckTotalSlidesInput < 1))}
+                disabled={
+                  !docFile ||
+                  (isDeckMateWorkflow &&
+                    (isCalculatingSlides || deckTotalSlidesInput < 1 || !slidesToReviewInput.trim()))
+                }
                 onClick={() => invokeOperation(OPERATIONS.CRITIQUE_PRIMARY)}
               >
                 {`Critique ${contentNounTitle}`}
