@@ -2171,13 +2171,15 @@ async function buildPrimaryPromptPreviewText() {
               <label className="panel-label">
                 {isDeckMateWorkflow ? 'Select presentation' : `Select primary ${contentNoun}`}
               </label>
-              <div className={isDeckMateWorkflow ? 'file-selector-row deck-file-row' : 'file-selector-row'}>
-                <input
-                  name="primary_document"
-                  type="file"
-                  onChange={handlePrimaryDocumentChange}
-                />
-                {isDeckMateWorkflow ? (
+              {isDeckMateWorkflow ? (
+                <div className="deck-file-grid">
+                  <div className="deck-file-cell">
+                    <input
+                      name="primary_document"
+                      type="file"
+                      onChange={handlePrimaryDocumentChange}
+                    />
+                  </div>
                   <label className="output-file-field compact-output-field deck-total-field">
                     Total Slides
                     <input
@@ -2186,36 +2188,54 @@ async function buildPrimaryPromptPreviewText() {
                       min={0}
                       step={1}
                       className="slide-count-input"
+                      disabled={isCalculatingSlides || deckTotalSlidesInput < 1}
                       value={deckTotalSlidesInput}
                       onChange={(event) => setDeckTotalSlidesInput(clampPositiveInteger(event.target.value, 0))}
                     />
                   </label>
-                ) : null}
-                {isDeckMateWorkflow && deckTotalSlidesInput > 0 ? (
                   <label className="output-file-field compact-output-field deck-slides-field">
                     Slides To Review
                     <input
                       type="text"
                       name="slides_to_review_main"
                       className="slides-to-review-input"
+                      disabled={isCalculatingSlides || deckTotalSlidesInput < 1}
                       value={slidesToReviewInput}
                       onChange={(event) => setSlidesToReviewInput(event.target.value)}
                     />
                   </label>
-                ) : null}
-                {docFile ? (
                   <label className="output-file-field compact-output-field deck-output-field">
                     Critique Output File
                     <input
                       type="text"
                       name="critique_output_file"
-                      className={isDeckMateWorkflow ? 'deck-critique-output-input' : ''}
+                      className="deck-critique-output-input"
+                      disabled={isCalculatingSlides || deckTotalSlidesInput < 1}
                       value={critiqueOutputFileName}
                       onChange={(event) => setCritiqueOutputFileName(event.target.value)}
                     />
                   </label>
-                ) : null}
-              </div>
+                </div>
+              ) : (
+                <div className="file-selector-row">
+                  <input
+                    name="primary_document"
+                    type="file"
+                    onChange={handlePrimaryDocumentChange}
+                  />
+                  {docFile ? (
+                    <label className="output-file-field compact-output-field deck-output-field">
+                      Critique Output File
+                      <input
+                        type="text"
+                        name="critique_output_file"
+                        value={critiqueOutputFileName}
+                        onChange={(event) => setCritiqueOutputFileName(event.target.value)}
+                      />
+                    </label>
+                  ) : null}
+                </div>
+              )}
             </div>
             <div className="primary-upload-actions">
               <button

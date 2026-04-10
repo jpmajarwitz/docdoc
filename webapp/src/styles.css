@@ -365,6 +365,20 @@ h1 {
   max-width: 19rem;
 }
 
+.deck-file-grid {
+  display: grid;
+  grid-template-columns: 19rem 7rem 14rem 10.5rem;
+  gap: 0.5rem;
+  align-items: end;
+  width: max-content;
+  max-width: 100%;
+}
+
+.deck-file-cell input[type="file"] {
+  width: 19rem;
+  max-width: 19rem;
+}
+
 .output-file-field {
   display: grid;
   gap: 0.35rem;
@@ -409,6 +423,10 @@ h1 {
 
 .deck-critique-output-input {
   width: 10.5rem !important;
+}
+
+.deck-file-grid input:disabled {
+  opacity: 0.65;
 }
 
 .primary-upload-inner input {
