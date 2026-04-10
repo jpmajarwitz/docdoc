@@ -369,12 +369,13 @@ h1 {
 .deck-file-grid {
   display: grid;
   grid-template-columns: 30rem 8rem 16rem 12rem;
+  grid-template-rows: auto auto;
   gap: 0.45rem;
-  align-items: end;
+  align-items: center;
   width: max-content;
   max-width: 100%;
   overflow-x: auto;
-  margin-top: 0.2rem;
+  margin-top: 0.05rem;
 }
 
 .deck-file-cell input[type="file"] {
@@ -382,15 +383,9 @@ h1 {
   max-width: 30rem;
 }
 
-.deck-file-label {
-  display: block;
-  margin-left: 0.25rem;
-  margin-bottom: 0.2rem;
+.deck-grid-label {
   line-height: 1.1;
-}
-
-.deck-file-grid .output-file-field {
-  min-width: 0;
+  margin-left: 0.1rem;
 }
 
 .output-file-field {
@@ -423,20 +418,11 @@ h1 {
   min-width: 132px;
 }
 
-.deck-total-field {
-  width: 8rem;
-}
-
-.deck-slides-field {
-  width: 16rem;
-}
-
-.deck-output-field {
-  width: 12rem;
-}
-
-.deck-critique-output-input {
-  width: 10.5rem !important;
+.deck-file-grid .slide-count-input,
+.deck-file-grid .slides-to-review-input,
+.deck-file-grid .deck-critique-output-input {
+  width: 100% !important;
+  min-width: 0;
 }
 
 .deck-file-grid input:disabled {

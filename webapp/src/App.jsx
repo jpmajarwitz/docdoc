@@ -2168,56 +2168,54 @@ async function buildPrimaryPromptPreviewText() {
         <section className="card primary-upload-card">
           <div className="primary-upload-inner split">
             <div className="primary-upload-left">
-              <label className={isDeckMateWorkflow ? 'panel-label deck-file-label' : 'panel-label'}>
-                {isDeckMateWorkflow ? 'Select presentation' : `Select primary ${contentNoun}`}
-              </label>
               {isDeckMateWorkflow ? (
                 <div className="deck-file-grid">
+                  <span className="panel-label deck-grid-label">Select presentation</span>
+                  <span className="panel-label deck-grid-label">Total Slides</span>
+                  <span className="panel-label deck-grid-label">Slides To Review</span>
+                  <span className="panel-label deck-grid-label">Critique Output File</span>
                   <div className="deck-file-cell">
                     <input
+                      id="deck_primary_document"
                       name="primary_document"
                       type="file"
                       onChange={handlePrimaryDocumentChange}
                     />
                   </div>
-                  <label className="output-file-field compact-output-field deck-total-field">
-                    Total Slides
-                    <input
-                      type="number"
-                      name="deck_total_slides_main"
-                      min={0}
-                      step={1}
-                      className="slide-count-input"
-                      disabled={isCalculatingSlides || deckTotalSlidesInput < 1}
-                      value={deckTotalSlidesInput}
-                      onChange={(event) => setDeckTotalSlidesInput(clampPositiveInteger(event.target.value, 0))}
-                    />
-                  </label>
-                  <label className="output-file-field compact-output-field deck-slides-field">
-                    Slides To Review
-                    <input
-                      type="text"
-                      name="slides_to_review_main"
-                      className="slides-to-review-input"
-                      disabled={isCalculatingSlides || deckTotalSlidesInput < 1}
-                      value={slidesToReviewInput}
-                      onChange={(event) => setSlidesToReviewInput(event.target.value)}
-                    />
-                  </label>
-                  <label className="output-file-field compact-output-field deck-output-field">
-                    Critique Output File
-                    <input
-                      type="text"
-                      name="critique_output_file"
-                      className="deck-critique-output-input"
-                      disabled={isCalculatingSlides || deckTotalSlidesInput < 1}
-                      value={critiqueOutputFileName}
-                      onChange={(event) => setCritiqueOutputFileName(event.target.value)}
-                    />
-                  </label>
+                  <input
+                    id="deck_total_slides_main"
+                    type="number"
+                    name="deck_total_slides_main"
+                    min={0}
+                    step={1}
+                    className="slide-count-input"
+                    disabled={isCalculatingSlides || deckTotalSlidesInput < 1}
+                    value={deckTotalSlidesInput}
+                    onChange={(event) => setDeckTotalSlidesInput(clampPositiveInteger(event.target.value, 0))}
+                  />
+                  <input
+                    id="slides_to_review_main"
+                    type="text"
+                    name="slides_to_review_main"
+                    className="slides-to-review-input"
+                    disabled={isCalculatingSlides || deckTotalSlidesInput < 1}
+                    value={slidesToReviewInput}
+                    onChange={(event) => setSlidesToReviewInput(event.target.value)}
+                  />
+                  <input
+                    id="critique_output_file"
+                    type="text"
+                    name="critique_output_file"
+                    className="deck-critique-output-input"
+                    disabled={isCalculatingSlides || deckTotalSlidesInput < 1}
+                    value={critiqueOutputFileName}
+                    onChange={(event) => setCritiqueOutputFileName(event.target.value)}
+                  />
                 </div>
               ) : (
-                <div className="file-selector-row">
+                <>
+                  <label className="panel-label">{`Select primary ${contentNoun}`}</label>
+                  <div className="file-selector-row">
                   <input
                     name="primary_document"
                     type="file"
@@ -2234,7 +2232,8 @@ async function buildPrimaryPromptPreviewText() {
                       />
                     </label>
                   ) : null}
-                </div>
+                  </div>
+                </>
               )}
             </div>
             <div className="primary-upload-actions">
