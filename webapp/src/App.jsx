@@ -93,6 +93,14 @@ function clampPositiveInteger(value, fallback) {
   return parsed
 }
 
+function extractFirstInteger(value) {
+  const match = `${value ?? ''}`.match(/(\d+)/)
+  if (!match) {
+    return null
+  }
+  return Number.parseInt(match[1], 10)
+}
+
 function PageShell({
   mode,
   topRightControls = null,
@@ -331,7 +339,8 @@ export default function App({ appShell = 'ai' }) {
   const [chunkingEnabled, setChunkingEnabled] = useState(APP_SETTINGS.chunkingEnabledDefault ?? false)
   const [chunkSize, setChunkSize] = useState(APP_SETTINGS.chunkSizeDefault ?? 6)
   const [chunkConcurrency, setChunkConcurrency] = useState(APP_SETTINGS.chunkConcurrencyDefault ?? 2)
-  const [deckTotalSlides, setDeckTotalSlides] = useState(0)
+  const [deckTotalSlidesSetting, setDeckTotalSlidesSetting] = useState(0)
+  const [deckTotalSlidesInput, setDeckTotalSlidesInput] = useState(0)
   const [showPromptPanel, setShowPromptPanel] = useState(false)
   const [promptPreviewText, setPromptPreviewText] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -464,7 +473,7 @@ export default function App({ appShell = 'ai' }) {
     setChunkingEnabled(settings.chunkingEnabled ?? (APP_SETTINGS.chunkingEnabledDefault ?? false))
     setChunkSize(clampPositiveInteger(settings.chunkSize, APP_SETTINGS.chunkSizeDefault ?? 6))
     setChunkConcurrency(clampPositiveInteger(settings.chunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2))
-    setDeckTotalSlides(clampPositiveInteger(settings.deckTotalSlides, 0))
+    setDeckTotalSlidesSetting(clampPositiveInteger(settings.deckTotalSlides, 0))
 
     const docProfile = settings.doc || {}
     const deckProfile = settings.deck || {}
@@ -874,6 +883,64 @@ async function buildPrimaryPromptPreviewText() {
     ])
   }
 
+  async function detectDeckTotalSlidesFromFile(file) {
+    if (!file || !isDeckMateWorkflow) {
+      return
+    }
+
+    const requestPayload = {
+      apiMode: 'responses',
+      model: 'gpt-5.4-nano',
+      store: false,
+      deleteFileOnLlm,
+      systemPrompt:
+        'You return only the numeric answer requested by the user. Do not include labels, prose, punctuation, or extra text.',
+      messages: [
+        {
+          type: 'input_text',
+          text: 'Return the total number of slides in this presentation as a single integer only.'
+        },
+        { type: 'input_file', source: 'primary_document' }
+      ]
+    }
+
+    appendRequestLog('Detecting total slides from selected deck file.', {
+      endpoint: API_ENDPOINTS[OPERATIONS.CRITIQUE_PRIMARY],
+      model: 'gpt-5.4-nano',
+      requestPayload
+    })
+
+    const response = await postMultipart(API_ENDPOINTS[OPERATIONS.CRITIQUE_PRIMARY], requestPayload, {
+      primary_document: file
+    })
+    appendRequestLog('Slide detection response received.', {
+      outputText: response.outputText
+    })
+    const detectedSlides = extractFirstInteger(response.outputText)
+    if (!detectedSlides || detectedSlides < 1) {
+      throw new Error(`Unable to determine total slides from model output: ${response.outputText || '<empty response>'}`)
+    }
+    setDeckTotalSlidesInput(detectedSlides)
+  }
+
+  async function handlePrimaryDocumentChange(event) {
+    const selectedFile = event.target.files?.[0] || null
+    setDocFile(selectedFile)
+    if (!selectedFile || !isDeckMateWorkflow) {
+      return
+    }
+
+    try {
+      setStatus('Detecting total slides from uploaded presentation...')
+      await detectDeckTotalSlidesFromFile(selectedFile)
+      setError('')
+      setStatus('Slide count detected from uploaded presentation.')
+    } catch (slideCountError) {
+      setError(`Slide count detection failed: ${normalizeRequestError(slideCountError)}`)
+      setStatus('Slide count detection failed. Enter Total Slides manually.')
+    }
+  }
+
   async function invokeOperation(operation) {
     if (!docFile) {
       setError(`Upload the primary ${contentNoun} before invoking the model.`)
@@ -907,7 +974,7 @@ async function buildPrimaryPromptPreviewText() {
       chunkingEnabled,
       chunkSize,
       chunkConcurrency,
-      deckTotalSlides
+      deckTotalSlidesInput
     }, { submissionId })
     setCurrentMode(MODES.INVOKE)
     setLastOperation(operation)
@@ -982,12 +1049,12 @@ async function buildPrimaryPromptPreviewText() {
                 }
               }
 
-              const isChunkedPrimaryCritique = isDeckMateWorkflow && chunkingEnabled && deckTotalSlides > 1
+              const isChunkedPrimaryCritique = isDeckMateWorkflow && chunkingEnabled && deckTotalSlidesInput > 1
               if (!isChunkedPrimaryCritique) {
                 return runSinglePrimaryRequest(buildPrimaryCritiqueRequest())
               }
 
-              const totalSlides = clampPositiveInteger(deckTotalSlides, 0)
+              const totalSlides = clampPositiveInteger(deckTotalSlidesInput, 0)
               const chunkedRequests = buildPrimaryChunkedRequests(totalSlides)
               const normalizedChunkSize = clampPositiveInteger(chunkSize, APP_SETTINGS.chunkSizeDefault ?? 6)
               const calculatedParallel = Math.max(1, Math.ceil(totalSlides / normalizedChunkSize))
@@ -1306,7 +1373,7 @@ async function buildPrimaryPromptPreviewText() {
       chunkingEnabled,
       chunkSize,
       chunkConcurrency,
-      deckTotalSlides,
+      deckTotalSlidesSetting,
       doc: {
         topic: docTopic,
         objective: docObjective,
@@ -1346,7 +1413,7 @@ async function buildPrimaryPromptPreviewText() {
     chunkingEnabled,
     chunkSize,
     chunkConcurrency,
-    deckTotalSlides,
+    deckTotalSlidesSetting,
     docTopic,
     docObjective,
     docGuidance,
@@ -1579,8 +1646,8 @@ async function buildPrimaryPromptPreviewText() {
                 type="number"
                 min={0}
                 step={1}
-                value={deckTotalSlides}
-                onChange={(event) => setDeckTotalSlides(clampPositiveInteger(event.target.value, 0))}
+                value={deckTotalSlidesSetting}
+                onChange={(event) => setDeckTotalSlidesSetting(clampPositiveInteger(event.target.value, 0))}
               />
             </label>
           )
@@ -1948,7 +2015,7 @@ async function buildPrimaryPromptPreviewText() {
                 <input
                   name="primary_document"
                   type="file"
-                  onChange={(event) => setDocFile(event.target.files?.[0] || null)}
+                  onChange={handlePrimaryDocumentChange}
                 />
                 {isDeckMateWorkflow ? (
                   <label className="output-file-field">
@@ -1958,8 +2025,8 @@ async function buildPrimaryPromptPreviewText() {
                       name="deck_total_slides_main"
                       min={0}
                       step={1}
-                      value={deckTotalSlides}
-                      onChange={(event) => setDeckTotalSlides(clampPositiveInteger(event.target.value, 0))}
+                      value={deckTotalSlidesInput}
+                      onChange={(event) => setDeckTotalSlidesInput(clampPositiveInteger(event.target.value, 0))}
                     />
                   </label>
                 ) : null}
