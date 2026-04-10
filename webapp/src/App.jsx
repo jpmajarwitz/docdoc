@@ -2200,7 +2200,6 @@ async function buildPrimaryPromptPreviewText() {
                       className="slides-to-review-input"
                       value={slidesToReviewInput}
                       onChange={(event) => setSlidesToReviewInput(event.target.value)}
-                      placeholder="6-11; 15; 19; 22-26"
                     />
                   </label>
                 ) : null}
@@ -2342,6 +2341,14 @@ async function buildPrimaryPromptPreviewText() {
             <h2>Prompt Preview</h2>
             <pre>{promptPreviewText}</pre>
           </section>
+        ) : null}
+        {isDeckMateWorkflow && isCalculatingSlides ? (
+          <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Calculating number of slides">
+            <section className="card slide-count-popup">
+              <h3>Please wait</h3>
+              <p>calculating number of slides</p>
+            </section>
+          </div>
         ) : null}
       </PageShell>
     )
@@ -2538,13 +2545,6 @@ async function buildPrimaryPromptPreviewText() {
             <h2>Prompt Preview</h2>
             <pre>{promptPreviewText}</pre>
           </section>
-        ) : null}
-        {isDeckMateWorkflow && isCalculatingSlides ? (
-          <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Calculating number of slides">
-            <section className="card auth-required-popup">
-              <p>calculating number of slides</p>
-            </section>
-          </div>
         ) : null}
       </PageShell>
     )
