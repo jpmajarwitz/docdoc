@@ -383,6 +383,11 @@ h1 {
   max-width: 30rem;
 }
 
+.primary-upload-left .deck-file-cell input[type="file"] {
+  width: 30rem;
+  max-width: 30rem;
+}
+
 .deck-grid-label {
   line-height: 1.1;
   margin-left: 0.1rem;
