@@ -347,13 +347,22 @@ h1 {
 }
 
 .deck-file-row {
-  flex-wrap: nowrap;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  align-items: end;
+  column-gap: 0.5rem;
   overflow-x: auto;
   padding-bottom: 0.2rem;
 }
 
 .deck-file-row > * {
   flex: 0 0 auto;
+}
+
+.deck-file-row input[type="file"] {
+  width: 19rem;
+  max-width: 19rem;
 }
 
 .output-file-field {
@@ -386,8 +395,20 @@ h1 {
   min-width: 132px;
 }
 
+.deck-total-field {
+  min-width: 118px;
+}
+
+.deck-slides-field {
+  min-width: 190px;
+}
+
+.deck-output-field {
+  min-width: 170px;
+}
+
 .deck-critique-output-input {
-  width: 12rem !important;
+  width: 10.5rem !important;
 }
 
 .primary-upload-inner input {

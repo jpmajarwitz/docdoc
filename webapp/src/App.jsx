@@ -2178,7 +2178,7 @@ async function buildPrimaryPromptPreviewText() {
                   onChange={handlePrimaryDocumentChange}
                 />
                 {isDeckMateWorkflow ? (
-                  <label className="output-file-field compact-output-field">
+                  <label className="output-file-field compact-output-field deck-total-field">
                     Total Slides
                     <input
                       type="number"
@@ -2192,7 +2192,7 @@ async function buildPrimaryPromptPreviewText() {
                   </label>
                 ) : null}
                 {isDeckMateWorkflow && deckTotalSlidesInput > 0 ? (
-                  <label className="output-file-field compact-output-field">
+                  <label className="output-file-field compact-output-field deck-slides-field">
                     Slides To Review
                     <input
                       type="text"
@@ -2204,7 +2204,7 @@ async function buildPrimaryPromptPreviewText() {
                   </label>
                 ) : null}
                 {docFile ? (
-                  <label className="output-file-field compact-output-field">
+                  <label className="output-file-field compact-output-field deck-output-field">
                     Critique Output File
                     <input
                       type="text"
@@ -2427,9 +2427,6 @@ async function buildPrimaryPromptPreviewText() {
         }
       >
         <section className="card action-row wrap-actions center-actions compact-panel">
-            {lastCritiqueWaitMs !== null ? (
-              <p className="muted">{`Wait Time: ${(lastCritiqueWaitMs / 1000).toFixed(1)}s`}</p>
-            ) : null}
             <button type="button" className="secondary-button" onClick={resetToDefinitionMode}>
               Exit Review
             </button>
