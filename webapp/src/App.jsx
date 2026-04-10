@@ -101,6 +101,92 @@ function extractFirstInteger(value) {
   return Number.parseInt(match[1], 10)
 }
 
+function buildSlideSelection(totalSlides) {
+  return Array.from({ length: totalSlides }, (_, index) => index + 1)
+}
+
+function parseSlidesToReviewInput(value, totalSlides) {
+  const trimmed = `${value || ''}`.trim()
+  if (!trimmed) {
+    return buildSlideSelection(totalSlides)
+  }
+
+  const selections = new Set()
+  const tokens = trimmed
+    .split(/[;,]+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+
+  if (!tokens.length) {
+    return buildSlideSelection(totalSlides)
+  }
+
+  tokens.forEach((token) => {
+    const rangeMatch = token.match(/^(\d+)\s*-\s*(\d+)$/)
+    if (rangeMatch) {
+      const start = Number.parseInt(rangeMatch[1], 10)
+      const end = Number.parseInt(rangeMatch[2], 10)
+      if (start < 1 || end < 1 || start > totalSlides || end > totalSlides) {
+        throw new Error(`Slides To Review contains an out-of-range value: ${token}`)
+      }
+      const low = Math.min(start, end)
+      const high = Math.max(start, end)
+      for (let current = low; current <= high; current += 1) {
+        selections.add(current)
+      }
+      return
+    }
+
+    const singleMatch = token.match(/^\d+$/)
+    if (!singleMatch) {
+      throw new Error(`Slides To Review contains an invalid token: ${token}`)
+    }
+
+    const slide = Number.parseInt(token, 10)
+    if (slide < 1 || slide > totalSlides) {
+      throw new Error(`Slides To Review contains an out-of-range value: ${token}`)
+    }
+    selections.add(slide)
+  })
+
+  return [...selections].sort((left, right) => left - right)
+}
+
+function summarizeSlideGroup(slides) {
+  if (!slides.length) {
+    return 'no slides'
+  }
+
+  const ranges = []
+  let rangeStart = slides[0]
+  let previous = slides[0]
+
+  for (let index = 1; index < slides.length; index += 1) {
+    const current = slides[index]
+    if (current === previous + 1) {
+      previous = current
+      continue
+    }
+    ranges.push([rangeStart, previous])
+    rangeStart = current
+    previous = current
+  }
+  ranges.push([rangeStart, previous])
+
+  const parts = ranges.map(([start, end]) => {
+    if (start === end) {
+      return `slide ${start}`
+    }
+    return `slides ${start} through ${end}`
+  })
+
+  if (parts.length === 1) {
+    return parts[0]
+  }
+
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
+}
+
 function PageShell({
   mode,
   topRightControls = null,
@@ -341,6 +427,8 @@ export default function App({ appShell = 'ai' }) {
   const [chunkConcurrency, setChunkConcurrency] = useState(APP_SETTINGS.chunkConcurrencyDefault ?? 2)
   const [deckTotalSlidesSetting, setDeckTotalSlidesSetting] = useState(0)
   const [deckTotalSlidesInput, setDeckTotalSlidesInput] = useState(0)
+  const [slidesToReviewInput, setSlidesToReviewInput] = useState('')
+  const [isCalculatingSlides, setIsCalculatingSlides] = useState(false)
   const [showPromptPanel, setShowPromptPanel] = useState(false)
   const [promptPreviewText, setPromptPreviewText] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -819,19 +907,22 @@ async function buildPrimaryPromptPreviewText() {
     return buildLlmRequest(messages)
   }
 
-  function buildPrimaryChunkedRequests(totalSlides) {
+  function buildPrimaryChunkedRequests(selectedSlides) {
     const normalizedChunkSize = clampPositiveInteger(chunkSize, APP_SETTINGS.chunkSizeDefault ?? 6)
-    const ranges = []
-    for (let start = 1; start <= totalSlides; start += normalizedChunkSize) {
-      const end = Math.min(start + normalizedChunkSize - 1, totalSlides)
-      ranges.push({ start, end })
+    const chunks = []
+    for (let start = 0; start < selectedSlides.length; start += normalizedChunkSize) {
+      const chunkSlides = selectedSlides.slice(start, start + normalizedChunkSize)
+      chunks.push({
+        slides: chunkSlides,
+        summary: summarizeSlideGroup(chunkSlides)
+      })
     }
 
-    return ranges.map((range) => {
+    return chunks.map((chunk) => {
       const requestPayload = buildPrimaryCritiqueRequest()
-      const chunkInstruction = `Chunk instruction: Process only slides ${range.start} through ${range.end}. If a requested slide does not exist, continue with available slides in this range only.`
+      const chunkInstruction = `Chunk instruction: Process only ${chunk.summary}.`
       return {
-        range,
+        chunk,
         requestPayload: {
           ...requestPayload,
           messages: [
@@ -927,17 +1018,22 @@ async function buildPrimaryPromptPreviewText() {
     const selectedFile = event.target.files?.[0] || null
     setDocFile(selectedFile)
     if (!selectedFile || !isDeckMateWorkflow) {
+      setIsCalculatingSlides(false)
       return
     }
 
     try {
-      setStatus('Detecting total slides from uploaded presentation...')
+      setIsCalculatingSlides(true)
+      setDeckTotalSlidesInput(0)
+      setStatus('calculating number of slides')
       await detectDeckTotalSlidesFromFile(selectedFile)
       setError('')
       setStatus('Slide count detected from uploaded presentation.')
     } catch (slideCountError) {
       setError(`Slide count detection failed: ${normalizeRequestError(slideCountError)}`)
       setStatus('Slide count detection failed. Enter Total Slides manually.')
+    } finally {
+      setIsCalculatingSlides(false)
     }
   }
 
@@ -974,7 +1070,8 @@ async function buildPrimaryPromptPreviewText() {
       chunkingEnabled,
       chunkSize,
       chunkConcurrency,
-      deckTotalSlidesInput
+      deckTotalSlidesInput,
+      slidesToReviewInput
     }, { submissionId })
     setCurrentMode(MODES.INVOKE)
     setLastOperation(operation)
@@ -1049,15 +1146,19 @@ async function buildPrimaryPromptPreviewText() {
                 }
               }
 
-              const isChunkedPrimaryCritique = isDeckMateWorkflow && chunkingEnabled && deckTotalSlidesInput > 1
+              const totalSlides = clampPositiveInteger(deckTotalSlidesInput, 0)
+              const selectedSlides = isDeckMateWorkflow
+                ? parseSlidesToReviewInput(slidesToReviewInput, totalSlides)
+                : buildSlideSelection(totalSlides)
+
+              const isChunkedPrimaryCritique = isDeckMateWorkflow && chunkingEnabled && selectedSlides.length > 1
               if (!isChunkedPrimaryCritique) {
                 return runSinglePrimaryRequest(buildPrimaryCritiqueRequest())
               }
 
-              const totalSlides = clampPositiveInteger(deckTotalSlidesInput, 0)
-              const chunkedRequests = buildPrimaryChunkedRequests(totalSlides)
+              const chunkedRequests = buildPrimaryChunkedRequests(selectedSlides)
               const normalizedChunkSize = clampPositiveInteger(chunkSize, APP_SETTINGS.chunkSizeDefault ?? 6)
-              const calculatedParallel = Math.max(1, Math.ceil(totalSlides / normalizedChunkSize))
+              const calculatedParallel = Math.max(1, Math.ceil(selectedSlides.length / normalizedChunkSize))
               const maxParallel = Math.min(
                 calculatedParallel,
                 clampPositiveInteger(chunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
@@ -1065,6 +1166,7 @@ async function buildPrimaryPromptPreviewText() {
               )
               appendRequestLog('Chunking plan calculated for primary critique.', {
                 totalSlides,
+                selectedSlidesCount: selectedSlides.length,
                 chunkSize: normalizedChunkSize,
                 chunkCount: chunkedRequests.length,
                 calculatedParallel,
@@ -1082,21 +1184,21 @@ async function buildPrimaryPromptPreviewText() {
                   nextChunkIndex += 1
                   const assignedChunk = chunkedRequests[assignedIndex]
                   setStatus(
-                    `Invoking ${operationLabels[operation]} chunk ${assignedIndex + 1} of ${chunkedRequests.length} (slides ${assignedChunk.range.start}-${assignedChunk.range.end})...`
+                    `Invoking ${operationLabels[operation]} chunk ${assignedIndex + 1} of ${chunkedRequests.length} (${assignedChunk.chunk.summary})...`
                   )
                   appendRequestLog('Invoking chunk request.', {
                     chunkIndex: assignedIndex + 1,
                     chunkCount: chunkedRequests.length,
-                    range: assignedChunk.range
+                    slideSummary: assignedChunk.chunk.summary
                   }, { submissionId })
                   try {
                     const chunkResult = await runSinglePrimaryRequest(assignedChunk.requestPayload, {
                       chunkIndex: assignedIndex + 1,
-                      range: assignedChunk.range
+                      slideSummary: assignedChunk.chunk.summary
                     })
                     completedResults.push({
                       index: assignedIndex,
-                      range: assignedChunk.range,
+                      chunk: assignedChunk.chunk,
                       outputText: chunkResult.outputText
                     })
                     completedCount += 1
@@ -1104,7 +1206,7 @@ async function buildPrimaryPromptPreviewText() {
                   } catch (chunkError) {
                     failedResults.push({
                       index: assignedIndex,
-                      range: assignedChunk.range,
+                      chunk: assignedChunk.chunk,
                       error: normalizeRequestError(chunkError)
                     })
                   }
@@ -1117,14 +1219,14 @@ async function buildPrimaryPromptPreviewText() {
                 failedCount: failedResults.length,
                 failedChunks: failedResults.map((item) => ({
                   chunkIndex: item.index + 1,
-                  range: item.range,
+                  slideSummary: item.chunk.summary,
                   error: item.error
                 }))
               }, { submissionId })
 
               if (failedResults.length) {
                 const failureSummary = failedResults
-                  .map((item) => `chunk ${item.index + 1} (${item.range.start}-${item.range.end})`)
+                  .map((item) => `chunk ${item.index + 1} (${item.chunk.summary})`)
                   .join(', ')
                 throw new Error(`Chunked critique failed for ${failedResults.length}/${chunkedRequests.length} chunks: ${failureSummary}`)
               }
@@ -1133,7 +1235,7 @@ async function buildPrimaryPromptPreviewText() {
                 .sort((left, right) => left.index - right.index)
                 .map(
                   (item) =>
-                    `### Slides ${item.range.start}-${item.range.end}\n\n${item.outputText || '_No critique returned for this chunk._'}`
+                    `### ${item.chunk.summary}\n\n${item.outputText || '_No critique returned for this chunk._'}`
                 )
                 .join('\n\n')
 
@@ -1373,7 +1475,7 @@ async function buildPrimaryPromptPreviewText() {
       chunkingEnabled,
       chunkSize,
       chunkConcurrency,
-      deckTotalSlidesSetting,
+      deckTotalSlides: deckTotalSlidesSetting,
       doc: {
         topic: docTopic,
         objective: docObjective,
@@ -2030,6 +2132,18 @@ async function buildPrimaryPromptPreviewText() {
                     />
                   </label>
                 ) : null}
+                {isDeckMateWorkflow ? (
+                  <label className="output-file-field">
+                    Slides To Review
+                    <input
+                      type="text"
+                      name="slides_to_review_main"
+                      value={slidesToReviewInput}
+                      onChange={(event) => setSlidesToReviewInput(event.target.value)}
+                      placeholder="6-11; 15; 19; 22-26"
+                    />
+                  </label>
+                ) : null}
                 {docFile ? (
                   <label className="output-file-field">
                     Critique Output File
@@ -2044,9 +2158,14 @@ async function buildPrimaryPromptPreviewText() {
               </div>
             </div>
             <div className="primary-upload-actions">
-              <button type="button" disabled={!docFile} onClick={() => invokeOperation(OPERATIONS.CRITIQUE_PRIMARY)}>
+              <button
+                type="button"
+                disabled={!docFile || (isDeckMateWorkflow && (isCalculatingSlides || deckTotalSlidesInput < 1))}
+                onClick={() => invokeOperation(OPERATIONS.CRITIQUE_PRIMARY)}
+              >
                 {`Critique ${contentNounTitle}`}
               </button>
+              {isDeckMateWorkflow && isCalculatingSlides ? <p className="muted">calculating number of slides</p> : null}
               {viewPromptEnabled ? (
                 <button
                   type="button"
