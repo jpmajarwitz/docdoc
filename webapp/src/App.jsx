@@ -432,6 +432,7 @@ export default function App({ appShell = 'ai' }) {
   const [showPromptPanel, setShowPromptPanel] = useState(false)
   const [promptPreviewText, setPromptPreviewText] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [deckSettingsTab, setDeckSettingsTab] = useState('prompt_instructions')
   const settingsDropdownRef = useRef(null)
   const profileSaveTimerRef = useRef(null)
   const activeSubmissionIdRef = useRef(null)
@@ -472,6 +473,7 @@ export default function App({ appShell = 'ai' }) {
   const [changeItems, setChangeItems] = useState([])
   const [changeItemDraft, setChangeItemDraft] = useState(emptyChangeDraft())
   const [requestLogLines, setRequestLogLines] = useState([])
+  const [lastCritiqueWaitMs, setLastCritiqueWaitMs] = useState(null)
 
   function appendRequestLog(message, details = null, options = {}) {
     if (!logPanelEnabled) {
@@ -1057,6 +1059,7 @@ async function buildPrimaryPromptPreviewText() {
     }
 
     const submissionId = `submission-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const operationStartedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
     activeSubmissionIdRef.current = submissionId
     setLoading(true)
     setError('')
@@ -1318,6 +1321,10 @@ async function buildPrimaryPromptPreviewText() {
         setStatus('Applying change items completed successfully.')
       } else {
         setCritiqueMarkdown(outputText)
+        if (operation === OPERATIONS.CRITIQUE_PRIMARY || operation === OPERATIONS.CRITIQUE_CHANGED) {
+          const finishedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
+          setLastCritiqueWaitMs(Math.max(0, finishedAt - operationStartedAt))
+        }
         if (operation === OPERATIONS.CRITIQUE_PRIMARY) {
           saveMarkdownToFile(outputText, critiqueOutputFileName)
         }
@@ -1366,6 +1373,7 @@ async function buildPrimaryPromptPreviewText() {
   function resetToDefinitionMode() {
     setCurrentMode(MODES.DOC_DEFINE)
     setDocFile(null)
+    setLastCritiqueWaitMs(null)
     setError('')
     setStatus(`Ready for ${contentNoun} definition.`)
   }
@@ -1557,6 +1565,31 @@ async function buildPrimaryPromptPreviewText() {
   function renderSettingsControl() {
     const settingsLabels = activeSettings.settingsPanelLabels || {}
     const settingsPanelOrder = activeSettings.settingsPanelOrder || []
+    const deckSettingsTabs = [
+      {
+        id: 'prompt_instructions',
+        label: 'Prompt Instructions',
+        keys: ['defaultTopic', 'reviewObjective', 'formattingGuidance', 'antiGuidance']
+      },
+      {
+        id: 'application_controls',
+        label: 'Application Controls',
+        keys: [
+          'applyChangeItemsGuidance',
+          'viewPrompt',
+          'logPanelEnabled',
+          'chunkingEnabled',
+          'deckTotalSlides',
+          'chunkSize',
+          'chunkConcurrency'
+        ]
+      },
+      {
+        id: 'model_controls',
+        label: 'Model Controls',
+        keys: ['apiMode', 'llmModel', 'ignoreOcrErrors', 'disableResponseLogging', 'deleteFileOnLlm']
+      }
+    ]
 
     function renderSettingsField(settingKey) {
       switch (settingKey) {
@@ -1793,7 +1826,28 @@ async function buildPrimaryPromptPreviewText() {
             <button type="button" className="settings-close" onClick={() => setSettingsOpen(false)}>
               Close
             </button>
-            {settingsPanelOrder.map((settingKey) => renderSettingsField(settingKey))}
+            {isDeckMateWorkflow ? (
+              <>
+                <div className="action-row wrap-actions">
+                  {deckSettingsTabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      className="secondary-button"
+                      aria-pressed={deckSettingsTab === tab.id}
+                      onClick={() => setDeckSettingsTab(tab.id)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                {(deckSettingsTabs.find((tab) => tab.id === deckSettingsTab) || deckSettingsTabs[0]).keys.map(
+                  (settingKey) => renderSettingsField(settingKey)
+                )}
+              </>
+            ) : (
+              settingsPanelOrder.map((settingKey) => renderSettingsField(settingKey))
+            )}
           </div>
         ) : null}
       </div>
@@ -2353,6 +2407,9 @@ async function buildPrimaryPromptPreviewText() {
         }
       >
         <section className="card action-row wrap-actions center-actions compact-panel">
+            {lastCritiqueWaitMs !== null ? (
+              <p className="muted">{`Wait Time: ${(lastCritiqueWaitMs / 1000).toFixed(1)}s`}</p>
+            ) : null}
             <button type="button" className="secondary-button" onClick={resetToDefinitionMode}>
               Exit Review
             </button>
