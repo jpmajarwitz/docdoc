@@ -346,6 +346,16 @@ h1 {
   flex-wrap: wrap;
 }
 
+.deck-file-row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+.deck-file-row > * {
+  flex: 0 0 auto;
+}
+
 .output-file-field {
   display: grid;
   gap: 0.35rem;
@@ -374,6 +384,10 @@ h1 {
 
 .compact-output-field {
   min-width: 132px;
+}
+
+.deck-critique-output-input {
+  width: 12rem !important;
 }
 
 .primary-upload-inner input {

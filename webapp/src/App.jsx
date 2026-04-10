@@ -2171,7 +2171,7 @@ async function buildPrimaryPromptPreviewText() {
               <label className="panel-label">
                 {isDeckMateWorkflow ? 'Select presentation' : `Select primary ${contentNoun}`}
               </label>
-              <div className="file-selector-row">
+              <div className={isDeckMateWorkflow ? 'file-selector-row deck-file-row' : 'file-selector-row'}>
                 <input
                   name="primary_document"
                   type="file"
@@ -2209,6 +2209,7 @@ async function buildPrimaryPromptPreviewText() {
                     <input
                       type="text"
                       name="critique_output_file"
+                      className={isDeckMateWorkflow ? 'deck-critique-output-input' : ''}
                       value={critiqueOutputFileName}
                       onChange={(event) => setCritiqueOutputFileName(event.target.value)}
                     />
