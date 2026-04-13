@@ -560,6 +560,12 @@ export default function App({ appShell = 'ai' }) {
     () => deckCritiqueSections.flatMap((section) => section.issues),
     [deckCritiqueSections]
   )
+  const visibleDeckIssueOptions = useMemo(() => {
+    if (selectedDeckSlideTab === 'all') {
+      return deckIssueOptions
+    }
+    return deckIssueOptions.filter((option) => option.optionValue.startsWith(`slide-${selectedDeckSlideTab}/`))
+  }, [deckIssueOptions, selectedDeckSlideTab])
   const changedDeckSections = useMemo(
     () => (isDeckMateWorkflow ? parseDeckMarkdownSections(changedDocumentMarkdown) : []),
     [isDeckMateWorkflow, changedDocumentMarkdown]
@@ -1704,6 +1710,11 @@ async function buildPrimaryPromptPreviewText() {
   }, [isDeckMateWorkflow, deckCritiqueSections, selectedDeckSlideTab])
 
   useEffect(() => {
+    const allowedOptionValues = new Set(visibleDeckIssueOptions.map((option) => option.optionValue))
+    setSelectedDeckIssueOptions((items) => items.filter((item) => allowedOptionValues.has(item)))
+  }, [visibleDeckIssueOptions])
+
+  useEffect(() => {
     if (!isDeckMateWorkflow || !changedDeckSections.length) {
       setSelectedChangedDeckSlideTab('all')
       return
@@ -2687,6 +2698,13 @@ async function buildPrimaryPromptPreviewText() {
                   role="tablist"
                   aria-label="Critique slide tabs"
                 >
+                  <button
+                    type="button"
+                    className={selectedDeckSlideTab === 'all' ? 'settings-tab active' : 'settings-tab'}
+                    onClick={() => setSelectedDeckSlideTab('all')}
+                  >
+                    All
+                  </button>
                   {deckCritiqueSections.map((section) => (
                     <button
                       key={section.slideNumber}
@@ -2697,13 +2715,6 @@ async function buildPrimaryPromptPreviewText() {
                       {`Slide ${section.slideNumber}`}
                     </button>
                   ))}
-                  <button
-                    type="button"
-                    className={selectedDeckSlideTab === 'all' ? 'settings-tab active' : 'settings-tab'}
-                    onClick={() => setSelectedDeckSlideTab('all')}
-                  >
-                    All
-                  </button>
                 </div>
                 <label className="panel-field">
                   <span className="panel-label">Critique Content</span>
@@ -2752,9 +2763,9 @@ async function buildPrimaryPromptPreviewText() {
                           [...event.target.selectedOptions].map((option) => option.value)
                         )
                       }
-                      size={10}
+                      size={5}
                     >
-                      {deckIssueOptions.map((option) => (
+                      {visibleDeckIssueOptions.map((option) => (
                         <option key={option.optionValue} value={option.optionValue}>
                           {option.optionLabel}
                         </option>
@@ -2883,6 +2894,13 @@ async function buildPrimaryPromptPreviewText() {
               role="tablist"
               aria-label="Changed content slide tabs"
             >
+              <button
+                type="button"
+                className={selectedChangedDeckSlideTab === 'all' ? 'settings-tab active' : 'settings-tab'}
+                onClick={() => setSelectedChangedDeckSlideTab('all')}
+              >
+                All
+              </button>
               {changedDeckSections.map((section) => (
                 <button
                   key={section.slideNumber}
@@ -2893,13 +2911,6 @@ async function buildPrimaryPromptPreviewText() {
                   {`Slide ${section.slideNumber}`}
                 </button>
               ))}
-              <button
-                type="button"
-                className={selectedChangedDeckSlideTab === 'all' ? 'settings-tab active' : 'settings-tab'}
-                onClick={() => setSelectedChangedDeckSlideTab('all')}
-              >
-                All
-              </button>
             </div>
             <label>
               {`Changed ${contentNoun} content`}
