@@ -189,7 +189,7 @@ function parseDeckMarkdownSections(markdown) {
   let currentSection = null
 
   lines.forEach((line) => {
-    const slideMatch = line.match(/^\s{0,3}(?:#{1,6}\s*)?slide[-\s]*(\d+)\b[:\-]?\s*(.*)$/i)
+    const slideMatch = line.match(/^\s{0,3}(?:[-*]\s*)?(?:#{1,6}\s*)?slide[-\s]*(\d+)\b[:\-]?\s*(.*)$/i)
     if (slideMatch) {
       if (currentSection) {
         sections.push(currentSection)
@@ -1489,6 +1489,7 @@ async function buildPrimaryPromptPreviewText() {
   function resetToDefinitionMode() {
     setCurrentMode(MODES.DOC_DEFINE)
     setDocFile(null)
+    setSlidesToReviewInput('')
     setLastCritiqueWaitMs(null)
     setError('')
     setStatus(`Ready for ${contentNoun} definition.`)
