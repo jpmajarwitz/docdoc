@@ -183,7 +183,7 @@ function summarizeSlideGroup(slides) {
   return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
 }
 
-function parseDeckCritiqueSections(markdown) {
+function parseDeckMarkdownSections(markdown) {
   const lines = `${markdown || ''}`.split('\n')
   const sections = []
   let currentSection = null
@@ -211,7 +211,14 @@ function parseDeckCritiqueSections(markdown) {
     sections.push(currentSection)
   }
 
-  return sections.map((section) => {
+  return sections.map((section) => ({
+    ...section,
+    content: section.lines.join('\n').trim()
+  }))
+}
+
+function parseDeckCritiqueSections(markdown) {
+  return parseDeckMarkdownSections(markdown).map((section) => {
     const content = section.lines.join('\n').trim()
     const issueSet = new Set()
     const issuePattern = /\bissue[-\s]*(\d+)\b/gi
@@ -524,7 +531,8 @@ export default function App({ appShell = 'ai' }) {
   const [changeItemDraft, setChangeItemDraft] = useState(emptyChangeDraft())
   const [requestLogLines, setRequestLogLines] = useState([])
   const [lastCritiqueWaitMs, setLastCritiqueWaitMs] = useState(null)
-  const [selectedDeckSlideTab, setSelectedDeckSlideTab] = useState(null)
+  const [selectedDeckSlideTab, setSelectedDeckSlideTab] = useState('all')
+  const [selectedChangedDeckSlideTab, setSelectedChangedDeckSlideTab] = useState('all')
   const [selectedDeckIssueOptions, setSelectedDeckIssueOptions] = useState([])
 
   const deckCritiqueSections = useMemo(
@@ -534,6 +542,10 @@ export default function App({ appShell = 'ai' }) {
   const deckIssueOptions = useMemo(
     () => deckCritiqueSections.flatMap((section) => section.issues),
     [deckCritiqueSections]
+  )
+  const changedDeckSections = useMemo(
+    () => (isDeckMateWorkflow ? parseDeckMarkdownSections(changedDocumentMarkdown) : []),
+    [isDeckMateWorkflow, changedDocumentMarkdown]
   )
 
   function appendRequestLog(message, details = null, options = {}) {
@@ -1463,6 +1475,17 @@ async function buildPrimaryPromptPreviewText() {
     setError('')
   }
 
+  function updateChangeItemInstruction(changeId, instruction) {
+    setChangeItems((items) =>
+      items.map((item) =>
+        item.id === changeId
+          ? { ...item, instruction }
+          : item
+      )
+    )
+    setError('')
+  }
+
   function resetToDefinitionMode() {
     setCurrentMode(MODES.DOC_DEFINE)
     setDocFile(null)
@@ -1631,14 +1654,31 @@ async function buildPrimaryPromptPreviewText() {
 
   useEffect(() => {
     if (!isDeckMateWorkflow || !deckCritiqueSections.length) {
-      setSelectedDeckSlideTab(null)
+      setSelectedDeckSlideTab('all')
+      return
+    }
+    if (selectedDeckSlideTab === 'all') {
       return
     }
     const hasCurrent = deckCritiqueSections.some((section) => section.slideNumber === selectedDeckSlideTab)
     if (!hasCurrent) {
-      setSelectedDeckSlideTab(deckCritiqueSections[0].slideNumber)
+      setSelectedDeckSlideTab('all')
     }
   }, [isDeckMateWorkflow, deckCritiqueSections, selectedDeckSlideTab])
+
+  useEffect(() => {
+    if (!isDeckMateWorkflow || !changedDeckSections.length) {
+      setSelectedChangedDeckSlideTab('all')
+      return
+    }
+    if (selectedChangedDeckSlideTab === 'all') {
+      return
+    }
+    const hasCurrent = changedDeckSections.some((section) => section.slideNumber === selectedChangedDeckSlideTab)
+    if (!hasCurrent) {
+      setSelectedChangedDeckSlideTab('all')
+    }
+  }, [isDeckMateWorkflow, changedDeckSections, selectedChangedDeckSlideTab])
 
   useEffect(() => {
     function handlePointerDown(event) {
@@ -2614,13 +2654,22 @@ async function buildPrimaryPromptPreviewText() {
                       {`Slide ${section.slideNumber}`}
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    className={selectedDeckSlideTab === 'all' ? 'settings-tab active' : 'settings-tab'}
+                    onClick={() => setSelectedDeckSlideTab('all')}
+                  >
+                    All
+                  </button>
                 </div>
                 <label className="panel-field">
                   <span className="panel-label">Critique Content</span>
                   <textarea
                     className="critique-editor"
                     value={
-                      deckCritiqueSections.find((section) => section.slideNumber === selectedDeckSlideTab)?.content ||
+                      (selectedDeckSlideTab === 'all'
+                        ? critiqueMarkdown
+                        : deckCritiqueSections.find((section) => section.slideNumber === selectedDeckSlideTab)?.content) ||
                       critiqueMarkdown
                     }
                     readOnly
@@ -2714,7 +2763,12 @@ async function buildPrimaryPromptPreviewText() {
                   changeItems.map((item) => (
                     <article key={item.id} className="change-item-card">
                       <h4>{item.id}</h4>
-                      <p>{item.instruction}</p>
+                      <textarea
+                        className="compact-textarea"
+                        value={item.instruction}
+                        onChange={(event) => updateChangeItemInstruction(item.id, event.target.value)}
+                        rows={3}
+                      />
                     </article>
                   ))
                 ) : (
@@ -2769,14 +2823,56 @@ async function buildPrimaryPromptPreviewText() {
       {renderRequestLogPanel()}
 
       <section className="card field-group tall-document-panel">
-        <label>
-          {`Changed ${contentNoun} content`}
-          <textarea
-            value={changedDocumentMarkdown}
-            onChange={(event) => setChangedDocumentMarkdown(event.target.value)}
-            rows={REVIEW_TEXTAREA_ROWS}
-          />
-        </label>
+        {isDeckMateWorkflow && changedDeckSections.length ? (
+          <>
+            <div className="settings-tabs" role="tablist" aria-label="Changed content slide tabs">
+              {changedDeckSections.map((section) => (
+                <button
+                  key={section.slideNumber}
+                  type="button"
+                  className={selectedChangedDeckSlideTab === section.slideNumber ? 'settings-tab active' : 'settings-tab'}
+                  onClick={() => setSelectedChangedDeckSlideTab(section.slideNumber)}
+                >
+                  {`Slide ${section.slideNumber}`}
+                </button>
+              ))}
+              <button
+                type="button"
+                className={selectedChangedDeckSlideTab === 'all' ? 'settings-tab active' : 'settings-tab'}
+                onClick={() => setSelectedChangedDeckSlideTab('all')}
+              >
+                All
+              </button>
+            </div>
+            <label>
+              {`Changed ${contentNoun} content`}
+              <textarea
+                value={
+                  (selectedChangedDeckSlideTab === 'all'
+                    ? changedDocumentMarkdown
+                    : changedDeckSections.find((section) => section.slideNumber === selectedChangedDeckSlideTab)?.content) ||
+                  changedDocumentMarkdown
+                }
+                onChange={(event) => {
+                  if (selectedChangedDeckSlideTab === 'all') {
+                    setChangedDocumentMarkdown(event.target.value)
+                  }
+                }}
+                readOnly={selectedChangedDeckSlideTab !== 'all'}
+                rows={REVIEW_TEXTAREA_ROWS}
+              />
+            </label>
+          </>
+        ) : (
+          <label>
+            {`Changed ${contentNoun} content`}
+            <textarea
+              value={changedDocumentMarkdown}
+              onChange={(event) => setChangedDocumentMarkdown(event.target.value)}
+              rows={REVIEW_TEXTAREA_ROWS}
+            />
+          </label>
+        )}
       </section>
     </PageShell>
   )
