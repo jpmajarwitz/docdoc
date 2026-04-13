@@ -1486,6 +1486,11 @@ async function buildPrimaryPromptPreviewText() {
     setError('')
   }
 
+  function removeChangeItem(changeId) {
+    setChangeItems((items) => items.filter((item) => item.id !== changeId))
+    setError('')
+  }
+
   function resetToDefinitionMode() {
     setCurrentMode(MODES.DOC_DEFINE)
     setDocFile(null)
@@ -2770,6 +2775,13 @@ async function buildPrimaryPromptPreviewText() {
                         onChange={(event) => updateChangeItemInstruction(item.id, event.target.value)}
                         rows={3}
                       />
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => removeChangeItem(item.id)}
+                      >
+                        Remove
+                      </button>
                     </article>
                   ))
                 ) : (
