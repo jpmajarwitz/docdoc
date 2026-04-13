@@ -536,6 +536,14 @@ h1 {
   margin-bottom: 0.55rem;
 }
 
+.slide-tabs-scrollable {
+  max-height: 9.25rem;
+  overflow-y: auto;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  padding-right: 0.2rem;
+}
+
 .settings-tab {
   appearance: none;
   cursor: pointer;

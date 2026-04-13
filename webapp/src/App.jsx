@@ -2649,7 +2649,11 @@ async function buildPrimaryPromptPreviewText() {
           <div className="field-group critique-panel">
             {isDeckMateWorkflow && deckCritiqueSections.length ? (
               <>
-                <div className="settings-tabs" role="tablist" aria-label="Critique slide tabs">
+                <div
+                  className={deckCritiqueSections.length > 10 ? 'settings-tabs slide-tabs-scrollable' : 'settings-tabs'}
+                  role="tablist"
+                  aria-label="Critique slide tabs"
+                >
                   {deckCritiqueSections.map((section) => (
                     <button
                       key={section.slideNumber}
@@ -2838,7 +2842,11 @@ async function buildPrimaryPromptPreviewText() {
       <section className="card field-group tall-document-panel">
         {isDeckMateWorkflow ? (
           <>
-            <div className="settings-tabs" role="tablist" aria-label="Changed content slide tabs">
+            <div
+              className={changedDeckSections.length > 10 ? 'settings-tabs slide-tabs-scrollable' : 'settings-tabs'}
+              role="tablist"
+              aria-label="Changed content slide tabs"
+            >
               {changedDeckSections.map((section) => (
                 <button
                   key={section.slideNumber}
