@@ -85,6 +85,23 @@ function formatChangeItems(changeItems) {
   return changeItems.map((item) => `- ${item.id}: ${item.instruction}`).join('\n')
 }
 
+function extractDeckSlidesFromChangeItems(changeItems) {
+  const slides = new Set()
+  const slidePattern = /\bslide[-\s]*(\d+)\b/gi
+  changeItems.forEach((item) => {
+    const combined = `${item?.id || ''} ${item?.instruction || ''}`
+    let match = slidePattern.exec(combined)
+    while (match) {
+      const slideNumber = Number.parseInt(match[1], 10)
+      if (Number.isFinite(slideNumber)) {
+        slides.add(slideNumber)
+      }
+      match = slidePattern.exec(combined)
+    }
+  })
+  return [...slides].sort((left, right) => left - right)
+}
+
 function clampPositiveInteger(value, fallback) {
   const parsed = Number.parseInt(`${value ?? ''}`, 10)
   if (Number.isNaN(parsed) || parsed < 1) {
@@ -1013,11 +1030,25 @@ async function buildPrimaryPromptPreviewText() {
   }
 
   function buildApplyChangeItemsRequest() {
+    const selectedChangeSlides = isDeckMateWorkflow ? extractDeckSlidesFromChangeItems(changeItems) : []
+    const critiqueSectionsBySlide = parseDeckCritiqueSections(critiqueMarkdown)
+    const critiqueTextForApply =
+      isDeckMateWorkflow && selectedChangeSlides.length && critiqueSectionsBySlide.length
+        ? critiqueSectionsBySlide
+            .filter((section) => selectedChangeSlides.includes(section.slideNumber))
+            .map((section) => section.content)
+            .join('\n\n')
+        : critiqueMarkdown
+
     return buildLlmRequest([
       {
         type: 'input_text',
         text: `Main Instruction: Apply all requested change items directly to the original ${contentNoun} and return the changed ${contentNoun} in markdown.${
           applyChangeItemsGuidance ? ` ${applyChangeItemsGuidance}` : ''
+        }${
+          isDeckMateWorkflow && selectedChangeSlides.length
+            ? ` Deck Mate scope: update only these slides: ${selectedChangeSlides.join(', ')}.`
+            : ''
         } Anti-Guidance: ${buildAntiGuidancePrompt()}`
       },
       {
@@ -1026,7 +1057,7 @@ async function buildPrimaryPromptPreviewText() {
       },
       {
         type: 'input_text',
-        text: `Original critique:\n${critiqueMarkdown}`
+        text: `Original critique:\n${critiqueTextForApply}`
       },
       {
         type: 'input_text',
@@ -2772,20 +2803,22 @@ async function buildPrimaryPromptPreviewText() {
                 {changeItems.length ? (
                   changeItems.map((item) => (
                     <article key={item.id} className="change-item-card">
-                      <h4>{item.id}</h4>
-                      <textarea
-                        className="compact-textarea"
+                      <div className="change-item-header">
+                        <h4>{item.id}</h4>
+                        <button
+                          type="button"
+                          className="change-item-remove-link"
+                          onClick={() => removeChangeItem(item.id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        className="change-item-instruction-input"
                         value={item.instruction}
                         onChange={(event) => updateChangeItemInstruction(item.id, event.target.value)}
-                        rows={3}
                       />
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => removeChangeItem(item.id)}
-                      >
-                        Remove
-                      </button>
                     </article>
                   ))
                 ) : (

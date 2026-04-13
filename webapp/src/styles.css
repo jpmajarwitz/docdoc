@@ -798,9 +798,32 @@ button:disabled {
   padding: 0.9rem 1rem;
 }
 
+.change-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
 .change-item-card h4 {
-  margin-bottom: 0.35rem;
+  margin: 0 0 0.35rem 0;
   color: #6b21a8;
+}
+
+.change-item-remove-link {
+  border: none;
+  background: transparent;
+  color: #6b21a8;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.change-item-instruction-input {
+  width: 100%;
 }
 
 code {
