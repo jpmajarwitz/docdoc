@@ -189,7 +189,7 @@ function parseDeckMarkdownSections(markdown) {
   let currentSection = null
 
   lines.forEach((line) => {
-    const slideMatch = line.match(/^\s{0,3}(?:[-*]\s*)?(?:#{1,6}\s*)?slide[-\s]*(\d+)\b[:\-]?\s*(.*)$/i)
+    const slideMatch = line.match(/^\s{0,3}(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?\s*slide[-\s]*(\d+)\b(?:\s*\*\*)?[:\-]?\s*(.*)$/i)
     if (slideMatch) {
       if (currentSection) {
         sections.push(currentSection)
@@ -2824,7 +2824,7 @@ async function buildPrimaryPromptPreviewText() {
       {renderRequestLogPanel()}
 
       <section className="card field-group tall-document-panel">
-        {isDeckMateWorkflow && changedDeckSections.length ? (
+        {isDeckMateWorkflow ? (
           <>
             <div className="settings-tabs" role="tablist" aria-label="Changed content slide tabs">
               {changedDeckSections.map((section) => (
