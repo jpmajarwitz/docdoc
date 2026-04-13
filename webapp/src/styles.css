@@ -393,6 +393,10 @@ h1 {
   margin-left: 0.1rem;
 }
 
+.disabled-label {
+  color: #8d86a1;
+}
+
 .output-file-field {
   display: grid;
   gap: 0.35rem;

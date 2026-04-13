@@ -1154,8 +1154,8 @@ async function buildPrimaryPromptPreviewText() {
                 throw new Error('Enter Slides To Review before invoking critique.')
               }
 
-              const isChunkedPrimaryCritique = isDeckMateWorkflow && chunkingEnabled && selectedSlides.length > 1
-              if (!isChunkedPrimaryCritique) {
+              const shouldUseSlideSubsetChunks = isDeckMateWorkflow && chunkingEnabled && selectedSlides.length > 0
+              if (!shouldUseSlideSubsetChunks) {
                 return runSinglePrimaryRequest(buildPrimaryCritiqueRequest())
               }
 
@@ -2171,9 +2171,15 @@ async function buildPrimaryPromptPreviewText() {
               {isDeckMateWorkflow ? (
                 <div className="deck-file-grid">
                   <span className="panel-label deck-grid-label">Select presentation</span>
-                  <span className="panel-label deck-grid-label">Total Slides</span>
-                  <span className="panel-label deck-grid-label">Slides To Review</span>
-                  <span className="panel-label deck-grid-label">Critique Output File</span>
+                  <span className={`panel-label deck-grid-label${isCalculatingSlides || deckTotalSlidesInput < 1 ? ' disabled-label' : ''}`}>
+                    Total Slides
+                  </span>
+                  <span className={`panel-label deck-grid-label${isCalculatingSlides || deckTotalSlidesInput < 1 ? ' disabled-label' : ''}`}>
+                    Slides To Review
+                  </span>
+                  <span className={`panel-label deck-grid-label${isCalculatingSlides || deckTotalSlidesInput < 1 ? ' disabled-label' : ''}`}>
+                    Critique Output File
+                  </span>
                   <div className="deck-file-cell">
                     <input
                       id="deck_primary_document"
