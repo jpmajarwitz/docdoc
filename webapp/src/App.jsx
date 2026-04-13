@@ -551,6 +551,9 @@ export default function App({ appShell = 'ai' }) {
   const [selectedDeckSlideTab, setSelectedDeckSlideTab] = useState('all')
   const [selectedChangedDeckSlideTab, setSelectedChangedDeckSlideTab] = useState('all')
   const [selectedDeckIssueOptions, setSelectedDeckIssueOptions] = useState([])
+  const [deckAdaptiveChunkSize, setDeckAdaptiveChunkSize] = useState(null)
+  const [deckChunkLastReduction, setDeckChunkLastReduction] = useState(0)
+  const [deckChunkSuccessStreak, setDeckChunkSuccessStreak] = useState(0)
 
   const deckCritiqueSections = useMemo(
     () => (isDeckMateWorkflow ? parseDeckCritiqueSections(critiqueMarkdown) : []),
@@ -1005,8 +1008,11 @@ async function buildPrimaryPromptPreviewText() {
     return buildLlmRequest(messages)
   }
 
-  function buildPrimaryChunkedRequests(selectedSlides) {
-    const normalizedChunkSize = clampPositiveInteger(chunkSize, APP_SETTINGS.chunkSizeDefault ?? 6)
+  function buildPrimaryChunkedRequests(selectedSlides, explicitChunkSize = null) {
+    const normalizedChunkSize = clampPositiveInteger(
+      explicitChunkSize ?? chunkSize,
+      APP_SETTINGS.chunkSizeDefault ?? 6
+    )
     const chunks = []
     for (let start = 0; start < selectedSlides.length; start += normalizedChunkSize) {
       const chunkSlides = selectedSlides.slice(start, start + normalizedChunkSize)
@@ -1273,90 +1279,148 @@ async function buildPrimaryPromptPreviewText() {
                 return runSinglePrimaryRequest(buildPrimaryCritiqueRequest())
               }
 
-              const chunkedRequests = buildPrimaryChunkedRequests(selectedSlides)
-              const normalizedChunkSize = clampPositiveInteger(chunkSize, APP_SETTINGS.chunkSizeDefault ?? 6)
-              const calculatedParallel = Math.max(1, Math.ceil(selectedSlides.length / normalizedChunkSize))
-              const maxParallel = Math.min(
-                calculatedParallel,
-                clampPositiveInteger(chunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
-                chunkedRequests.length
-              )
-              appendRequestLog('Chunking plan calculated for primary critique.', {
-                totalSlidesForDisplay: totalSlides,
-                selectedSlidesCount: selectedSlides.length,
-                chunkSize: normalizedChunkSize,
-                chunkCount: chunkedRequests.length,
-                calculatedParallel,
-                chunkConcurrencyCap: clampPositiveInteger(chunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
-                maxParallel
-              }, { submissionId })
-              const completedResults = []
-              const failedResults = []
-              let nextChunkIndex = 0
-              let completedCount = 0
+              const configuredChunkSize = clampPositiveInteger(chunkSize, APP_SETTINGS.chunkSizeDefault ?? 6)
+              let activeChunkSize =
+                isDeckMateWorkflow && deckAdaptiveChunkSize
+                  ? clampPositiveInteger(deckAdaptiveChunkSize, configuredChunkSize)
+                  : configuredChunkSize
+              let reductionAmountUsed = deckChunkLastReduction
+              let attemptsRemaining = isDeckMateWorkflow ? 3 : 1
 
-              const worker = async () => {
-                while (nextChunkIndex < chunkedRequests.length) {
-                  const assignedIndex = nextChunkIndex
-                  nextChunkIndex += 1
-                  const assignedChunk = chunkedRequests[assignedIndex]
-                  setStatus(
-                    `Invoking ${operationLabels[operation]} chunk ${assignedIndex + 1} of ${chunkedRequests.length} (${assignedChunk.chunk.summary})...`
-                  )
-                  appendRequestLog('Invoking chunk request.', {
-                    chunkIndex: assignedIndex + 1,
-                    chunkCount: chunkedRequests.length,
-                    slideSummary: assignedChunk.chunk.summary
-                  }, { submissionId })
-                  try {
-                    const chunkResult = await runSinglePrimaryRequest(assignedChunk.requestPayload, {
+              while (attemptsRemaining > 0) {
+                const chunkedRequests = buildPrimaryChunkedRequests(selectedSlides, activeChunkSize)
+                const calculatedParallel = Math.max(1, Math.ceil(selectedSlides.length / activeChunkSize))
+                const maxParallel = Math.min(
+                  calculatedParallel,
+                  clampPositiveInteger(chunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
+                  chunkedRequests.length
+                )
+                appendRequestLog('Chunking plan calculated for primary critique.', {
+                  totalSlidesForDisplay: totalSlides,
+                  selectedSlidesCount: selectedSlides.length,
+                  chunkSize: activeChunkSize,
+                  chunkCount: chunkedRequests.length,
+                  calculatedParallel,
+                  chunkConcurrencyCap: clampPositiveInteger(chunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
+                  maxParallel
+                }, { submissionId })
+                const completedResults = []
+                const failedResults = []
+                let nextChunkIndex = 0
+                let completedCount = 0
+
+                const worker = async () => {
+                  while (nextChunkIndex < chunkedRequests.length) {
+                    const assignedIndex = nextChunkIndex
+                    nextChunkIndex += 1
+                    const assignedChunk = chunkedRequests[assignedIndex]
+                    setStatus(
+                      `Invoking ${operationLabels[operation]} chunk ${assignedIndex + 1} of ${chunkedRequests.length} (${assignedChunk.chunk.summary})...`
+                    )
+                    appendRequestLog('Invoking chunk request.', {
                       chunkIndex: assignedIndex + 1,
-                      slideSummary: assignedChunk.chunk.summary
-                    })
-                    completedResults.push({
-                      index: assignedIndex,
-                      chunk: assignedChunk.chunk,
-                      outputText: chunkResult.outputText
-                    })
-                    completedCount += 1
-                    setStatus(`Completed ${completedCount}/${chunkedRequests.length} chunks...`)
-                  } catch (chunkError) {
-                    failedResults.push({
-                      index: assignedIndex,
-                      chunk: assignedChunk.chunk,
-                      error: normalizeRequestError(chunkError)
-                    })
+                      chunkCount: chunkedRequests.length,
+                      slideSummary: assignedChunk.chunk.summary,
+                      chunkSize: activeChunkSize
+                    }, { submissionId })
+                    try {
+                      const chunkResult = await runSinglePrimaryRequest(assignedChunk.requestPayload, {
+                        chunkIndex: assignedIndex + 1,
+                        slideSummary: assignedChunk.chunk.summary,
+                        chunkSize: activeChunkSize
+                      })
+                      completedResults.push({
+                        index: assignedIndex,
+                        chunk: assignedChunk.chunk,
+                        outputText: chunkResult.outputText
+                      })
+                      completedCount += 1
+                      setStatus(`Completed ${completedCount}/${chunkedRequests.length} chunks...`)
+                    } catch (chunkError) {
+                      failedResults.push({
+                        index: assignedIndex,
+                        chunk: assignedChunk.chunk,
+                        error: normalizeRequestError(chunkError)
+                      })
+                    }
                   }
                 }
+
+                await Promise.all(Array.from({ length: maxParallel }, () => worker()))
+                appendRequestLog('Chunking run completed.', {
+                  successCount: completedResults.length,
+                  failedCount: failedResults.length,
+                  chunkSize: activeChunkSize,
+                  failedChunks: failedResults.map((item) => ({
+                    chunkIndex: item.index + 1,
+                    slideSummary: item.chunk.summary,
+                    error: item.error
+                  }))
+                }, { submissionId })
+
+                if (!failedResults.length) {
+                  if (isDeckMateWorkflow) {
+                    if (activeChunkSize < configuredChunkSize) {
+                      const previousAdaptive = clampPositiveInteger(deckAdaptiveChunkSize, configuredChunkSize)
+                      const nextStreak = activeChunkSize === previousAdaptive ? deckChunkSuccessStreak + 1 : 1
+                      if (nextStreak >= 2 && reductionAmountUsed > 0) {
+                        const recoveredChunkSize = Math.min(configuredChunkSize, activeChunkSize + reductionAmountUsed)
+                        setDeckAdaptiveChunkSize(recoveredChunkSize >= configuredChunkSize ? null : recoveredChunkSize)
+                        setDeckChunkSuccessStreak(0)
+                        setDeckChunkLastReduction(
+                          recoveredChunkSize >= configuredChunkSize ? 0 : Math.max(1, configuredChunkSize - recoveredChunkSize)
+                        )
+                        appendRequestLog('Recovered Deck Mate chunk size after consecutive successful calls.', {
+                          priorChunkSize: activeChunkSize,
+                          recoveredChunkSize
+                        }, { submissionId })
+                      } else {
+                        setDeckAdaptiveChunkSize(activeChunkSize)
+                        setDeckChunkSuccessStreak(nextStreak)
+                        if (reductionAmountUsed > 0) {
+                          setDeckChunkLastReduction(reductionAmountUsed)
+                        }
+                      }
+                    } else {
+                      setDeckAdaptiveChunkSize(null)
+                      setDeckChunkSuccessStreak(0)
+                      setDeckChunkLastReduction(0)
+                    }
+                  }
+
+                  const orderedOutput = completedResults
+                    .sort((left, right) => left.index - right.index)
+                    .map(
+                      (item) =>
+                        `### ${item.chunk.summary}\n\n${item.outputText || '_No critique returned for this chunk._'}`
+                    )
+                    .join('\n\n')
+
+                  return { outputText: orderedOutput, chunked: true }
+                }
+
+                attemptsRemaining -= 1
+                if (attemptsRemaining < 1 || !isDeckMateWorkflow) {
+                  const failureSummary = failedResults
+                    .map((item) => `chunk ${item.index + 1} (${item.chunk.summary})`)
+                    .join(', ')
+                  throw new Error(`Chunked critique failed for ${failedResults.length}/${chunkedRequests.length} chunks: ${failureSummary}`)
+                }
+
+                const reducedChunkSize = Math.max(1, Math.min(activeChunkSize - 1, Math.floor(activeChunkSize * 0.75)))
+                reductionAmountUsed = Math.max(1, activeChunkSize - reducedChunkSize)
+                setDeckAdaptiveChunkSize(reducedChunkSize)
+                setDeckChunkLastReduction(reductionAmountUsed)
+                setDeckChunkSuccessStreak(0)
+                appendRequestLog('Deck Mate chunk retry triggered after critique failure. Reducing chunk size by 25%.', {
+                  previousChunkSize: activeChunkSize,
+                  nextChunkSize: reducedChunkSize,
+                  attemptsRemaining
+                }, { submissionId })
+                activeChunkSize = reducedChunkSize
               }
 
-              await Promise.all(Array.from({ length: maxParallel }, () => worker()))
-              appendRequestLog('Chunking run completed.', {
-                successCount: completedResults.length,
-                failedCount: failedResults.length,
-                failedChunks: failedResults.map((item) => ({
-                  chunkIndex: item.index + 1,
-                  slideSummary: item.chunk.summary,
-                  error: item.error
-                }))
-              }, { submissionId })
-
-              if (failedResults.length) {
-                const failureSummary = failedResults
-                  .map((item) => `chunk ${item.index + 1} (${item.chunk.summary})`)
-                  .join(', ')
-                throw new Error(`Chunked critique failed for ${failedResults.length}/${chunkedRequests.length} chunks: ${failureSummary}`)
-              }
-
-              const orderedOutput = completedResults
-                .sort((left, right) => left.index - right.index)
-                .map(
-                  (item) =>
-                    `### ${item.chunk.summary}\n\n${item.outputText || '_No critique returned for this chunk._'}`
-                )
-                .join('\n\n')
-
-              return { outputText: orderedOutput, chunked: true }
+              throw new Error('Chunked critique failed after retry attempts.')
             })()
           : operation === OPERATIONS.APPLY_CHANGE_ITEMS
             ? await (async () => {
