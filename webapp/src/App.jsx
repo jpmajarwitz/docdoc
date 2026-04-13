@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import logo from './assets/docdoc-logo.svg'
 import deckMateLogo from './assets/deck-mate-logo.svg'
 import doc2DeckLogo from './assets/doc2deck-logo.svg'
@@ -181,6 +181,60 @@ function summarizeSlideGroup(slides) {
   }
 
   return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
+}
+
+function parseDeckCritiqueSections(markdown) {
+  const lines = `${markdown || ''}`.split('\n')
+  const sections = []
+  let currentSection = null
+
+  lines.forEach((line) => {
+    const slideMatch = line.match(/^\s{0,3}(?:#{1,6}\s*)?slide[-\s]*(\d+)\b[:\-]?\s*(.*)$/i)
+    if (slideMatch) {
+      if (currentSection) {
+        sections.push(currentSection)
+      }
+      currentSection = {
+        slideNumber: Number.parseInt(slideMatch[1], 10),
+        title: line.trim(),
+        lines: [line]
+      }
+      return
+    }
+
+    if (currentSection) {
+      currentSection.lines.push(line)
+    }
+  })
+
+  if (currentSection) {
+    sections.push(currentSection)
+  }
+
+  return sections.map((section) => {
+    const content = section.lines.join('\n').trim()
+    const issueSet = new Set()
+    const issuePattern = /\bissue[-\s]*(\d+)\b/gi
+    let issueMatch = issuePattern.exec(content)
+    while (issueMatch) {
+      issueSet.add(Number.parseInt(issueMatch[1], 10))
+      issueMatch = issuePattern.exec(content)
+    }
+    const issues = [...issueSet]
+      .filter((value) => Number.isFinite(value))
+      .sort((left, right) => left - right)
+      .map((issueNumber) => ({
+        issueNumber,
+        optionValue: `slide-${section.slideNumber}/issue-${issueNumber}`,
+        optionLabel: `Slide ${section.slideNumber} / Issue ${issueNumber}`
+      }))
+
+    return {
+      ...section,
+      content,
+      issues
+    }
+  })
 }
 
 function PageShell({
@@ -470,6 +524,17 @@ export default function App({ appShell = 'ai' }) {
   const [changeItemDraft, setChangeItemDraft] = useState(emptyChangeDraft())
   const [requestLogLines, setRequestLogLines] = useState([])
   const [lastCritiqueWaitMs, setLastCritiqueWaitMs] = useState(null)
+  const [selectedDeckSlideTab, setSelectedDeckSlideTab] = useState(null)
+  const [selectedDeckIssueOptions, setSelectedDeckIssueOptions] = useState([])
+
+  const deckCritiqueSections = useMemo(
+    () => (isDeckMateWorkflow ? parseDeckCritiqueSections(critiqueMarkdown) : []),
+    [isDeckMateWorkflow, critiqueMarkdown]
+  )
+  const deckIssueOptions = useMemo(
+    () => deckCritiqueSections.flatMap((section) => section.issues),
+    [deckCritiqueSections]
+  )
 
   function appendRequestLog(message, details = null, options = {}) {
     if (!logPanelEnabled) {
@@ -1370,6 +1435,34 @@ async function buildPrimaryPromptPreviewText() {
     setError('')
   }
 
+  function addDeckIssueSelectionsAsChangeItems() {
+    if (!selectedDeckIssueOptions.length) {
+      setError('Select at least one Slide / Issue combination first.')
+      return
+    }
+
+    const optionMap = Object.fromEntries(
+      deckIssueOptions.map((item) => [item.optionValue, item])
+    )
+    const itemsToAdd = selectedDeckIssueOptions
+      .map((optionValue) => optionMap[optionValue])
+      .filter(Boolean)
+      .filter((item) => !changeItems.some((existing) => existing.id === item.optionValue))
+      .map((item) => ({
+        id: item.optionValue,
+        instruction: `Apply updates for Slide ${item.optionValue.split('/')[0].replace('slide-', '')}, Issue ${item.issueNumber}.`
+      }))
+
+    if (!itemsToAdd.length) {
+      setError('All selected Slide / Issue combinations are already present.')
+      return
+    }
+
+    setChangeItems((items) => [...items, ...itemsToAdd])
+    setSelectedDeckIssueOptions([])
+    setError('')
+  }
+
   function resetToDefinitionMode() {
     setCurrentMode(MODES.DOC_DEFINE)
     setDocFile(null)
@@ -1535,6 +1628,17 @@ async function buildPrimaryPromptPreviewText() {
     deckAntiGuidance,
     deckApplyChangeItemsGuidance
   ])
+
+  useEffect(() => {
+    if (!isDeckMateWorkflow || !deckCritiqueSections.length) {
+      setSelectedDeckSlideTab(null)
+      return
+    }
+    const hasCurrent = deckCritiqueSections.some((section) => section.slideNumber === selectedDeckSlideTab)
+    if (!hasCurrent) {
+      setSelectedDeckSlideTab(deckCritiqueSections[0].slideNumber)
+    }
+  }, [isDeckMateWorkflow, deckCritiqueSections, selectedDeckSlideTab])
 
   useEffect(() => {
     function handlePointerDown(event) {
@@ -2497,15 +2601,44 @@ async function buildPrimaryPromptPreviewText() {
 
         <section className="card review-grid critique-review-layout">
           <div className="field-group critique-panel">
-            <label className="panel-field">
-              <span className="panel-label">Critique Content</span>
-              <textarea
-                className="critique-editor"
-                value={critiqueMarkdown}
-                onChange={(event) => setCritiqueMarkdown(event.target.value)}
-                rows={REVIEW_TEXTAREA_ROWS}
-              />
-            </label>
+            {isDeckMateWorkflow && deckCritiqueSections.length ? (
+              <>
+                <div className="settings-tabs" role="tablist" aria-label="Critique slide tabs">
+                  {deckCritiqueSections.map((section) => (
+                    <button
+                      key={section.slideNumber}
+                      type="button"
+                      className={selectedDeckSlideTab === section.slideNumber ? 'settings-tab active' : 'settings-tab'}
+                      onClick={() => setSelectedDeckSlideTab(section.slideNumber)}
+                    >
+                      {`Slide ${section.slideNumber}`}
+                    </button>
+                  ))}
+                </div>
+                <label className="panel-field">
+                  <span className="panel-label">Critique Content</span>
+                  <textarea
+                    className="critique-editor"
+                    value={
+                      deckCritiqueSections.find((section) => section.slideNumber === selectedDeckSlideTab)?.content ||
+                      critiqueMarkdown
+                    }
+                    readOnly
+                    rows={REVIEW_TEXTAREA_ROWS}
+                  />
+                </label>
+              </>
+            ) : (
+              <label className="panel-field">
+                <span className="panel-label">Critique Content</span>
+                <textarea
+                  className="critique-editor"
+                  value={critiqueMarkdown}
+                  onChange={(event) => setCritiqueMarkdown(event.target.value)}
+                  rows={REVIEW_TEXTAREA_ROWS}
+                />
+              </label>
+            )}
           </div>
 
           <aside className="side-panel change-composer">
@@ -2515,31 +2648,60 @@ async function buildPrimaryPromptPreviewText() {
             </div>
 
             <div className="change-composer-card">
-              <label>
-                Change ID
-                <input
-                  type="text"
-                  value={changeItemDraft.id}
-                  onChange={(event) =>
-                    setChangeItemDraft((draft) => ({ ...draft, id: event.target.value }))
-                  }
-                  placeholder="major-1"
-                />
-              </label>
-              <label>
-                Change Instruction
-                <textarea
-                  className="compact-textarea"
-                  value={changeItemDraft.instruction}
-                  onChange={(event) =>
-                    setChangeItemDraft((draft) => ({ ...draft, instruction: event.target.value }))
-                  }
-                  rows={3}
-                />
-              </label>
-              <button type="button" onClick={addChangeItem}>
-                Create Change Item
-              </button>
+              {isDeckMateWorkflow ? (
+                <>
+                  <label>
+                    Slide / Issue selections
+                    <select
+                      multiple
+                      value={selectedDeckIssueOptions}
+                      onChange={(event) =>
+                        setSelectedDeckIssueOptions(
+                          [...event.target.selectedOptions].map((option) => option.value)
+                        )
+                      }
+                      size={10}
+                    >
+                      {deckIssueOptions.map((option) => (
+                        <option key={option.optionValue} value={option.optionValue}>
+                          {option.optionLabel}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="button" onClick={addDeckIssueSelectionsAsChangeItems}>
+                    Add Selected Issues as Change Items
+                  </button>
+                </>
+              ) : (
+                <>
+                  <label>
+                    Change ID
+                    <input
+                      type="text"
+                      value={changeItemDraft.id}
+                      onChange={(event) =>
+                        setChangeItemDraft((draft) => ({ ...draft, id: event.target.value }))
+                      }
+                      placeholder="major-1"
+                    />
+                  </label>
+                  <label>
+                    Change Instruction
+                    <textarea
+                      className="compact-textarea"
+                      value={changeItemDraft.instruction}
+                      onChange={(event) =>
+                        setChangeItemDraft((draft) => ({ ...draft, instruction: event.target.value }))
+                      }
+                      rows={3}
+                    />
+                  </label>
+                  <button type="button" onClick={addChangeItem}>
+                    Create Change Item
+                  </button>
+                </>
+              )}
             </div>
 
             <div className="change-item-list-card">
