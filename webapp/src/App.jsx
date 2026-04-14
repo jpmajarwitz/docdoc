@@ -524,6 +524,7 @@ export default function App({ appShell = 'ai' }) {
   const [deckTotalSlidesInput, setDeckTotalSlidesInput] = useState(0)
   const [slidesToReviewInput, setSlidesToReviewInput] = useState('')
   const [isCalculatingSlides, setIsCalculatingSlides] = useState(false)
+  const [deckCachedPrimaryFileId, setDeckCachedPrimaryFileId] = useState('')
   const [showPromptPanel, setShowPromptPanel] = useState(false)
   const [promptPreviewText, setPromptPreviewText] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -531,6 +532,7 @@ export default function App({ appShell = 'ai' }) {
   const settingsDropdownRef = useRef(null)
   const profileSaveTimerRef = useRef(null)
   const activeSubmissionIdRef = useRef(null)
+  const deckFileExpiryTimerRef = useRef(null)
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [docTopic, setDocTopic] = useState(APP_SETTINGS.defaults.topic)
   const [docObjective, setDocObjective] = useState(APP_SETTINGS.defaults.reviewObjective)
@@ -594,6 +596,51 @@ export default function App({ appShell = 'ai' }) {
     () => (isDeckMateWorkflow ? parseDeckMarkdownSections(changedDocumentMarkdown) : []),
     [isDeckMateWorkflow, changedDocumentMarkdown]
   )
+
+  function extractFirstDeleteLogFileId(response) {
+    const firstId = response?.deleteLogs?.fileIds?.[0]
+    return typeof firstId === 'string' && firstId.startsWith('file-') ? firstId : ''
+  }
+
+  function clearDeckFileExpiryTimer() {
+    if (deckFileExpiryTimerRef.current) {
+      window.clearTimeout(deckFileExpiryTimerRef.current)
+      deckFileExpiryTimerRef.current = null
+    }
+  }
+
+  function scheduleDeckFileExpiryCleanup() {
+    clearDeckFileExpiryTimer()
+    deckFileExpiryTimerRef.current = window.setTimeout(() => {
+      cleanupDeckCachedPrimaryFile('Deck file cache expired after 10 minutes.')
+    }, 10 * 60 * 1000)
+  }
+
+  async function cleanupDeckCachedPrimaryFile(reason = 'Deck file cleanup requested.') {
+    clearDeckFileExpiryTimer()
+    if (!deckCachedPrimaryFileId) {
+      return
+    }
+
+    const cachedId = deckCachedPrimaryFileId
+    setDeckCachedPrimaryFileId('')
+    try {
+      appendRequestLog('Deleting cached Deck Mate file id.', { reason, fileId: cachedId })
+      await postMultipart(API_ENDPOINTS[OPERATIONS.CRITIQUE_PRIMARY], {
+        apiMode: 'responses',
+        model: 'gpt-5.4-nano',
+        store: false,
+        deleteFileOnLlm: true,
+        systemPrompt: 'You are a highly skilled assistant to an experienced professional in the field indicated.',
+        messages: [
+          { type: 'input_text', text: 'Acknowledge file deletion request.' },
+          { type: 'input_file', source: cachedId }
+        ]
+      }, {})
+    } catch (cleanupError) {
+      appendRequestLog('Cached Deck Mate file deletion failed.', { reason, error: normalizeRequestError(cleanupError), fileId: cachedId })
+    }
+  }
 
   function appendRequestLog(message, details = null, options = {}) {
     if (!logPanelEnabled) {
@@ -849,6 +896,9 @@ export default function App({ appShell = 'ai' }) {
     } catch (logoutError) {
       setError(normalizeRequestError(logoutError))
     } finally {
+      if (deckCachedPrimaryFileId) {
+        await cleanupDeckCachedPrimaryFile('User logout; cleaning cached Deck file.')
+      }
       setAuthUser(null)
       setProfileLoaded(false)
       resetAuthInputs()
@@ -1122,7 +1172,7 @@ async function buildPrimaryPromptPreviewText() {
       apiMode: 'responses',
       model: 'gpt-5.4-nano',
       store: false,
-      deleteFileOnLlm,
+      deleteFileOnLlm: false,
       systemPrompt:
         'You return only the numeric answer requested by the user. Do not include labels, prose, punctuation, or extra text.',
       messages: [
@@ -1143,8 +1193,14 @@ async function buildPrimaryPromptPreviewText() {
     const response = await postMultipart(API_ENDPOINTS[OPERATIONS.CRITIQUE_PRIMARY], requestPayload, {
       primary_document: file
     })
+    const detectedFileId = extractFirstDeleteLogFileId(response)
+    if (detectedFileId) {
+      setDeckCachedPrimaryFileId(detectedFileId)
+      scheduleDeckFileExpiryCleanup()
+    }
     appendRequestLog('Slide detection response received.', {
-      outputText: response.outputText
+      outputText: response.outputText,
+      retainedFileId: detectedFileId || null
     })
     const detectedSlides = extractFirstInteger(response.outputText)
     if (!detectedSlides || detectedSlides < 1) {
@@ -1157,11 +1213,15 @@ async function buildPrimaryPromptPreviewText() {
     const selectedFile = event.target.files?.[0] || null
     setDocFile(selectedFile)
     if (!selectedFile || !isDeckMateWorkflow) {
+      if (!selectedFile && isDeckMateWorkflow) {
+        await cleanupDeckCachedPrimaryFile('Deck file cleared by user.')
+      }
       setIsCalculatingSlides(false)
       return
     }
 
     try {
+      await cleanupDeckCachedPrimaryFile('Replacing Deck file with newly selected file.')
       setIsCalculatingSlides(true)
       setDeckTotalSlidesInput(0)
       setStatus('calculating number of slides')
@@ -1232,9 +1292,29 @@ async function buildPrimaryPromptPreviewText() {
                 prior_response_document: priorResponseFile
               }
               const runSinglePrimaryRequest = async (requestPayload, chunkContext = null) => {
+                const usingDeckCachedFile = isDeckMateWorkflow && Boolean(deckCachedPrimaryFileId)
+                const requestPayloadWithCachedFile = usingDeckCachedFile
+                  ? {
+                      ...requestPayload,
+                      deleteFileOnLlm: false,
+                      messages: requestPayload.messages.map((message) =>
+                        message.type === 'input_file' && message.source === 'primary_document'
+                          ? { ...message, source: deckCachedPrimaryFileId }
+                          : message
+                      )
+                    }
+                  : requestPayload
                 const requestPayloadBypassed = {
-                  ...requestPayload,
-                  messages: await maybeBypassFileMessages(requestPayload.messages, directFileEntries)
+                  ...requestPayloadWithCachedFile,
+                  messages: await maybeBypassFileMessages(
+                    requestPayloadWithCachedFile.messages,
+                    usingDeckCachedFile
+                      ? {
+                          ...directFileEntries,
+                          primary_document: null
+                        }
+                      : directFileEntries
+                  )
                 }
                 appendRequestLog('Submitting primary critique request to backend.', {
                   endpoint: API_ENDPOINTS[operation],
@@ -1256,7 +1336,14 @@ async function buildPrimaryPromptPreviewText() {
                   const response = await postMultipart(
                     API_ENDPOINTS[operation],
                     requestPayloadBypassed,
-                    bypassFileInput ? {} : directFileEntries
+                    bypassFileInput
+                      ? {}
+                      : usingDeckCachedFile
+                        ? {
+                            ...directFileEntries,
+                            primary_document: null
+                          }
+                        : directFileEntries
                   )
                   appendRequestLog('Primary critique response received.', {
                     chunkContext,
@@ -1279,7 +1366,14 @@ async function buildPrimaryPromptPreviewText() {
                   const retryResponse = await postMultipart(
                     API_ENDPOINTS[operation],
                     requestPayloadBypassed,
-                    bypassFileInput ? {} : directFileEntries
+                    bypassFileInput
+                      ? {}
+                      : usingDeckCachedFile
+                        ? {
+                            ...directFileEntries,
+                            primary_document: null
+                          }
+                        : directFileEntries
                   )
                   appendRequestLog('Primary critique retry response received.', {
                     chunkContext,
@@ -1541,6 +1635,9 @@ async function buildPrimaryPromptPreviewText() {
         }
         if (operation === OPERATIONS.CRITIQUE_PRIMARY) {
           saveMarkdownToFile(outputText, critiqueOutputFileName)
+          if (isDeckMateWorkflow) {
+            await cleanupDeckCachedPrimaryFile('Primary Deck Mate critique completed; deleting cached file.')
+          }
         }
         setStatus(
           operation === OPERATIONS.CRITIQUE_CHANGED
@@ -1551,6 +1648,9 @@ async function buildPrimaryPromptPreviewText() {
 
       setCurrentMode(MODES.RESULT_SAVED)
     } catch (invocationError) {
+      if (operation === OPERATIONS.CRITIQUE_PRIMARY && isDeckMateWorkflow) {
+        await cleanupDeckCachedPrimaryFile('Primary Deck Mate critique failed; deleting cached file.')
+      }
       appendRequestLog('Invocation ended in failure.', { error: normalizeRequestError(invocationError) }, { submissionId })
       setError(`Invocation failed: ${normalizeRequestError(invocationError)}`)
       setStatus('The request did not complete.')
@@ -1629,6 +1729,9 @@ async function buildPrimaryPromptPreviewText() {
   }
 
   function resetToDefinitionMode() {
+    if (isDeckMateWorkflow) {
+      void cleanupDeckCachedPrimaryFile('Reset to definition mode; clearing cached Deck file.')
+    }
     setCurrentMode(MODES.DOC_DEFINE)
     setDocFile(null)
     setSlidesToReviewInput('')
@@ -1643,6 +1746,9 @@ async function buildPrimaryPromptPreviewText() {
         type="button"
         className="header-text-link"
         onClick={() => {
+          if (isDeckMateWorkflow) {
+            void cleanupDeckCachedPrimaryFile('Navigating back to A-Ideation home.')
+          }
           if (isSuiteShell) {
             setActiveView(APP_VIEWS.SUITE_HOME)
             return
@@ -1813,6 +1919,10 @@ async function buildPrimaryPromptPreviewText() {
     const allowedOptionValues = new Set(visibleDeckIssueOptions.map((option) => option.optionValue))
     setSelectedDeckIssueOptions((items) => items.filter((item) => allowedOptionValues.has(item)))
   }, [visibleDeckIssueOptions])
+
+  useEffect(() => () => {
+    clearDeckFileExpiryTimer()
+  }, [])
 
   useEffect(() => {
     if (!isDeckMateWorkflow || !changedDeckSections.length) {

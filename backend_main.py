@@ -84,9 +84,10 @@ async def build_input_content(
     llm_request: LlmRequest,
     file_map: dict[str, UploadFile | None],
     client: OpenAI,
-) -> tuple[list[dict[str, Any]], list[str]]:
+) -> tuple[list[dict[str, Any]], list[str], list[str]]:
     built_messages: list[dict[str, Any]] = []
     uploaded_file_ids: list[str] = []
+    referenced_file_ids: list[str] = []
 
     for message in llm_request.messages:
         message_type = message.get('type')
@@ -99,14 +100,21 @@ async def build_input_content(
 
         source = message.get('source')
         upload = file_map.get(source)
-        if not source or upload is None:
+        if not source:
+            raise HTTPException(status_code=400, detail=f"Missing uploaded file for source '{source}'.")
+
+        if upload is None:
+            if isinstance(source, str) and source.startswith('file-'):
+                referenced_file_ids.append(source)
+                built_messages.append({'type': 'input_file', 'file_id': source})
+                continue
             raise HTTPException(status_code=400, detail=f"Missing uploaded file for source '{source}'.")
 
         file_id = await upload_to_openai(client, upload)
         uploaded_file_ids.append(file_id)
         built_messages.append({'type': 'input_file', 'file_id': file_id})
 
-    return built_messages, uploaded_file_ids
+    return built_messages, uploaded_file_ids, referenced_file_ids
 
 
 async def delete_uploaded_files(client: OpenAI, file_ids: list[str]) -> None:
@@ -119,7 +127,7 @@ async def delete_uploaded_files(client: OpenAI, file_ids: list[str]) -> None:
 
 async def invoke_llm(llm_request: LlmRequest, file_map: dict[str, UploadFile | None]) -> LlmResponse:
     client = get_client()
-    content, uploaded_file_ids = await build_input_content(llm_request, file_map, client)
+    content, uploaded_file_ids, referenced_file_ids = await build_input_content(llm_request, file_map, client)
 
     if llm_request.api_mode == 'chat':
         chat_content: list[dict[str, Any]] = []
@@ -169,19 +177,20 @@ async def invoke_llm(llm_request: LlmRequest, file_map: dict[str, UploadFile | N
             ).strip()
 
     delete_logs: dict[str, Any] | None = None
-    if llm_request.delete_file_on_llm and uploaded_file_ids:
-        asyncio.create_task(delete_uploaded_files(client, uploaded_file_ids))
+    file_ids_to_delete = [*uploaded_file_ids, *referenced_file_ids]
+    if llm_request.delete_file_on_llm and file_ids_to_delete:
+        asyncio.create_task(delete_uploaded_files(client, file_ids_to_delete))
         delete_logs = {
             'deleteRequested': True,
             'scheduled': True,
-            'fileIds': uploaded_file_ids,
+            'fileIds': file_ids_to_delete,
             'note': 'Deletion scheduled in background.'
         }
-    elif uploaded_file_ids:
+    elif file_ids_to_delete:
         delete_logs = {
             'deleteRequested': False,
             'scheduled': False,
-            'fileIds': uploaded_file_ids,
+            'fileIds': file_ids_to_delete,
             'note': 'Deletion disabled by request.'
         }
 
