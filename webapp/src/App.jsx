@@ -1215,6 +1215,9 @@ async function buildPrimaryPromptPreviewText() {
     }, { submissionId })
     setCurrentMode(MODES.INVOKE)
     setLastOperation(operation)
+    if (operation === OPERATIONS.APPLY_CHANGE_ITEMS) {
+      setLastCritiqueWaitMs(null)
+    }
     setStatus(`Invoking ${operationLabels[operation]} via the backend proxy...`)
 
     await new Promise((resolve) => window.setTimeout(resolve, 0))
@@ -1329,47 +1332,43 @@ async function buildPrimaryPromptPreviewText() {
                 }, { submissionId })
                 const completedResults = []
                 const failedResults = []
-                let nextChunkIndex = 0
-                let completedCount = 0
 
-                const worker = async () => {
-                  while (nextChunkIndex < chunkedRequests.length) {
-                    const assignedIndex = nextChunkIndex
-                    nextChunkIndex += 1
-                    const assignedChunk = chunkedRequests[assignedIndex]
-                    setStatus(
-                      `Invoking ${operationLabels[operation]} chunk ${assignedIndex + 1} of ${chunkedRequests.length} (${assignedChunk.chunk.summary})...`
-                    )
-                    appendRequestLog('Invoking chunk request.', {
+                for (let assignedIndex = 0; assignedIndex < chunkedRequests.length; assignedIndex += 1) {
+                  const assignedChunk = chunkedRequests[assignedIndex]
+                  setStatus(
+                    `Invoking ${operationLabels[operation]} chunk ${assignedIndex + 1} of ${chunkedRequests.length} (${assignedChunk.chunk.summary})...`
+                  )
+                  appendRequestLog('Invoking chunk request.', {
+                    chunkIndex: assignedIndex + 1,
+                    chunkCount: chunkedRequests.length,
+                    slideSummary: assignedChunk.chunk.summary,
+                    chunkSize: activeChunkSize
+                  }, { submissionId })
+                  try {
+                    const chunkResult = await runSinglePrimaryRequest(assignedChunk.requestPayload, {
                       chunkIndex: assignedIndex + 1,
-                      chunkCount: chunkedRequests.length,
                       slideSummary: assignedChunk.chunk.summary,
                       chunkSize: activeChunkSize
+                    })
+                    completedResults.push({
+                      index: assignedIndex,
+                      chunk: assignedChunk.chunk,
+                      outputText: chunkResult.outputText
+                    })
+                    setStatus(`Completed ${completedResults.length}/${chunkedRequests.length} chunks...`)
+                  } catch (chunkError) {
+                    failedResults.push({
+                      index: assignedIndex,
+                      chunk: assignedChunk.chunk,
+                      error: normalizeRequestError(chunkError)
+                    })
+                    appendRequestLog('Chunk failure detected; stopping remaining chunks for this attempt.', {
+                      failedChunkIndex: assignedIndex + 1,
+                      failedChunkSummary: assignedChunk.chunk.summary
                     }, { submissionId })
-                    try {
-                      const chunkResult = await runSinglePrimaryRequest(assignedChunk.requestPayload, {
-                        chunkIndex: assignedIndex + 1,
-                        slideSummary: assignedChunk.chunk.summary,
-                        chunkSize: activeChunkSize
-                      })
-                      completedResults.push({
-                        index: assignedIndex,
-                        chunk: assignedChunk.chunk,
-                        outputText: chunkResult.outputText
-                      })
-                      completedCount += 1
-                      setStatus(`Completed ${completedCount}/${chunkedRequests.length} chunks...`)
-                    } catch (chunkError) {
-                      failedResults.push({
-                        index: assignedIndex,
-                        chunk: assignedChunk.chunk,
-                        error: normalizeRequestError(chunkError)
-                      })
-                    }
+                    break
                   }
                 }
-
-                await Promise.all(Array.from({ length: maxParallel }, () => worker()))
                 appendRequestLog('Chunking run completed.', {
                   successCount: completedResults.length,
                   failedCount: failedResults.length,
