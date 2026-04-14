@@ -350,7 +350,19 @@ function php_backend_build_input_content($llmRequest, $fileMap, $apiKey)
         }
 
         $source = isset($message['source']) ? $message['source'] : null;
-        if (!$source || !isset($fileMap[$source])) {
+        if (!$source) {
+            php_backend_error(400, "Missing uploaded file for source '{$source}'.");
+        }
+
+        if (strpos($source, 'file-') === 0) {
+            $builtMessages[] = [
+                'type' => 'input_file',
+                'file_id' => $source,
+            ];
+            continue;
+        }
+
+        if (!isset($fileMap[$source])) {
             php_backend_error(400, "Missing uploaded file for source '{$source}'.");
         }
 
@@ -493,8 +505,15 @@ function php_backend_invoke_llm($llmRequest, $fileMap, $config)
         'deleteRequested' => !empty($llmRequest['deleteFileOnLlm']),
         'scheduled' => false,
         'files' => [],
+        'fileIds' => [],
         'apiMode' => $apiMode,
     ];
+
+    foreach ($content as $item) {
+        if (($item['type'] ?? '') === 'input_file' && !empty($item['file_id'])) {
+            $deleteLogs['fileIds'][] = $item['file_id'];
+        }
+    }
 
     if (!empty($llmRequest['deleteFileOnLlm'])) {
         $deleteLogs['attempted'] = 0;

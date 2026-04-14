@@ -599,7 +599,16 @@ export default function App({ appShell = 'ai' }) {
 
   function extractFirstDeleteLogFileId(response) {
     const firstId = response?.deleteLogs?.fileIds?.[0]
-    return typeof firstId === 'string' && firstId.startsWith('file-') ? firstId : ''
+    if (typeof firstId === 'string' && firstId.startsWith('file-')) {
+      return firstId
+    }
+
+    const firstPhpId = response?.deleteLogs?.files?.[0]?.fileId
+    if (typeof firstPhpId === 'string' && firstPhpId.startsWith('file-')) {
+      return firstPhpId
+    }
+
+    return ''
   }
 
   function clearDeckFileExpiryTimer() {
@@ -1051,7 +1060,7 @@ async function buildPrimaryPromptPreviewText() {
     )
   }
 
-  function buildPrimaryCritiqueRequest() {
+  function buildPrimaryCritiqueRequest(slideScopeSummary = '') {
     const messages = [
       {
         type: 'input_text',
@@ -1059,6 +1068,13 @@ async function buildPrimaryPromptPreviewText() {
       },
       { type: 'input_file', source: 'primary_document' }
     ]
+
+    if (isDeckMateWorkflow && slideScopeSummary) {
+      messages.push({
+        type: 'input_text',
+        text: `Chunk instruction: Process only ${slideScopeSummary}.`
+      })
+    }
 
     if (supportingFile) {
       messages.push({
@@ -1396,7 +1412,9 @@ async function buildPrimaryPromptPreviewText() {
 
               const shouldUseSlideSubsetChunks = isDeckMateWorkflow && chunkingEnabled && selectedSlides.length > 0
               if (!shouldUseSlideSubsetChunks) {
-                return runSinglePrimaryRequest(buildPrimaryCritiqueRequest())
+                const singleSlideScopeSummary =
+                  isDeckMateWorkflow && selectedSlides.length ? summarizeSlideGroup(selectedSlides) : ''
+                return runSinglePrimaryRequest(buildPrimaryCritiqueRequest(singleSlideScopeSummary))
               }
 
               const configuredChunkSize = clampPositiveInteger(chunkSize, APP_SETTINGS.chunkSizeDefault ?? 6)
