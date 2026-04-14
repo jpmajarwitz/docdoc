@@ -1312,10 +1312,12 @@ async function buildPrimaryPromptPreviewText() {
                   : configuredChunkSize
               let reductionAmountUsed = deckChunkLastReduction
               let attemptsRemaining = isDeckMateWorkflow ? 3 : 1
+              let pendingSlides = [...selectedSlides]
+              const accumulatedSuccessfulChunks = []
 
               while (attemptsRemaining > 0) {
-                const chunkedRequests = buildPrimaryChunkedRequests(selectedSlides, activeChunkSize)
-                const calculatedParallel = Math.max(1, Math.ceil(selectedSlides.length / activeChunkSize))
+                const chunkedRequests = buildPrimaryChunkedRequests(pendingSlides, activeChunkSize)
+                const calculatedParallel = Math.max(1, Math.ceil(pendingSlides.length / activeChunkSize))
                 const maxParallel = Math.min(
                   calculatedParallel,
                   clampPositiveInteger(chunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
@@ -1323,7 +1325,7 @@ async function buildPrimaryPromptPreviewText() {
                 )
                 appendRequestLog('Chunking plan calculated for primary critique.', {
                   totalSlidesForDisplay: totalSlides,
-                  selectedSlidesCount: selectedSlides.length,
+                  selectedSlidesCount: pendingSlides.length,
                   chunkSize: activeChunkSize,
                   chunkCount: chunkedRequests.length,
                   calculatedParallel,
@@ -1351,7 +1353,7 @@ async function buildPrimaryPromptPreviewText() {
                       chunkSize: activeChunkSize
                     })
                     completedResults.push({
-                      index: assignedIndex,
+                      index: assignedChunk.chunk.slides[0] ?? assignedIndex,
                       chunk: assignedChunk.chunk,
                       outputText: chunkResult.outputText
                     })
@@ -1411,6 +1413,7 @@ async function buildPrimaryPromptPreviewText() {
                   }
 
                   const orderedOutput = completedResults
+                    .concat(accumulatedSuccessfulChunks)
                     .sort((left, right) => left.index - right.index)
                     .map(
                       (item) =>
@@ -1429,6 +1432,16 @@ async function buildPrimaryPromptPreviewText() {
                   throw new Error(`Chunked critique failed for ${failedResults.length}/${chunkedRequests.length} chunks: ${failureSummary}`)
                 }
 
+                const failedChunk = failedResults[0]?.chunk
+                const failedSlideStart = failedChunk?.slides?.[0]
+                const nextPendingSlidesIndex = Number.isFinite(failedSlideStart)
+                  ? pendingSlides.findIndex((slideNumber) => slideNumber >= failedSlideStart)
+                  : -1
+                if (nextPendingSlidesIndex > 0) {
+                  accumulatedSuccessfulChunks.push(...completedResults)
+                  pendingSlides = pendingSlides.slice(nextPendingSlidesIndex)
+                }
+
                 const reducedChunkSize = Math.max(1, Math.min(activeChunkSize - 1, Math.floor(activeChunkSize * 0.75)))
                 reductionAmountUsed = Math.max(1, activeChunkSize - reducedChunkSize)
                 setDeckAdaptiveChunkSize(reducedChunkSize)
@@ -1437,6 +1450,7 @@ async function buildPrimaryPromptPreviewText() {
                 appendRequestLog('Deck Mate chunk retry triggered after critique failure. Reducing chunk size by 25%.', {
                   previousChunkSize: activeChunkSize,
                   nextChunkSize: reducedChunkSize,
+                  retrySlides: pendingSlides,
                   attemptsRemaining
                 }, { submissionId })
                 activeChunkSize = reducedChunkSize
