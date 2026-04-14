@@ -1139,7 +1139,7 @@ async function buildPrimaryPromptPreviewText() {
             .join('\n\n')
         : critiqueMarkdown
 
-    return buildLlmRequest([
+    const requestPayload = buildLlmRequest([
       {
         type: 'input_text',
         text: `Main Instruction: Apply all requested change items directly to the original ${contentNoun} and return the changed ${contentNoun} in markdown.${
@@ -1164,6 +1164,15 @@ async function buildPrimaryPromptPreviewText() {
       },
       { type: 'input_file', source: 'original_document' }
     ])
+
+    if (isDeckMateWorkflow) {
+      return {
+        ...requestPayload,
+        deleteFileOnLlm: true
+      }
+    }
+
+    return requestPayload
   }
 
   function buildChangedDocCritiqueRequest() {
@@ -1583,7 +1592,13 @@ async function buildPrimaryPromptPreviewText() {
                 appendRequestLog('Submitting apply-change-items request to backend.', {
                   endpoint: API_ENDPOINTS[operation],
                   bypassFileInput,
-                  requestPayload: requestPayloadBypassed
+                  requestPayload: requestPayloadBypassed,
+                  fileEntries: Object.fromEntries(
+                    Object.entries(directFileEntries).map(([key, file]) => [
+                      key,
+                      file ? { name: file.name, size: file.size, type: file.type } : null
+                    ])
+                  )
                 }, { submissionId })
 
                 try {
@@ -1593,7 +1608,9 @@ async function buildPrimaryPromptPreviewText() {
                     bypassFileInput ? {} : directFileEntries
                   )
                   appendRequestLog('Apply-change-items response received.', {
-                    outputTextLength: (response.outputText || '').length
+                    outputTextLength: (response.outputText || '').length,
+                    deleteLogs: response.deleteLogs || null,
+                    endpointTrace: response.__endpointTrace || null
                   }, { submissionId })
                   return response
                 } catch (applyError) {
