@@ -905,21 +905,50 @@ export default function App({ appShell = 'ai' }) {
     } catch (logoutError) {
       setError(normalizeRequestError(logoutError))
     } finally {
-      if (deckCachedPrimaryFileId) {
-        await cleanupDeckCachedPrimaryFile('User logout; cleaning cached Deck file.')
-      }
+      await clearApplicationContext('User logout; clearing application context.')
       setAuthUser(null)
       setProfileLoaded(false)
       resetAuthInputs()
       setActiveView(homeView)
-      setCurrentMode(MODES.DOC_DEFINE)
       setAuthOverlayOpen(false)
       setShowAuthRequiredNotice(false)
     }
   }
 
-  function handleProtectedNavigation(view) {
+  async function clearApplicationContext(reason = 'Clearing application context.') {
+    if (deckCachedPrimaryFileId) {
+      await cleanupDeckCachedPrimaryFile(reason)
+    }
+    setCurrentMode(MODES.DOC_DEFINE)
+    setDocFile(null)
+    setSupportingFile(null)
+    setPriorResponseFile(null)
+    setDeckTotalSlidesInput(0)
+    setSlidesToReviewInput('')
+    setIsCalculatingSlides(false)
+    setShowPromptPanel(false)
+    setPromptPreviewText('')
+    setSettingsOpen(false)
+    setCritiqueMarkdown('')
+    setChangedDocumentMarkdown('')
+    setCritiqueOutputFileName('critique.md')
+    setChangedOutputFileName('changes.md')
+    setStatus(`Ready for ${contentNoun} definition.`)
+    setError('')
+    setLoading(false)
+    setLastOperation(null)
+    setChangeItems([])
+    setChangeItemDraft(emptyChangeDraft())
+    setRequestLogLines([])
+    setLastCritiqueWaitMs(null)
+    setSelectedDeckSlideTab('all')
+    setSelectedChangedDeckSlideTab('all')
+    setSelectedDeckIssueOptions([])
+  }
+
+  async function handleProtectedNavigation(view) {
     if (authUser) {
+      await clearApplicationContext('Switching applications from A-Ideation home.')
       setActiveView(view)
       return
     }
@@ -1780,10 +1809,8 @@ async function buildPrimaryPromptPreviewText() {
       <button
         type="button"
         className="header-text-link"
-        onClick={() => {
-          if (isDeckMateWorkflow) {
-            void cleanupDeckCachedPrimaryFile('Navigating back to A-Ideation home.')
-          }
+        onClick={async () => {
+          await clearApplicationContext('Navigating back to A-Ideation home.')
           if (isSuiteShell) {
             setActiveView(APP_VIEWS.SUITE_HOME)
             return
