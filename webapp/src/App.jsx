@@ -357,9 +357,11 @@ function withAppHeaders(headers = {}) {
 async function fetchWithEndpointFallback(endpoint, init) {
   const candidates = endpointCandidates(endpoint)
   let lastResponse = null
+  const endpointTrace = []
 
   for (const candidate of candidates) {
     const response = await fetch(candidate, init)
+    endpointTrace.push({ endpoint: candidate, status: response.status })
     const isRedirect = [301, 302, 307, 308].includes(response.status)
     const retryableGatewayStatus = [502, 503, 504].includes(response.status)
     const redirectTarget = response.headers.get('location') || ''
@@ -369,13 +371,26 @@ async function fetchWithEndpointFallback(endpoint, init) {
       redirectTarget.startsWith('http://')
 
     if (response.status !== 404 && !retryableGatewayStatus && !(isRedirect && insecureRedirect)) {
+      response.__endpointTrace = endpointTrace
       return response
     }
 
     lastResponse = response
   }
 
+  if (lastResponse) {
+    lastResponse.__endpointTrace = endpointTrace
+  }
   return lastResponse
+}
+
+function summarizeEndpointTrace(endpointTrace = []) {
+  if (!endpointTrace.length) {
+    return ''
+  }
+  return endpointTrace
+    .map((item) => `${item.endpoint} -> ${item.status}`)
+    .join(' | ')
 }
 
 async function readBackendJson(response) {
@@ -413,8 +428,10 @@ async function postMultipart(endpoint, payload, fileEntries = {}) {
   })
 
   const data = await readBackendJson(response)
+  data.__endpointTrace = response.__endpointTrace || []
   if (!response.ok) {
-    throw new Error(data.detail || 'Backend request failed.')
+    const traceSummary = summarizeEndpointTrace(response.__endpointTrace || [])
+    throw new Error(`${data.detail || 'Backend request failed.'}${traceSummary ? ` Endpoint attempts: ${traceSummary}` : ''}`)
   }
 
   return data
@@ -431,8 +448,10 @@ async function postJson(endpoint, payload) {
   })
 
   const data = await readBackendJson(response)
+  data.__endpointTrace = response.__endpointTrace || []
   if (!response.ok) {
-    throw new Error(data.detail || 'Backend request failed.')
+    const traceSummary = summarizeEndpointTrace(response.__endpointTrace || [])
+    throw new Error(`${data.detail || 'Backend request failed.'}${traceSummary ? ` Endpoint attempts: ${traceSummary}` : ''}`)
   }
 
   return data
@@ -446,8 +465,10 @@ async function getJson(endpoint) {
   })
 
   const data = await readBackendJson(response)
+  data.__endpointTrace = response.__endpointTrace || []
   if (!response.ok) {
-    throw new Error(data.detail || 'Backend request failed.')
+    const traceSummary = summarizeEndpointTrace(response.__endpointTrace || [])
+    throw new Error(`${data.detail || 'Backend request failed.'}${traceSummary ? ` Endpoint attempts: ${traceSummary}` : ''}`)
   }
 
   return data
@@ -1237,7 +1258,8 @@ async function buildPrimaryPromptPreviewText() {
                   appendRequestLog('Primary critique response received.', {
                     chunkContext,
                     outputTextLength: (response.outputText || '').length,
-                    deleteLogs: response.deleteLogs || null
+                    deleteLogs: response.deleteLogs || null,
+                    endpointTrace: response.__endpointTrace || null
                   }, { submissionId })
                   return response
                 } catch (primaryError) {
@@ -1259,7 +1281,8 @@ async function buildPrimaryPromptPreviewText() {
                   appendRequestLog('Primary critique retry response received.', {
                     chunkContext,
                     outputTextLength: (retryResponse.outputText || '').length,
-                    deleteLogs: retryResponse.deleteLogs || null
+                    deleteLogs: retryResponse.deleteLogs || null,
+                    endpointTrace: retryResponse.__endpointTrace || null
                   }, { submissionId })
                   return retryResponse
                 }
