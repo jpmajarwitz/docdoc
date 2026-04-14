@@ -208,11 +208,16 @@ function parseDeckMarkdownSections(markdown) {
   lines.forEach((line) => {
     const slideMatch = line.match(/^\s{0,3}(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?\s*slide[-\s]*(\d+)\b(?:\s*\*\*)?[:\-]?\s*(.*)$/i)
     if (slideMatch) {
+      const matchedSlideNumber = Number.parseInt(slideMatch[1], 10)
+      if (currentSection && currentSection.slideNumber === matchedSlideNumber) {
+        currentSection.lines.push(line)
+        return
+      }
       if (currentSection) {
         sections.push(currentSection)
       }
       currentSection = {
-        slideNumber: Number.parseInt(slideMatch[1], 10),
+        slideNumber: matchedSlideNumber,
         title: line.trim(),
         lines: [line]
       }
