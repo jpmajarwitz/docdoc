@@ -2632,8 +2632,6 @@ async function buildPrimaryPromptPreviewText() {
         }
       >
         {renderError()}
-        {!isDeckMateWorkflow ? renderRequestLogPanel() : null}
-
         <section className="card primary-upload-card">
           <div className="primary-upload-inner split">
             <div className="primary-upload-left">
@@ -2845,7 +2843,7 @@ async function buildPrimaryPromptPreviewText() {
             </section>
           </div>
         ) : null}
-        {isDeckMateWorkflow ? renderRequestLogPanel() : null}
+        {renderRequestLogPanel()}
       </PageShell>
     )
   }
@@ -2889,7 +2887,6 @@ async function buildPrimaryPromptPreviewText() {
           {lastCritiqueWaitMs !== null ? (
             <p className="muted">{`Wait Time: ${(lastCritiqueWaitMs / 1000).toFixed(1)}s`}</p>
           ) : null}
-          {!isDeckMateWorkflow ? renderRequestLogPanel() : null}
           <div className="action-row wrap-actions center-actions">
             {lastOperation === OPERATIONS.APPLY_CHANGE_ITEMS ? (
               <button type="button" onClick={() => setCurrentMode(MODES.VIEW_CHANGED)}>
@@ -2905,7 +2902,7 @@ async function buildPrimaryPromptPreviewText() {
             </button>
           </div>
         </section>
-        {isDeckMateWorkflow ? renderRequestLogPanel() : null}
+        {renderRequestLogPanel()}
       </PageShell>
     )
   }
@@ -2964,7 +2961,6 @@ async function buildPrimaryPromptPreviewText() {
         </section>
 
         {renderError()}
-        {!isDeckMateWorkflow ? renderRequestLogPanel() : null}
 
         <section className="card review-grid critique-review-layout">
           <div className="field-group critique-panel">
@@ -3125,7 +3121,7 @@ async function buildPrimaryPromptPreviewText() {
             <pre>{promptPreviewText}</pre>
           </section>
         ) : null}
-        {isDeckMateWorkflow ? renderRequestLogPanel() : null}
+        {renderRequestLogPanel()}
       </PageShell>
     )
   }
@@ -3161,7 +3157,6 @@ async function buildPrimaryPromptPreviewText() {
       </section>
 
       {renderError()}
-      {!isDeckMateWorkflow ? renderRequestLogPanel() : null}
 
       <section className="card field-group tall-document-panel">
         {isDeckMateWorkflow ? (
@@ -3219,7 +3214,7 @@ async function buildPrimaryPromptPreviewText() {
           </label>
         )}
       </section>
-      {isDeckMateWorkflow ? renderRequestLogPanel() : null}
+      {renderRequestLogPanel()}
     </PageShell>
   )
 }
