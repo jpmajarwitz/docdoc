@@ -1315,6 +1315,11 @@ async function buildPrimaryPromptPreviewText() {
       isDeckMateWorkflow && selectedChangeSlides.length
         ? ` Slide scope: update only these slides: ${selectedChangeSlides.join(', ')}.`
         : ''
+    const mainInstructionText = isDoc2DeckWorkflow
+      ? (applyChangeItemsGuidance || '').trim()
+      : `Apply all requested change items directly to the original ${contentNoun} and return the changed ${contentNoun} in markdown.${
+          applyChangeItemsGuidance ? ` ${applyChangeItemsGuidance}` : ''
+        }`
     const applyAntiGuidance = isDoc2DeckWorkflow
       ? (applyChangesAntiGuidance.trim() || DOC2DECK_SETTINGS.defaults.applyChangesAntiGuidance || '')
       : buildAntiGuidancePrompt()
@@ -1322,9 +1327,7 @@ async function buildPrimaryPromptPreviewText() {
     const requestPayload = buildLlmRequest([
       {
         type: 'input_text',
-        text: `Main Instruction: Apply all requested change items directly to the original ${contentNoun} and return the changed ${contentNoun} in markdown.${
-          applyChangeItemsGuidance ? ` ${applyChangeItemsGuidance}` : ''
-        }${slideScopeDirective} Anti-Guidance: ${applyAntiGuidance}`
+        text: `Main Instruction: ${mainInstructionText}${slideScopeDirective} Anti-Guidance: ${applyAntiGuidance}`
       },
       {
         type: 'input_text',
