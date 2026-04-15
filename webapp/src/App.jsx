@@ -606,6 +606,9 @@ export default function App({ appShell = 'ai' }) {
   const [selectedDeckSlideTab, setSelectedDeckSlideTab] = useState('all')
   const [selectedChangedDeckSlideTab, setSelectedChangedDeckSlideTab] = useState('all')
   const [selectedDeckIssueOptions, setSelectedDeckIssueOptions] = useState([])
+  const [selectedDoc2DeckSlideTab, setSelectedDoc2DeckSlideTab] = useState('all')
+  const [selectedChangedDoc2DeckSlideTab, setSelectedChangedDoc2DeckSlideTab] = useState('all')
+  const [selectedDoc2DeckSlides, setSelectedDoc2DeckSlides] = useState([])
   const [deckAdaptiveChunkSize, setDeckAdaptiveChunkSize] = useState(null)
   const [deckChunkLastReduction, setDeckChunkLastReduction] = useState(0)
   const [deckChunkSuccessStreak, setDeckChunkSuccessStreak] = useState(0)
@@ -627,6 +630,14 @@ export default function App({ appShell = 'ai' }) {
   const changedDeckSections = useMemo(
     () => (isDeckMateWorkflow ? parseDeckMarkdownSections(changedDocumentMarkdown) : []),
     [isDeckMateWorkflow, changedDocumentMarkdown]
+  )
+  const doc2DeckCritiqueSections = useMemo(
+    () => (isDoc2DeckWorkflow ? parseDeckMarkdownSections(critiqueMarkdown) : []),
+    [isDoc2DeckWorkflow, critiqueMarkdown]
+  )
+  const changedDoc2DeckSections = useMemo(
+    () => (isDoc2DeckWorkflow ? parseDeckMarkdownSections(changedDocumentMarkdown) : []),
+    [isDoc2DeckWorkflow, changedDocumentMarkdown]
   )
 
   function extractFirstDeleteLogFileId(response) {
@@ -1017,6 +1028,9 @@ export default function App({ appShell = 'ai' }) {
     setSelectedDeckSlideTab('all')
     setSelectedChangedDeckSlideTab('all')
     setSelectedDeckIssueOptions([])
+    setSelectedDoc2DeckSlideTab('all')
+    setSelectedChangedDoc2DeckSlideTab('all')
+    setSelectedDoc2DeckSlides([])
   }
 
   async function handleProtectedNavigation(view) {
@@ -1245,10 +1259,12 @@ async function buildPrimaryPromptPreviewText() {
   }
 
   function buildApplyChangeItemsRequest() {
-    const selectedChangeSlides = isDeckMateWorkflow ? extractDeckSlidesFromChangeItems(changeItems) : []
+    const selectedChangeSlides = (isDeckMateWorkflow || isDoc2DeckWorkflow)
+      ? extractDeckSlidesFromChangeItems(changeItems)
+      : []
     const critiqueSectionsBySlide = parseDeckCritiqueSections(critiqueMarkdown)
     const critiqueTextForApply =
-      isDeckMateWorkflow && selectedChangeSlides.length && critiqueSectionsBySlide.length
+      (isDeckMateWorkflow || isDoc2DeckWorkflow) && selectedChangeSlides.length && critiqueSectionsBySlide.length
         ? critiqueSectionsBySlide
             .filter((section) => selectedChangeSlides.includes(section.slideNumber))
             .map((section) => section.content)
@@ -1261,8 +1277,8 @@ async function buildPrimaryPromptPreviewText() {
         text: `Main Instruction: Apply all requested change items directly to the original ${contentNoun} and return the changed ${contentNoun} in markdown.${
           applyChangeItemsGuidance ? ` ${applyChangeItemsGuidance}` : ''
         }${
-          isDeckMateWorkflow && selectedChangeSlides.length
-            ? ` Deck Mate scope: update only these slides: ${selectedChangeSlides.join(', ')}.`
+          (isDeckMateWorkflow || isDoc2DeckWorkflow) && selectedChangeSlides.length
+            ? ` Slide scope: update only these slides: ${selectedChangeSlides.join(', ')}.`
             : ''
         } Anti-Guidance: ${buildAntiGuidancePrompt()}`
       },
@@ -1863,6 +1879,31 @@ async function buildPrimaryPromptPreviewText() {
     setError('')
   }
 
+  function addDoc2DeckSlideSelectionsAsChangeItems() {
+    if (!selectedDoc2DeckSlides.length) {
+      setError('Select at least one Slide first.')
+      return
+    }
+
+    const itemsToAdd = selectedDoc2DeckSlides
+      .map((slideNumberRaw) => Number.parseInt(`${slideNumberRaw}`, 10))
+      .filter((slideNumber) => Number.isFinite(slideNumber))
+      .filter((slideNumber) => !changeItems.some((existing) => existing.id === `slide-${slideNumber}`))
+      .map((slideNumber) => ({
+        id: `slide-${slideNumber}`,
+        instruction: `Refine outline guidance for Slide ${slideNumber}.`
+      }))
+
+    if (!itemsToAdd.length) {
+      setError('All selected slides are already present in Change Items.')
+      return
+    }
+
+    setChangeItems((items) => [...items, ...itemsToAdd])
+    setSelectedDoc2DeckSlides([])
+    setError('')
+  }
+
   function updateChangeItemInstruction(changeId, instruction) {
     setChangeItems((items) =>
       items.map((item) =>
@@ -2089,6 +2130,20 @@ async function buildPrimaryPromptPreviewText() {
   }, [isDeckMateWorkflow, deckCritiqueSections, selectedDeckSlideTab])
 
   useEffect(() => {
+    if (!isDoc2DeckWorkflow || !doc2DeckCritiqueSections.length) {
+      setSelectedDoc2DeckSlideTab('all')
+      return
+    }
+    if (selectedDoc2DeckSlideTab === 'all') {
+      return
+    }
+    const hasCurrent = doc2DeckCritiqueSections.some((section) => section.slideNumber === selectedDoc2DeckSlideTab)
+    if (!hasCurrent) {
+      setSelectedDoc2DeckSlideTab('all')
+    }
+  }, [isDoc2DeckWorkflow, doc2DeckCritiqueSections, selectedDoc2DeckSlideTab])
+
+  useEffect(() => {
     const allowedOptionValues = new Set(visibleDeckIssueOptions.map((option) => option.optionValue))
     setSelectedDeckIssueOptions((items) => items.filter((item) => allowedOptionValues.has(item)))
   }, [visibleDeckIssueOptions])
@@ -2110,6 +2165,20 @@ async function buildPrimaryPromptPreviewText() {
       setSelectedChangedDeckSlideTab('all')
     }
   }, [isDeckMateWorkflow, changedDeckSections, selectedChangedDeckSlideTab])
+
+  useEffect(() => {
+    if (!isDoc2DeckWorkflow || !changedDoc2DeckSections.length) {
+      setSelectedChangedDoc2DeckSlideTab('all')
+      return
+    }
+    if (selectedChangedDoc2DeckSlideTab === 'all') {
+      return
+    }
+    const hasCurrent = changedDoc2DeckSections.some((section) => section.slideNumber === selectedChangedDoc2DeckSlideTab)
+    if (!hasCurrent) {
+      setSelectedChangedDoc2DeckSlideTab('all')
+    }
+  }, [isDoc2DeckWorkflow, changedDoc2DeckSections, selectedChangedDoc2DeckSlideTab])
 
   useEffect(() => {
     function handlePointerDown(event) {
@@ -3093,6 +3162,46 @@ async function buildPrimaryPromptPreviewText() {
                   />
                 </label>
               </>
+            ) : isDoc2DeckWorkflow && doc2DeckCritiqueSections.length ? (
+              <>
+                <div
+                  className={doc2DeckCritiqueSections.length > 10 ? 'settings-tabs slide-tabs-scrollable' : 'settings-tabs'}
+                  role="tablist"
+                  aria-label="Outline slide tabs"
+                >
+                  <button
+                    type="button"
+                    className={selectedDoc2DeckSlideTab === 'all' ? 'settings-tab active' : 'settings-tab'}
+                    onClick={() => setSelectedDoc2DeckSlideTab('all')}
+                  >
+                    All
+                  </button>
+                  {doc2DeckCritiqueSections.map((section) => (
+                    <button
+                      key={section.slideNumber}
+                      type="button"
+                      className={selectedDoc2DeckSlideTab === section.slideNumber ? 'settings-tab active' : 'settings-tab'}
+                      onClick={() => setSelectedDoc2DeckSlideTab(section.slideNumber)}
+                    >
+                      {`Slide ${section.slideNumber}`}
+                    </button>
+                  ))}
+                </div>
+                <label className="panel-field">
+                  <span className="panel-label">Critique Content</span>
+                  <textarea
+                    className="critique-editor"
+                    value={
+                      (selectedDoc2DeckSlideTab === 'all'
+                        ? critiqueMarkdown
+                        : doc2DeckCritiqueSections.find((section) => section.slideNumber === selectedDoc2DeckSlideTab)?.content) ||
+                      critiqueMarkdown
+                    }
+                    readOnly
+                    rows={REVIEW_TEXTAREA_ROWS}
+                  />
+                </label>
+              </>
             ) : (
               <label className="panel-field">
                 <span className="panel-label">Critique Content</span>
@@ -3136,6 +3245,31 @@ async function buildPrimaryPromptPreviewText() {
                   </label>
                   <button type="button" onClick={addDeckIssueSelectionsAsChangeItems}>
                     Add Selected Issues as Change Items
+                  </button>
+                </>
+              ) : isDoc2DeckWorkflow ? (
+                <>
+                  <label>
+                    Slides
+                    <select
+                      multiple
+                      value={selectedDoc2DeckSlides}
+                      onChange={(event) =>
+                        setSelectedDoc2DeckSlides(
+                          [...event.target.selectedOptions].map((option) => option.value)
+                        )
+                      }
+                      size={5}
+                    >
+                      {doc2DeckCritiqueSections.map((section) => (
+                        <option key={section.slideNumber} value={section.slideNumber}>
+                          {`Slide ${section.slideNumber}`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="button" onClick={addDoc2DeckSlideSelectionsAsChangeItems}>
+                    Add Selected Slides as Change Items
                   </button>
                 </>
               ) : (
@@ -3288,6 +3422,50 @@ async function buildPrimaryPromptPreviewText() {
                   }
                 }}
                 readOnly={selectedChangedDeckSlideTab !== 'all'}
+                rows={REVIEW_TEXTAREA_ROWS}
+              />
+            </label>
+          </>
+        ) : isDoc2DeckWorkflow && changedDoc2DeckSections.length ? (
+          <>
+            <div
+              className={changedDoc2DeckSections.length > 10 ? 'settings-tabs slide-tabs-scrollable' : 'settings-tabs'}
+              role="tablist"
+              aria-label="Changed outline slide tabs"
+            >
+              <button
+                type="button"
+                className={selectedChangedDoc2DeckSlideTab === 'all' ? 'settings-tab active' : 'settings-tab'}
+                onClick={() => setSelectedChangedDoc2DeckSlideTab('all')}
+              >
+                All
+              </button>
+              {changedDoc2DeckSections.map((section) => (
+                <button
+                  key={section.slideNumber}
+                  type="button"
+                  className={selectedChangedDoc2DeckSlideTab === section.slideNumber ? 'settings-tab active' : 'settings-tab'}
+                  onClick={() => setSelectedChangedDoc2DeckSlideTab(section.slideNumber)}
+                >
+                  {`Slide ${section.slideNumber}`}
+                </button>
+              ))}
+            </div>
+            <label>
+              {`Changed ${contentNoun} content`}
+              <textarea
+                value={
+                  (selectedChangedDoc2DeckSlideTab === 'all'
+                    ? changedDocumentMarkdown
+                    : changedDoc2DeckSections.find((section) => section.slideNumber === selectedChangedDoc2DeckSlideTab)?.content) ||
+                  changedDocumentMarkdown
+                }
+                onChange={(event) => {
+                  if (selectedChangedDoc2DeckSlideTab === 'all') {
+                    setChangedDocumentMarkdown(event.target.value)
+                  }
+                }}
+                readOnly={selectedChangedDoc2DeckSlideTab !== 'all'}
                 rows={REVIEW_TEXTAREA_ROWS}
               />
             </label>

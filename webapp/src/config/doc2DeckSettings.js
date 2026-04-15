@@ -15,7 +15,8 @@ export const DOC2DECK_SETTINGS = {
     defaultTopic: 'Default Topic',
     reviewObjective: 'Review Objective',
     formattingGuidance: 'Formatting Guidance',
-    antiGuidance: 'Anti-Guidance'
+    antiGuidance: 'Anti-Guidance',
+    applyChangeItemsGuidance: 'Apply_Change_Items_Guidance'
   },
   settingsPanelLabels: {
     apiMode: 'API Mode',
@@ -24,6 +25,7 @@ export const DOC2DECK_SETTINGS = {
     reviewObjective: 'Review Objective',
     formattingGuidance: 'Formatting Guidance',
     antiGuidance: 'Anti-Guidance',
+    applyChangeItemsGuidance: 'Apply_Change_Items_Guidance',
     ignoreOcrErrors: 'Ignore obvious OCR misspellings',
     disableResponseLogging: 'Disable response logging',
     viewPrompt: 'View Prompt',
@@ -38,6 +40,7 @@ export const DOC2DECK_SETTINGS = {
     'reviewObjective',
     'formattingGuidance',
     'antiGuidance',
+    'applyChangeItemsGuidance',
     'ignoreOcrErrors',
     'disableResponseLogging',
     'viewPrompt',
