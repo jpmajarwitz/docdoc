@@ -17,6 +17,7 @@ export const DOC2DECK_SETTINGS = {
     formattingGuidance: 'Formatting Guidance',
     antiGuidance: 'Anti-Guidance',
     changeItemInstruction: 'Change Item Instruction',
+    applyChangesAntiGuidance: 'Apply Changes Anti Guidance',
     applyChangeItemsGuidance: 'Apply_Change_Items_Guidance'
   },
   settingsPanelLabels: {
@@ -27,6 +28,7 @@ export const DOC2DECK_SETTINGS = {
     formattingGuidance: 'Formatting Guidance',
     antiGuidance: 'Anti-Guidance',
     changeItemInstruction: 'Change Item Instruction',
+    applyChangesAntiGuidance: 'Apply Changes Anti Guidance',
     applyChangeItemsGuidance: 'Apply_Change_Items_Guidance',
     ignoreOcrErrors: 'Ignore obvious OCR misspellings',
     disableResponseLogging: 'Disable response logging',
@@ -43,6 +45,7 @@ export const DOC2DECK_SETTINGS = {
     'formattingGuidance',
     'antiGuidance',
     'changeItemInstruction',
+    'applyChangesAntiGuidance',
     'applyChangeItemsGuidance',
     'ignoreOcrErrors',
     'disableResponseLogging',
@@ -60,6 +63,8 @@ export const DOC2DECK_SETTINGS = {
     antiGuidance:
       'Do not add new ideas into the outline plan. Your job is to reflect only what is in the document.',
     changeItemInstruction: 'create item as stated',
+    applyChangesAntiGuidance:
+      'You are creating the actual presentation this user will deliver. Do not add comments or meta-statements or other forms of guidance.',
     applyChangeItemsGuidance: ''
   },
   ocrGuidanceText:

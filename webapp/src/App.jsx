@@ -572,6 +572,9 @@ export default function App({ appShell = 'ai' }) {
   const [doc2DeckApplyChangeItemsGuidance, setDoc2DeckApplyChangeItemsGuidance] = useState(
     DOC2DECK_SETTINGS.defaults.applyChangeItemsGuidance || ''
   )
+  const [doc2DeckApplyChangesAntiGuidance, setDoc2DeckApplyChangesAntiGuidance] = useState(
+    DOC2DECK_SETTINGS.defaults.applyChangesAntiGuidance || ''
+  )
   const [doc2DeckChangeItemInstruction, setDoc2DeckChangeItemInstruction] = useState(
     DOC2DECK_SETTINGS.defaults.changeItemInstruction || 'create item as stated'
   )
@@ -600,6 +603,9 @@ export default function App({ appShell = 'ai' }) {
     : isDoc2DeckWorkflow
       ? doc2DeckApplyChangeItemsGuidance
       : docApplyChangeItemsGuidance
+  const applyChangesAntiGuidance = isDoc2DeckWorkflow
+    ? doc2DeckApplyChangesAntiGuidance
+    : antiGuidance
   const changeItemInstruction = isDeckMateWorkflow
     ? deckChangeItemInstruction
     : isDoc2DeckWorkflow
@@ -866,6 +872,7 @@ export default function App({ appShell = 'ai' }) {
     setDoc2DeckGuidance(doc2DeckProfile.guidance || DOC2DECK_SETTINGS.defaults.formattingGuidance)
     setDoc2DeckAntiGuidance(doc2DeckProfile.antiGuidance || DOC2DECK_SETTINGS.defaults.antiGuidance)
     setDoc2DeckApplyChangeItemsGuidance(doc2DeckProfile.applyChangeItemsGuidance || DOC2DECK_SETTINGS.defaults.applyChangeItemsGuidance || '')
+    setDoc2DeckApplyChangesAntiGuidance(doc2DeckProfile.applyChangesAntiGuidance || DOC2DECK_SETTINGS.defaults.applyChangesAntiGuidance || '')
     setDoc2DeckChangeItemInstruction(doc2DeckProfile.changeItemInstruction || DOC2DECK_SETTINGS.defaults.changeItemInstruction || 'create item as stated')
     setDoc2DeckSupportInstructions(doc2DeckProfile.supportInstructions || defaults.supportInstructions)
     setDoc2DeckPriorInstructions(doc2DeckProfile.priorInstructions || defaults.priorInstructions)
@@ -1302,6 +1309,11 @@ async function buildPrimaryPromptPreviewText() {
             .join('\n\n')
         : critiqueMarkdown
 
+    const applyChangeLabel = isDoc2DeckWorkflow ? 'Slide Plan' : 'Change Items'
+    const applyAntiGuidance = isDoc2DeckWorkflow
+      ? (applyChangesAntiGuidance.trim() || DOC2DECK_SETTINGS.defaults.applyChangesAntiGuidance || '')
+      : buildAntiGuidancePrompt()
+
     const requestPayload = buildLlmRequest([
       {
         type: 'input_text',
@@ -1311,11 +1323,11 @@ async function buildPrimaryPromptPreviewText() {
           (isDeckMateWorkflow || isDoc2DeckWorkflow) && selectedChangeSlides.length
             ? ` Slide scope: update only these slides: ${selectedChangeSlides.join(', ')}.`
             : ''
-        } Anti-Guidance: ${buildAntiGuidancePrompt()}`
+        } Anti-Guidance: ${applyAntiGuidance}`
       },
       {
         type: 'input_text',
-        text: `Change Items:\n${formatChangeItems(changeItems)}`
+        text: `${applyChangeLabel}:\n${formatChangeItems(changeItems)}`
       },
       {
         type: 'input_text',
@@ -2099,6 +2111,7 @@ async function buildPrimaryPromptPreviewText() {
         guidance: doc2DeckGuidance,
         antiGuidance: doc2DeckAntiGuidance,
         applyChangeItemsGuidance: doc2DeckApplyChangeItemsGuidance,
+        applyChangesAntiGuidance: doc2DeckApplyChangesAntiGuidance,
         changeItemInstruction: doc2DeckChangeItemInstruction,
         supportInstructions: doc2DeckSupportInstructions,
         priorInstructions: doc2DeckPriorInstructions
@@ -2150,6 +2163,7 @@ async function buildPrimaryPromptPreviewText() {
     doc2DeckGuidance,
     doc2DeckAntiGuidance,
     doc2DeckApplyChangeItemsGuidance,
+    doc2DeckApplyChangesAntiGuidance,
     doc2DeckChangeItemInstruction,
     doc2DeckSupportInstructions,
     doc2DeckPriorInstructions
@@ -2340,6 +2354,22 @@ async function buildPrimaryPromptPreviewText() {
                 name="apply_change_items_guidance"
                 value={applyChangeItemsGuidance}
                 onChange={(event) => setApplyChangeItemsGuidanceForActive(event.target.value)}
+                rows={3}
+              />
+            </label>
+          )
+        case 'applyChangesAntiGuidance':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.applyChangesAntiGuidance || activeSettings.labels.applyChangesAntiGuidance || 'Apply Changes Anti Guidance'}
+              <textarea
+                name="apply_changes_anti_guidance"
+                value={isDoc2DeckWorkflow ? doc2DeckApplyChangesAntiGuidance : ''}
+                onChange={(event) => {
+                  if (isDoc2DeckWorkflow) {
+                    setDoc2DeckApplyChangesAntiGuidance(event.target.value)
+                  }
+                }}
                 rows={3}
               />
             </label>
