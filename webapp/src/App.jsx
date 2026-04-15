@@ -1886,13 +1886,17 @@ async function buildPrimaryPromptPreviewText() {
     }
 
     const itemsToAdd = selectedDoc2DeckSlides
-      .map((slideNumberRaw) => Number.parseInt(`${slideNumberRaw}`, 10))
-      .filter((slideNumber) => Number.isFinite(slideNumber))
-      .filter((slideNumber) => !changeItems.some((existing) => existing.id === `slide-${slideNumber}`))
-      .map((slideNumber) => ({
-        id: `slide-${slideNumber}`,
-        instruction: `Refine outline guidance for Slide ${slideNumber}.`
-      }))
+      .map((slideIdRaw) => `${slideIdRaw}`.trim())
+      .filter((slideId) => /^slide-\d+$/i.test(slideId))
+      .map((slideId) => slideId.toLowerCase())
+      .filter((slideId) => !changeItems.some((existing) => existing.id.toLowerCase() === slideId))
+      .map((slideId) => {
+        const slideNumber = Number.parseInt(slideId.replace('slide-', ''), 10)
+        return {
+          id: slideId,
+          instruction: `Refine outline guidance for Slide ${slideNumber}.`
+        }
+      })
 
     if (!itemsToAdd.length) {
       setError('All selected slides are already present in Change Items.')
@@ -3167,7 +3171,7 @@ async function buildPrimaryPromptPreviewText() {
                 <div
                   className={doc2DeckCritiqueSections.length > 10 ? 'settings-tabs slide-tabs-scrollable' : 'settings-tabs'}
                   role="tablist"
-                  aria-label="Outline slide tabs"
+                  aria-label="Critique slide tabs"
                 >
                   <button
                     type="button"
@@ -3250,7 +3254,7 @@ async function buildPrimaryPromptPreviewText() {
               ) : isDoc2DeckWorkflow ? (
                 <>
                   <label>
-                    Slides
+                    Slides (Change IDs)
                     <select
                       multiple
                       value={selectedDoc2DeckSlides}
@@ -3262,8 +3266,8 @@ async function buildPrimaryPromptPreviewText() {
                       size={5}
                     >
                       {doc2DeckCritiqueSections.map((section) => (
-                        <option key={section.slideNumber} value={section.slideNumber}>
-                          {`Slide ${section.slideNumber}`}
+                        <option key={section.slideNumber} value={`slide-${section.slideNumber}`}>
+                          {`Slide ${section.slideNumber} (slide-${section.slideNumber})`}
                         </option>
                       ))}
                     </select>
@@ -3431,7 +3435,7 @@ async function buildPrimaryPromptPreviewText() {
             <div
               className={changedDoc2DeckSections.length > 10 ? 'settings-tabs slide-tabs-scrollable' : 'settings-tabs'}
               role="tablist"
-              aria-label="Changed outline slide tabs"
+              aria-label="Changed content slide tabs"
             >
               <button
                 type="button"
