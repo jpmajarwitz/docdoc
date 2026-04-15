@@ -1309,7 +1309,12 @@ async function buildPrimaryPromptPreviewText() {
             .join('\n\n')
         : critiqueMarkdown
 
-    const applyChangeLabel = isDoc2DeckWorkflow ? 'Slide Plan' : 'Change Items'
+    const applyChangeLabel = 'Change Items'
+    const critiqueLabel = isDoc2DeckWorkflow ? 'Slide Plan' : 'Original critique'
+    const slideScopeDirective =
+      isDeckMateWorkflow && selectedChangeSlides.length
+        ? ` Slide scope: update only these slides: ${selectedChangeSlides.join(', ')}.`
+        : ''
     const applyAntiGuidance = isDoc2DeckWorkflow
       ? (applyChangesAntiGuidance.trim() || DOC2DECK_SETTINGS.defaults.applyChangesAntiGuidance || '')
       : buildAntiGuidancePrompt()
@@ -1319,11 +1324,7 @@ async function buildPrimaryPromptPreviewText() {
         type: 'input_text',
         text: `Main Instruction: Apply all requested change items directly to the original ${contentNoun} and return the changed ${contentNoun} in markdown.${
           applyChangeItemsGuidance ? ` ${applyChangeItemsGuidance}` : ''
-        }${
-          (isDeckMateWorkflow || isDoc2DeckWorkflow) && selectedChangeSlides.length
-            ? ` Slide scope: update only these slides: ${selectedChangeSlides.join(', ')}.`
-            : ''
-        } Anti-Guidance: ${applyAntiGuidance}`
+        }${slideScopeDirective} Anti-Guidance: ${applyAntiGuidance}`
       },
       {
         type: 'input_text',
@@ -1331,7 +1332,7 @@ async function buildPrimaryPromptPreviewText() {
       },
       {
         type: 'input_text',
-        text: `Original critique:\n${critiqueTextForApply}`
+        text: `${critiqueLabel}:\n${critiqueTextForApply}`
       },
       {
         type: 'input_text',
