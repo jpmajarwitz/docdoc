@@ -952,13 +952,27 @@ export default function App({ appShell = 'ai' }) {
   }
 
   async function handleProtectedNavigation(view) {
-    if (authUser) {
-      await clearApplicationContext('Switching applications from A-Ideation home.')
-      setActiveView(view)
-      return
+    setError('')
+    setAuthInfo('')
+    try {
+      const session = await getJson(AUTH_ENDPOINTS.SESSION)
+      if (session.authenticated && session.user) {
+        setAuthUser(session.user)
+        if (!profileLoaded || !authUser || authUser.id !== session.user.id) {
+          await loadUserProfileSettings()
+        }
+        await clearApplicationContext('Switching applications from A-Ideation home.')
+        setActiveView(view)
+        return
+      }
+    } catch (sessionError) {
+      setAuthInfo(`Session check failed: ${normalizeRequestError(sessionError)}`)
     }
 
+    setAuthUser(null)
+    setProfileLoaded(false)
     setShowAuthRequiredNotice(true)
+    setAuthOverlayOpen(true)
   }
 
   function buildAntiGuidancePrompt() {
