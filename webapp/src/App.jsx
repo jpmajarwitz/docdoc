@@ -4,6 +4,7 @@ import deckMateLogo from './assets/deck-mate-logo.svg'
 import doc2DeckLogo from './assets/doc2deck-logo.svg'
 import { APP_SETTINGS } from './config/appSettings'
 import { DECK_MATE_SETTINGS } from './config/deckMateSettings'
+import { DOC2DECK_SETTINGS } from './config/doc2DeckSettings'
 
 const APP_VIEWS = {
   SUITE_HOME: 'suite_home',
@@ -504,7 +505,12 @@ export default function App({ appShell = 'ai' }) {
   const [newPassword, setNewPassword] = useState('')
   const [activeView, setActiveView] = useState(homeView)
   const isDeckMateWorkflow = activeView === APP_VIEWS.DECK_MATE
-  const activeSettings = isDeckMateWorkflow ? DECK_MATE_SETTINGS : APP_SETTINGS
+  const isDoc2DeckWorkflow = activeView === APP_VIEWS.DOC2DECK
+  const activeSettings = isDeckMateWorkflow
+    ? DECK_MATE_SETTINGS
+    : isDoc2DeckWorkflow
+      ? DOC2DECK_SETTINGS
+      : APP_SETTINGS
   const contentNoun = isDeckMateWorkflow ? 'presentation' : 'document'
   const contentNounPlural = isDeckMateWorkflow ? 'presentations' : 'documents'
   const contentNounTitle = isDeckMateWorkflow ? 'Presentation' : 'Document'
@@ -553,17 +559,38 @@ export default function App({ appShell = 'ai' }) {
   const [deckApplyChangeItemsGuidance, setDeckApplyChangeItemsGuidance] = useState(
     DECK_MATE_SETTINGS.defaults.applyChangeItemsGuidance || ''
   )
+  const [doc2DeckTopic, setDoc2DeckTopic] = useState(DOC2DECK_SETTINGS.defaults.topic)
+  const [doc2DeckObjective, setDoc2DeckObjective] = useState(DOC2DECK_SETTINGS.defaults.reviewObjective)
+  const [doc2DeckGuidance, setDoc2DeckGuidance] = useState(DOC2DECK_SETTINGS.defaults.formattingGuidance)
+  const [doc2DeckAntiGuidance, setDoc2DeckAntiGuidance] = useState(DOC2DECK_SETTINGS.defaults.antiGuidance)
+  const [doc2DeckApplyChangeItemsGuidance, setDoc2DeckApplyChangeItemsGuidance] = useState(
+    DOC2DECK_SETTINGS.defaults.applyChangeItemsGuidance || ''
+  )
   const [docSupportInstructions, setDocSupportInstructions] = useState(defaults.supportInstructions)
   const [docPriorInstructions, setDocPriorInstructions] = useState(defaults.priorInstructions)
   const [deckSupportInstructions, setDeckSupportInstructions] = useState(defaults.supportInstructions)
   const [deckPriorInstructions, setDeckPriorInstructions] = useState(defaults.priorInstructions)
-  const topic = isDeckMateWorkflow ? deckTopic : docTopic
-  const objective = isDeckMateWorkflow ? deckObjective : docObjective
-  const guidance = isDeckMateWorkflow ? deckGuidance : docGuidance
-  const antiGuidance = isDeckMateWorkflow ? deckAntiGuidance : docAntiGuidance
-  const supportInstructions = isDeckMateWorkflow ? deckSupportInstructions : docSupportInstructions
-  const priorInstructions = isDeckMateWorkflow ? deckPriorInstructions : docPriorInstructions
-  const applyChangeItemsGuidance = isDeckMateWorkflow ? deckApplyChangeItemsGuidance : docApplyChangeItemsGuidance
+  const [doc2DeckSupportInstructions, setDoc2DeckSupportInstructions] = useState(defaults.supportInstructions)
+  const [doc2DeckPriorInstructions, setDoc2DeckPriorInstructions] = useState(defaults.priorInstructions)
+  const topic = isDeckMateWorkflow ? deckTopic : isDoc2DeckWorkflow ? doc2DeckTopic : docTopic
+  const objective = isDeckMateWorkflow ? deckObjective : isDoc2DeckWorkflow ? doc2DeckObjective : docObjective
+  const guidance = isDeckMateWorkflow ? deckGuidance : isDoc2DeckWorkflow ? doc2DeckGuidance : docGuidance
+  const antiGuidance = isDeckMateWorkflow ? deckAntiGuidance : isDoc2DeckWorkflow ? doc2DeckAntiGuidance : docAntiGuidance
+  const supportInstructions = isDeckMateWorkflow
+    ? deckSupportInstructions
+    : isDoc2DeckWorkflow
+      ? doc2DeckSupportInstructions
+      : docSupportInstructions
+  const priorInstructions = isDeckMateWorkflow
+    ? deckPriorInstructions
+    : isDoc2DeckWorkflow
+      ? doc2DeckPriorInstructions
+      : docPriorInstructions
+  const applyChangeItemsGuidance = isDeckMateWorkflow
+    ? deckApplyChangeItemsGuidance
+    : isDoc2DeckWorkflow
+      ? doc2DeckApplyChangeItemsGuidance
+      : docApplyChangeItemsGuidance
   const [critiqueMarkdown, setCritiqueMarkdown] = useState('')
   const [changedDocumentMarkdown, setChangedDocumentMarkdown] = useState('')
   const [critiqueOutputFileName, setCritiqueOutputFileName] = useState('critique.md')
@@ -681,12 +708,20 @@ export default function App({ appShell = 'ai' }) {
       setDeckTopic(value)
       return
     }
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckTopic(value)
+      return
+    }
     setDocTopic(value)
   }
 
   function setObjectiveForActive(value) {
     if (isDeckMateWorkflow) {
       setDeckObjective(value)
+      return
+    }
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckObjective(value)
       return
     }
     setDocObjective(value)
@@ -697,12 +732,20 @@ export default function App({ appShell = 'ai' }) {
       setDeckGuidance(value)
       return
     }
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckGuidance(value)
+      return
+    }
     setDocGuidance(value)
   }
 
   function setAntiGuidanceForActive(value) {
     if (isDeckMateWorkflow) {
       setDeckAntiGuidance(value)
+      return
+    }
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckAntiGuidance(value)
       return
     }
     setDocAntiGuidance(value)
@@ -713,6 +756,10 @@ export default function App({ appShell = 'ai' }) {
       setDeckSupportInstructions(value)
       return
     }
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckSupportInstructions(value)
+      return
+    }
     setDocSupportInstructions(value)
   }
 
@@ -721,12 +768,20 @@ export default function App({ appShell = 'ai' }) {
       setDeckPriorInstructions(value)
       return
     }
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckPriorInstructions(value)
+      return
+    }
     setDocPriorInstructions(value)
   }
 
   function setApplyChangeItemsGuidanceForActive(value) {
     if (isDeckMateWorkflow) {
       setDeckApplyChangeItemsGuidance(value)
+      return
+    }
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckApplyChangeItemsGuidance(value)
       return
     }
     setDocApplyChangeItemsGuidance(value)
@@ -748,17 +803,30 @@ export default function App({ appShell = 'ai' }) {
 
     const docProfile = settings.doc || {}
     const deckProfile = settings.deck || {}
+    const doc2DeckProfile = settings.doc2deck || {}
     setDocTopic(docProfile.topic || APP_SETTINGS.defaults.topic)
     setDocObjective(docProfile.objective || APP_SETTINGS.defaults.reviewObjective)
     setDocGuidance(docProfile.guidance || APP_SETTINGS.defaults.formattingGuidance)
     setDocAntiGuidance(docProfile.antiGuidance || APP_SETTINGS.defaults.antiGuidance)
     setDocApplyChangeItemsGuidance(docProfile.applyChangeItemsGuidance || '')
+    setDocSupportInstructions(docProfile.supportInstructions || defaults.supportInstructions)
+    setDocPriorInstructions(docProfile.priorInstructions || defaults.priorInstructions)
 
     setDeckTopic(deckProfile.topic || DECK_MATE_SETTINGS.defaults.topic)
     setDeckObjective(deckProfile.objective || DECK_MATE_SETTINGS.defaults.reviewObjective)
     setDeckGuidance(deckProfile.guidance || DECK_MATE_SETTINGS.defaults.formattingGuidance)
     setDeckAntiGuidance(deckProfile.antiGuidance || DECK_MATE_SETTINGS.defaults.antiGuidance)
     setDeckApplyChangeItemsGuidance(deckProfile.applyChangeItemsGuidance || DECK_MATE_SETTINGS.defaults.applyChangeItemsGuidance || '')
+    setDeckSupportInstructions(deckProfile.supportInstructions || defaults.supportInstructions)
+    setDeckPriorInstructions(deckProfile.priorInstructions || defaults.priorInstructions)
+
+    setDoc2DeckTopic(doc2DeckProfile.topic || DOC2DECK_SETTINGS.defaults.topic)
+    setDoc2DeckObjective(doc2DeckProfile.objective || DOC2DECK_SETTINGS.defaults.reviewObjective)
+    setDoc2DeckGuidance(doc2DeckProfile.guidance || DOC2DECK_SETTINGS.defaults.formattingGuidance)
+    setDoc2DeckAntiGuidance(doc2DeckProfile.antiGuidance || DOC2DECK_SETTINGS.defaults.antiGuidance)
+    setDoc2DeckApplyChangeItemsGuidance(doc2DeckProfile.applyChangeItemsGuidance || DOC2DECK_SETTINGS.defaults.applyChangeItemsGuidance || '')
+    setDoc2DeckSupportInstructions(doc2DeckProfile.supportInstructions || defaults.supportInstructions)
+    setDoc2DeckPriorInstructions(doc2DeckProfile.priorInstructions || defaults.priorInstructions)
   }
 
   async function loadUserProfileSettings() {
@@ -1935,14 +2003,27 @@ async function buildPrimaryPromptPreviewText() {
         objective: docObjective,
         guidance: docGuidance,
         antiGuidance: docAntiGuidance,
-        applyChangeItemsGuidance: docApplyChangeItemsGuidance
+        applyChangeItemsGuidance: docApplyChangeItemsGuidance,
+        supportInstructions: docSupportInstructions,
+        priorInstructions: docPriorInstructions
       },
       deck: {
         topic: deckTopic,
         objective: deckObjective,
         guidance: deckGuidance,
         antiGuidance: deckAntiGuidance,
-        applyChangeItemsGuidance: deckApplyChangeItemsGuidance
+        applyChangeItemsGuidance: deckApplyChangeItemsGuidance,
+        supportInstructions: deckSupportInstructions,
+        priorInstructions: deckPriorInstructions
+      },
+      doc2deck: {
+        topic: doc2DeckTopic,
+        objective: doc2DeckObjective,
+        guidance: doc2DeckGuidance,
+        antiGuidance: doc2DeckAntiGuidance,
+        applyChangeItemsGuidance: doc2DeckApplyChangeItemsGuidance,
+        supportInstructions: doc2DeckSupportInstructions,
+        priorInstructions: doc2DeckPriorInstructions
       }
     }
 
@@ -1975,11 +2056,22 @@ async function buildPrimaryPromptPreviewText() {
     docGuidance,
     docAntiGuidance,
     docApplyChangeItemsGuidance,
+    docSupportInstructions,
+    docPriorInstructions,
     deckTopic,
     deckObjective,
     deckGuidance,
     deckAntiGuidance,
-    deckApplyChangeItemsGuidance
+    deckApplyChangeItemsGuidance,
+    deckSupportInstructions,
+    deckPriorInstructions,
+    doc2DeckTopic,
+    doc2DeckObjective,
+    doc2DeckGuidance,
+    doc2DeckAntiGuidance,
+    doc2DeckApplyChangeItemsGuidance,
+    doc2DeckSupportInstructions,
+    doc2DeckPriorInstructions
   ])
 
   useEffect(() => {
@@ -2594,30 +2686,6 @@ async function buildPrimaryPromptPreviewText() {
     )
   }
 
-  if (activeView === APP_VIEWS.DOC2DECK) {
-    return (
-      <PageShell
-        mode={MODES.DOC_DEFINE}
-        {...workflowShellProps}
-        topRightControls={
-          <>
-            {renderBackToSuiteButton()}
-            {renderLogoutButton()}
-          </>
-        }
-        appTitle="Doc 2 Deck"
-        appSubtitle="A Professional Review Tool for Presentation Authors"
-        brandLogo={doc2DeckLogo}
-        brandAlt="Document Doctor and Deck Mate shaking hands logo"
-      >
-        <section className="card compact-panel">
-          <h2>Doc 2 Deck</h2>
-          <p className="muted">Doc2Deck home screen placeholder.</p>
-        </section>
-      </PageShell>
-    )
-  }
-
   const workflowShellProps = isDeckMateWorkflow
     ? {
         appTitle: 'Deck Mate',
@@ -2625,12 +2693,19 @@ async function buildPrimaryPromptPreviewText() {
         brandLogo: deckMateLogo,
         brandAlt: 'Cartoon sailor on a boat presentation logo'
       }
-    : {
-        appTitle: 'The Document Doctor',
-        appSubtitle: 'A Professional Review Tool for Document Authors',
-        brandLogo: logo,
-        brandAlt: 'Cartoon paper doctor logo'
-      }
+    : isDoc2DeckWorkflow
+      ? {
+          appTitle: 'Doc 2 Deck',
+          appSubtitle: 'Create Powerpoint Decks from Published Documents',
+          brandLogo: doc2DeckLogo,
+          brandAlt: 'Document Doctor and Deck Mate united logo'
+        }
+      : {
+          appTitle: 'The Document Doctor',
+          appSubtitle: 'A Professional Review Tool for Document Authors',
+          brandLogo: logo,
+          brandAlt: 'Cartoon paper doctor logo'
+        }
 
   if (currentMode === MODES.DOC_DEFINE) {
     return (
@@ -2733,7 +2808,7 @@ async function buildPrimaryPromptPreviewText() {
                 }
                 onClick={() => invokeOperation(OPERATIONS.CRITIQUE_PRIMARY)}
               >
-                {`Critique ${contentNounTitle}`}
+                {isDoc2DeckWorkflow ? 'Create Presentation Outline' : `Critique ${contentNounTitle}`}
               </button>
               {viewPromptEnabled ? (
                 <button
