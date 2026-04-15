@@ -1816,6 +1816,14 @@ async function buildPrimaryPromptPreviewText() {
                       ]
                     }, {})
                   } catch (cleanupError) {
+                    if (isRetryableGatewayError(cleanupError)) {
+                      appendRequestLog('Cached Doc2Deck apply file deletion returned a retryable gateway error; file may already be deleted on OpenAI.', {
+                        reason,
+                        fileId,
+                        error: normalizeRequestError(cleanupError)
+                      }, { submissionId })
+                      return
+                    }
                     appendRequestLog('Cached Doc2Deck apply file deletion failed.', {
                       reason,
                       fileId,
