@@ -35,7 +35,10 @@ export const DOC2DECK_SETTINGS = {
     viewPrompt: 'View Prompt',
     bypassFileInput: 'Bypass_File_Input',
     deleteFileOnLlm: 'Delete_File_On_LLM',
-    logPanelEnabled: 'Log_Panel_Enabled'
+    logPanelEnabled: 'Log_Panel_Enabled',
+    chunkingEnabled: 'Enable slide chunking',
+    chunkSize: 'Slides per chunk',
+    chunkConcurrency: 'Parallel chunk requests'
   },
   settingsPanelOrder: [
     'apiMode',
@@ -52,7 +55,10 @@ export const DOC2DECK_SETTINGS = {
     'viewPrompt',
     'bypassFileInput',
     'deleteFileOnLlm',
-    'logPanelEnabled'
+    'logPanelEnabled',
+    'chunkingEnabled',
+    'chunkSize',
+    'chunkConcurrency'
   ],
   defaults: {
     topic: 'This is a professional document intended for conversion into a presentation outline.',

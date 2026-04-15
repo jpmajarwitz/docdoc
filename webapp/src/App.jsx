@@ -1296,9 +1296,9 @@ async function buildPrimaryPromptPreviewText() {
     })
   }
 
-  function buildApplyChangeItemsRequest() {
+  function buildApplyChangeItemsRequest(changeItemsInput = changeItems) {
     const selectedChangeSlides = (isDeckMateWorkflow || isDoc2DeckWorkflow)
-      ? extractDeckSlidesFromChangeItems(changeItems)
+      ? extractDeckSlidesFromChangeItems(changeItemsInput)
       : []
     const critiqueSectionsBySlide = parseDeckCritiqueSections(critiqueMarkdown)
     const critiqueTextForApply =
@@ -1328,7 +1328,7 @@ async function buildPrimaryPromptPreviewText() {
       },
       {
         type: 'input_text',
-        text: `${applyChangeLabel}:\n${formatChangeItems(changeItems)}`
+        text: `${applyChangeLabel}:\n${formatChangeItems(changeItemsInput)}`
       },
       {
         type: 'input_text',
@@ -1757,6 +1757,140 @@ async function buildPrimaryPromptPreviewText() {
             })()
           : operation === OPERATIONS.APPLY_CHANGE_ITEMS
             ? await (async () => {
+                const buildApplyChunkRequest = async (chunkChangeItems, cachedFileId = '') => {
+                  let requestPayload = buildApplyChangeItemsRequest(chunkChangeItems)
+                  if (cachedFileId) {
+                    requestPayload = {
+                      ...requestPayload,
+                      messages: requestPayload.messages.map((message) =>
+                        message.type === 'input_file' && message.source === 'original_document'
+                          ? { ...message, source: cachedFileId }
+                          : message
+                      )
+                    }
+                  }
+                  const directFileEntries = {
+                    original_document: cachedFileId ? null : docFile
+                  }
+                  const requestPayloadBypassed = {
+                    ...requestPayload,
+                    messages: await maybeBypassFileMessages(requestPayload.messages, directFileEntries)
+                  }
+                  return { requestPayloadBypassed, directFileEntries }
+                }
+
+                const cleanupApplyCachedFile = async (fileId, reason) => {
+                  if (!fileId) {
+                    return
+                  }
+                  try {
+                    appendRequestLog('Deleting cached Doc2Deck apply file id.', { reason, fileId }, { submissionId })
+                    await postMultipart(API_ENDPOINTS[OPERATIONS.CRITIQUE_PRIMARY], {
+                      apiMode: 'responses',
+                      model: 'gpt-5.4-nano',
+                      store: false,
+                      deleteFileOnLlm: true,
+                      systemPrompt: 'Acknowledge file deletion request.',
+                      messages: [
+                        { type: 'input_text', text: 'Acknowledge file deletion request.' },
+                        { type: 'input_file', source: fileId }
+                      ]
+                    }, {})
+                  } catch (cleanupError) {
+                    appendRequestLog('Cached Doc2Deck apply file deletion failed.', {
+                      reason,
+                      fileId,
+                      error: normalizeRequestError(cleanupError)
+                    }, { submissionId })
+                  }
+                }
+
+                const selectedApplySlides = isDoc2DeckWorkflow
+                  ? extractDeckSlidesFromChangeItems(changeItems)
+                  : []
+                const shouldUseDoc2DeckApplyChunks =
+                  isDoc2DeckWorkflow &&
+                  chunkingEnabled &&
+                  !bypassFileInput &&
+                  selectedApplySlides.length > 0
+
+                if (shouldUseDoc2DeckApplyChunks) {
+                  const configuredChunkSize = clampPositiveInteger(chunkSize, APP_SETTINGS.chunkSizeDefault ?? 6)
+                  const chunkPlans = buildPrimaryChunkedRequests(selectedApplySlides, configuredChunkSize).map((entry) => entry.chunk)
+                  const nonSlideChangeItems = changeItems.filter((item) => !/^slide-\d+$/i.test(item.id || ''))
+                  const chunkOutputs = []
+                  let cachedApplyFileId = ''
+
+                  try {
+                    appendRequestLog('Chunking plan calculated for Doc2Deck apply changes.', {
+                      selectedSlidesCount: selectedApplySlides.length,
+                      chunkSize: configuredChunkSize,
+                      chunkCount: chunkPlans.length
+                    }, { submissionId })
+
+                    for (let chunkIndex = 0; chunkIndex < chunkPlans.length; chunkIndex += 1) {
+                      const chunkPlan = chunkPlans[chunkIndex]
+                      const chunkSlideSet = new Set(chunkPlan.slides)
+                      const chunkSlideItems = changeItems.filter((item) => {
+                        const match = `${item.id || ''}`.match(/^slide-(\d+)$/i)
+                        if (!match) {
+                          return false
+                        }
+                        const slideNumber = Number.parseInt(match[1], 10)
+                        return chunkSlideSet.has(slideNumber)
+                      })
+                      const chunkChangeItems = chunkIndex === 0
+                        ? [...nonSlideChangeItems, ...chunkSlideItems]
+                        : chunkSlideItems
+
+                      setStatus(`Invoking ${operationLabels[operation]} chunk ${chunkIndex + 1} of ${chunkPlans.length} (${chunkPlan.summary})...`)
+                      const { requestPayloadBypassed, directFileEntries } = await buildApplyChunkRequest(
+                        chunkChangeItems,
+                        cachedApplyFileId
+                      )
+                      appendRequestLog('Submitting apply-change-items chunk request to backend.', {
+                        chunkIndex: chunkIndex + 1,
+                        chunkCount: chunkPlans.length,
+                        chunkSummary: chunkPlan.summary,
+                        usingCachedFileId: Boolean(cachedApplyFileId),
+                        requestPayload: requestPayloadBypassed,
+                        fileEntries: Object.fromEntries(
+                          Object.entries(directFileEntries).map(([key, file]) => [
+                            key,
+                            file ? { name: file.name, size: file.size, type: file.type } : null
+                          ])
+                        )
+                      }, { submissionId })
+
+                      const response = await postMultipart(
+                        API_ENDPOINTS[operation],
+                        requestPayloadBypassed,
+                        bypassFileInput ? {} : directFileEntries
+                      )
+                      if (!cachedApplyFileId) {
+                        cachedApplyFileId = extractFirstDeleteLogFileId(response) || ''
+                      }
+
+                      appendRequestLog('Apply-change-items chunk response received.', {
+                        chunkIndex: chunkIndex + 1,
+                        chunkCount: chunkPlans.length,
+                        chunkSummary: chunkPlan.summary,
+                        outputTextLength: (response.outputText || '').length,
+                        retainedFileId: cachedApplyFileId || null
+                      }, { submissionId })
+                      chunkOutputs.push(
+                        `### ${chunkPlan.summary}\n\n${response.outputText || '_No changed content returned for this chunk._'}`
+                      )
+                    }
+
+                    await cleanupApplyCachedFile(cachedApplyFileId, 'Doc2Deck apply chunking completed; deleting cached file.')
+                    return { outputText: chunkOutputs.join('\n\n'), chunked: true }
+                  } catch (chunkApplyError) {
+                    await cleanupApplyCachedFile(cachedApplyFileId, 'Doc2Deck apply chunking failed; deleting cached file.')
+                    throw chunkApplyError
+                  }
+                }
+
                 const requestPayload = buildApplyChangeItemsRequest()
                 const directFileEntries = {
                   original_document: docFile
