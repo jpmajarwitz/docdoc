@@ -16,6 +16,7 @@ export const DECK_MATE_SETTINGS = {
     reviewObjective: 'Review Objective',
     formattingGuidance: 'Formatting Guidance',
     antiGuidance: 'Anti-Guidance',
+    changeItemInstruction: 'Change Item Instruction',
     applyChangeItemsGuidance: 'Apply_Change_Items_Guidance'
   },
   settingsPanelLabels: {
@@ -25,6 +26,7 @@ export const DECK_MATE_SETTINGS = {
     reviewObjective: 'Review Objective',
     formattingGuidance: 'Formatting Guidance',
     antiGuidance: 'Anti-Guidance',
+    changeItemInstruction: 'Change Item Instruction',
     applyChangeItemsGuidance: 'Apply_Change_Items_Guidance',
     ignoreOcrErrors: 'Ignore obvious OCR misspellings',
     disableResponseLogging: 'Disable response logging',
@@ -43,6 +45,7 @@ export const DECK_MATE_SETTINGS = {
     'reviewObjective',
     'formattingGuidance',
     'antiGuidance',
+    'changeItemInstruction',
     'applyChangeItemsGuidance',
     'ignoreOcrErrors',
     'disableResponseLogging',
@@ -62,6 +65,7 @@ export const DECK_MATE_SETTINGS = {
       'Your response should be in Markdown format. Provide your output critique on a slide by slide basis with enumerated issues per slide, e.g., slide-1, issue-1, issue-2 … slide-2, issue1, issue2 …',
     antiGuidance:
       'Do not add new ideas into the presentation. Your job is to sharpen up what is already being communicated.',
+    changeItemInstruction: 'create item as stated',
     applyChangeItemsGuidance:
       'Limit the response to just the changed slides of the original presentation. Do not return slide content if no changes are made.'
   },

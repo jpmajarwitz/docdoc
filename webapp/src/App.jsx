@@ -71,10 +71,10 @@ const operationLabels = {
 
 const REVIEW_TEXTAREA_ROWS = 34
 
-function emptyChangeDraft() {
+function emptyChangeDraft(defaultInstruction = 'create item as stated') {
   return {
     id: '',
-    instruction: 'make the change as recommended'
+    instruction: defaultInstruction
   }
 }
 
@@ -552,6 +552,9 @@ export default function App({ appShell = 'ai' }) {
   const [docApplyChangeItemsGuidance, setDocApplyChangeItemsGuidance] = useState(
     APP_SETTINGS.defaults.applyChangeItemsGuidance || ''
   )
+  const [docChangeItemInstruction, setDocChangeItemInstruction] = useState(
+    APP_SETTINGS.defaults.changeItemInstruction || 'create item as stated'
+  )
   const [deckTopic, setDeckTopic] = useState(DECK_MATE_SETTINGS.defaults.topic)
   const [deckObjective, setDeckObjective] = useState(DECK_MATE_SETTINGS.defaults.reviewObjective)
   const [deckGuidance, setDeckGuidance] = useState(DECK_MATE_SETTINGS.defaults.formattingGuidance)
@@ -559,12 +562,18 @@ export default function App({ appShell = 'ai' }) {
   const [deckApplyChangeItemsGuidance, setDeckApplyChangeItemsGuidance] = useState(
     DECK_MATE_SETTINGS.defaults.applyChangeItemsGuidance || ''
   )
+  const [deckChangeItemInstruction, setDeckChangeItemInstruction] = useState(
+    DECK_MATE_SETTINGS.defaults.changeItemInstruction || 'create item as stated'
+  )
   const [doc2DeckTopic, setDoc2DeckTopic] = useState(DOC2DECK_SETTINGS.defaults.topic)
   const [doc2DeckObjective, setDoc2DeckObjective] = useState(DOC2DECK_SETTINGS.defaults.reviewObjective)
   const [doc2DeckGuidance, setDoc2DeckGuidance] = useState(DOC2DECK_SETTINGS.defaults.formattingGuidance)
   const [doc2DeckAntiGuidance, setDoc2DeckAntiGuidance] = useState(DOC2DECK_SETTINGS.defaults.antiGuidance)
   const [doc2DeckApplyChangeItemsGuidance, setDoc2DeckApplyChangeItemsGuidance] = useState(
     DOC2DECK_SETTINGS.defaults.applyChangeItemsGuidance || ''
+  )
+  const [doc2DeckChangeItemInstruction, setDoc2DeckChangeItemInstruction] = useState(
+    DOC2DECK_SETTINGS.defaults.changeItemInstruction || 'create item as stated'
   )
   const [docSupportInstructions, setDocSupportInstructions] = useState(defaults.supportInstructions)
   const [docPriorInstructions, setDocPriorInstructions] = useState(defaults.priorInstructions)
@@ -591,6 +600,11 @@ export default function App({ appShell = 'ai' }) {
     : isDoc2DeckWorkflow
       ? doc2DeckApplyChangeItemsGuidance
       : docApplyChangeItemsGuidance
+  const changeItemInstruction = isDeckMateWorkflow
+    ? deckChangeItemInstruction
+    : isDoc2DeckWorkflow
+      ? doc2DeckChangeItemInstruction
+      : docChangeItemInstruction
   const [critiqueMarkdown, setCritiqueMarkdown] = useState('')
   const [changedDocumentMarkdown, setChangedDocumentMarkdown] = useState('')
   const [critiqueOutputFileName, setCritiqueOutputFileName] = useState('critique.md')
@@ -600,7 +614,9 @@ export default function App({ appShell = 'ai' }) {
   const [loading, setLoading] = useState(false)
   const [lastOperation, setLastOperation] = useState(null)
   const [changeItems, setChangeItems] = useState([])
-  const [changeItemDraft, setChangeItemDraft] = useState(emptyChangeDraft())
+  const [changeItemDraft, setChangeItemDraft] = useState(
+    emptyChangeDraft(APP_SETTINGS.defaults.changeItemInstruction || 'create item as stated')
+  )
   const [requestLogLines, setRequestLogLines] = useState([])
   const [lastCritiqueWaitMs, setLastCritiqueWaitMs] = useState(null)
   const [selectedDeckSlideTab, setSelectedDeckSlideTab] = useState('all')
@@ -798,6 +814,18 @@ export default function App({ appShell = 'ai' }) {
     setDocApplyChangeItemsGuidance(value)
   }
 
+  function setChangeItemInstructionForActive(value) {
+    if (isDeckMateWorkflow) {
+      setDeckChangeItemInstruction(value)
+      return
+    }
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckChangeItemInstruction(value)
+      return
+    }
+    setDocChangeItemInstruction(value)
+  }
+
   function applyUserProfileSettings(settings = {}) {
     setSelectedApiMode(settings.apiMode || APP_SETTINGS.defaultApiMode || 'responses')
     setSelectedModel(settings.model || APP_SETTINGS.defaultModel)
@@ -820,6 +848,7 @@ export default function App({ appShell = 'ai' }) {
     setDocGuidance(docProfile.guidance || APP_SETTINGS.defaults.formattingGuidance)
     setDocAntiGuidance(docProfile.antiGuidance || APP_SETTINGS.defaults.antiGuidance)
     setDocApplyChangeItemsGuidance(docProfile.applyChangeItemsGuidance || '')
+    setDocChangeItemInstruction(docProfile.changeItemInstruction || APP_SETTINGS.defaults.changeItemInstruction || 'create item as stated')
     setDocSupportInstructions(docProfile.supportInstructions || defaults.supportInstructions)
     setDocPriorInstructions(docProfile.priorInstructions || defaults.priorInstructions)
 
@@ -828,6 +857,7 @@ export default function App({ appShell = 'ai' }) {
     setDeckGuidance(deckProfile.guidance || DECK_MATE_SETTINGS.defaults.formattingGuidance)
     setDeckAntiGuidance(deckProfile.antiGuidance || DECK_MATE_SETTINGS.defaults.antiGuidance)
     setDeckApplyChangeItemsGuidance(deckProfile.applyChangeItemsGuidance || DECK_MATE_SETTINGS.defaults.applyChangeItemsGuidance || '')
+    setDeckChangeItemInstruction(deckProfile.changeItemInstruction || DECK_MATE_SETTINGS.defaults.changeItemInstruction || 'create item as stated')
     setDeckSupportInstructions(deckProfile.supportInstructions || defaults.supportInstructions)
     setDeckPriorInstructions(deckProfile.priorInstructions || defaults.priorInstructions)
 
@@ -836,6 +866,7 @@ export default function App({ appShell = 'ai' }) {
     setDoc2DeckGuidance(doc2DeckProfile.guidance || DOC2DECK_SETTINGS.defaults.formattingGuidance)
     setDoc2DeckAntiGuidance(doc2DeckProfile.antiGuidance || DOC2DECK_SETTINGS.defaults.antiGuidance)
     setDoc2DeckApplyChangeItemsGuidance(doc2DeckProfile.applyChangeItemsGuidance || DOC2DECK_SETTINGS.defaults.applyChangeItemsGuidance || '')
+    setDoc2DeckChangeItemInstruction(doc2DeckProfile.changeItemInstruction || DOC2DECK_SETTINGS.defaults.changeItemInstruction || 'create item as stated')
     setDoc2DeckSupportInstructions(doc2DeckProfile.supportInstructions || defaults.supportInstructions)
     setDoc2DeckPriorInstructions(doc2DeckProfile.priorInstructions || defaults.priorInstructions)
   }
@@ -1022,7 +1053,7 @@ export default function App({ appShell = 'ai' }) {
     setLoading(false)
     setLastOperation(null)
     setChangeItems([])
-    setChangeItemDraft(emptyChangeDraft())
+    setChangeItemDraft(emptyChangeDraft(changeItemInstruction.trim() || 'create item as stated'))
     setRequestLogLines([])
     setLastCritiqueWaitMs(null)
     setSelectedDeckSlideTab('all')
@@ -1845,9 +1876,9 @@ async function buildPrimaryPromptPreviewText() {
 
     setChangeItems((items) => [
       ...items,
-      { id: trimmedId, instruction: trimmedInstruction || 'make the change as recommended' }
+      { id: trimmedId, instruction: trimmedInstruction || changeItemInstruction.trim() || 'create item as stated' }
     ])
-    setChangeItemDraft(emptyChangeDraft())
+    setChangeItemDraft(emptyChangeDraft(changeItemInstruction.trim() || 'create item as stated'))
     setError('')
   }
 
@@ -1866,7 +1897,7 @@ async function buildPrimaryPromptPreviewText() {
       .filter((item) => !changeItems.some((existing) => existing.id === item.optionValue))
       .map((item) => ({
         id: item.optionValue,
-        instruction: `Apply updates for Slide ${item.optionValue.split('/')[0].replace('slide-', '')}, Issue ${item.issueNumber}.`
+        instruction: changeItemInstruction.trim() || 'create item as stated'
       }))
 
     if (!itemsToAdd.length) {
@@ -1891,10 +1922,9 @@ async function buildPrimaryPromptPreviewText() {
       .map((slideId) => slideId.toLowerCase())
       .filter((slideId) => !changeItems.some((existing) => existing.id.toLowerCase() === slideId))
       .map((slideId) => {
-        const slideNumber = Number.parseInt(slideId.replace('slide-', ''), 10)
         return {
           id: slideId,
-          instruction: `Refine outline guidance for Slide ${slideNumber}.`
+          instruction: changeItemInstruction.trim() || 'create item as stated'
         }
       })
 
@@ -2049,6 +2079,7 @@ async function buildPrimaryPromptPreviewText() {
         guidance: docGuidance,
         antiGuidance: docAntiGuidance,
         applyChangeItemsGuidance: docApplyChangeItemsGuidance,
+        changeItemInstruction: docChangeItemInstruction,
         supportInstructions: docSupportInstructions,
         priorInstructions: docPriorInstructions
       },
@@ -2058,6 +2089,7 @@ async function buildPrimaryPromptPreviewText() {
         guidance: deckGuidance,
         antiGuidance: deckAntiGuidance,
         applyChangeItemsGuidance: deckApplyChangeItemsGuidance,
+        changeItemInstruction: deckChangeItemInstruction,
         supportInstructions: deckSupportInstructions,
         priorInstructions: deckPriorInstructions
       },
@@ -2067,6 +2099,7 @@ async function buildPrimaryPromptPreviewText() {
         guidance: doc2DeckGuidance,
         antiGuidance: doc2DeckAntiGuidance,
         applyChangeItemsGuidance: doc2DeckApplyChangeItemsGuidance,
+        changeItemInstruction: doc2DeckChangeItemInstruction,
         supportInstructions: doc2DeckSupportInstructions,
         priorInstructions: doc2DeckPriorInstructions
       }
@@ -2101,6 +2134,7 @@ async function buildPrimaryPromptPreviewText() {
     docGuidance,
     docAntiGuidance,
     docApplyChangeItemsGuidance,
+    docChangeItemInstruction,
     docSupportInstructions,
     docPriorInstructions,
     deckTopic,
@@ -2108,6 +2142,7 @@ async function buildPrimaryPromptPreviewText() {
     deckGuidance,
     deckAntiGuidance,
     deckApplyChangeItemsGuidance,
+    deckChangeItemInstruction,
     deckSupportInstructions,
     deckPriorInstructions,
     doc2DeckTopic,
@@ -2115,6 +2150,7 @@ async function buildPrimaryPromptPreviewText() {
     doc2DeckGuidance,
     doc2DeckAntiGuidance,
     doc2DeckApplyChangeItemsGuidance,
+    doc2DeckChangeItemInstruction,
     doc2DeckSupportInstructions,
     doc2DeckPriorInstructions
   ])
@@ -2223,6 +2259,7 @@ async function buildPrimaryPromptPreviewText() {
         id: 'application_controls',
         label: 'Application Controls',
         keys: [
+          'changeItemInstruction',
           'applyChangeItemsGuidance',
           'viewPrompt',
           'logPanelEnabled',
@@ -2304,6 +2341,18 @@ async function buildPrimaryPromptPreviewText() {
                 value={applyChangeItemsGuidance}
                 onChange={(event) => setApplyChangeItemsGuidanceForActive(event.target.value)}
                 rows={3}
+              />
+            </label>
+          )
+        case 'changeItemInstruction':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.changeItemInstruction || activeSettings.labels.changeItemInstruction || 'Change Item Instruction'}
+              <textarea
+                name="change_item_instruction"
+                value={changeItemInstruction}
+                onChange={(event) => setChangeItemInstructionForActive(event.target.value)}
+                rows={2}
               />
             </label>
           )

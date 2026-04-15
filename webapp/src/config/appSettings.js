@@ -15,7 +15,8 @@ export const APP_SETTINGS = {
     defaultTopic: 'Default Topic',
     reviewObjective: 'Review Objective',
     formattingGuidance: 'Formatting Guidance',
-    antiGuidance: 'Anti-Guidance'
+    antiGuidance: 'Anti-Guidance',
+    changeItemInstruction: 'Change Item Instruction'
   },
   settingsPanelLabels: {
     apiMode: 'API Mode',
@@ -24,6 +25,7 @@ export const APP_SETTINGS = {
     reviewObjective: 'Review Objective',
     formattingGuidance: 'Formatting Guidance',
     antiGuidance: 'Anti-Guidance',
+    changeItemInstruction: 'Change Item Instruction',
     ignoreOcrErrors: 'Ignore obvious OCR misspellings',
     disableResponseLogging: 'Disable response logging',
     viewPrompt: 'View Prompt',
@@ -42,6 +44,7 @@ export const APP_SETTINGS = {
     'reviewObjective',
     'formattingGuidance',
     'antiGuidance',
+    'changeItemInstruction',
     'ignoreOcrErrors',
     'disableResponseLogging',
     'viewPrompt',
@@ -60,7 +63,8 @@ export const APP_SETTINGS = {
     formattingGuidance:
       'Your response should be in Markdown format. Provide a section of major changes needed and a section of minor changes needed. Use enumerations for each change recommended, e.g., major-1, major-2,... minor-1, minor-2....',
     antiGuidance:
-      'Do not add new ideas into the document. Your job is to sharpen up what is already being communicated'
+      'Do not add new ideas into the document. Your job is to sharpen up what is already being communicated',
+    changeItemInstruction: 'create item as stated'
   },
   ocrGuidanceText:
     'Ignore any OCR errors related to the mis-spelling of words that seems obvious. Do not report back these types of errors. For example: Objec@ive instead of Objective.',

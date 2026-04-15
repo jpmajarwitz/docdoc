@@ -16,6 +16,7 @@ export const DOC2DECK_SETTINGS = {
     reviewObjective: 'Review Objective',
     formattingGuidance: 'Formatting Guidance',
     antiGuidance: 'Anti-Guidance',
+    changeItemInstruction: 'Change Item Instruction',
     applyChangeItemsGuidance: 'Apply_Change_Items_Guidance'
   },
   settingsPanelLabels: {
@@ -25,6 +26,7 @@ export const DOC2DECK_SETTINGS = {
     reviewObjective: 'Review Objective',
     formattingGuidance: 'Formatting Guidance',
     antiGuidance: 'Anti-Guidance',
+    changeItemInstruction: 'Change Item Instruction',
     applyChangeItemsGuidance: 'Apply_Change_Items_Guidance',
     ignoreOcrErrors: 'Ignore obvious OCR misspellings',
     disableResponseLogging: 'Disable response logging',
@@ -40,6 +42,7 @@ export const DOC2DECK_SETTINGS = {
     'reviewObjective',
     'formattingGuidance',
     'antiGuidance',
+    'changeItemInstruction',
     'applyChangeItemsGuidance',
     'ignoreOcrErrors',
     'disableResponseLogging',
@@ -56,6 +59,7 @@ export const DOC2DECK_SETTINGS = {
       'Your response should be partitioned by Slide number, e.g., Slide-1, Slide-2, etc. with the purpose of each slide stated clearly. If there are any items to consider or to clarify these should be listed after the purpose for each slide.',
     antiGuidance:
       'Do not add new ideas into the outline plan. Your job is to reflect only what is in the document.',
+    changeItemInstruction: 'create item as stated',
     applyChangeItemsGuidance: ''
   },
   ocrGuidanceText:
