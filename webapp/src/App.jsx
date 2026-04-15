@@ -572,8 +572,14 @@ export default function App({ appShell = 'ai' }) {
   const [doc2DeckApplyChangeItemsGuidance, setDoc2DeckApplyChangeItemsGuidance] = useState(
     DOC2DECK_SETTINGS.defaults.applyChangeItemsGuidance || ''
   )
+  const [doc2DeckApplyChangesFormattingGuidance, setDoc2DeckApplyChangesFormattingGuidance] = useState(
+    DOC2DECK_SETTINGS.defaults.applyChangesFormattingGuidance || ''
+  )
   const [doc2DeckApplyChangesAntiGuidance, setDoc2DeckApplyChangesAntiGuidance] = useState(
     DOC2DECK_SETTINGS.defaults.applyChangesAntiGuidance || ''
+  )
+  const [doc2DeckPptxOutputMode, setDoc2DeckPptxOutputMode] = useState(
+    DOC2DECK_SETTINGS.defaults.pptxOutputMode ?? false
   )
   const [doc2DeckChangeItemInstruction, setDoc2DeckChangeItemInstruction] = useState(
     DOC2DECK_SETTINGS.defaults.changeItemInstruction || 'create item as stated'
@@ -872,7 +878,9 @@ export default function App({ appShell = 'ai' }) {
     setDoc2DeckGuidance(doc2DeckProfile.guidance || DOC2DECK_SETTINGS.defaults.formattingGuidance)
     setDoc2DeckAntiGuidance(doc2DeckProfile.antiGuidance || DOC2DECK_SETTINGS.defaults.antiGuidance)
     setDoc2DeckApplyChangeItemsGuidance(doc2DeckProfile.applyChangeItemsGuidance || DOC2DECK_SETTINGS.defaults.applyChangeItemsGuidance || '')
+    setDoc2DeckApplyChangesFormattingGuidance(doc2DeckProfile.applyChangesFormattingGuidance || DOC2DECK_SETTINGS.defaults.applyChangesFormattingGuidance || '')
     setDoc2DeckApplyChangesAntiGuidance(doc2DeckProfile.applyChangesAntiGuidance || DOC2DECK_SETTINGS.defaults.applyChangesAntiGuidance || '')
+    setDoc2DeckPptxOutputMode(doc2DeckProfile.pptxOutputMode ?? (DOC2DECK_SETTINGS.defaults.pptxOutputMode ?? false))
     setDoc2DeckChangeItemInstruction(doc2DeckProfile.changeItemInstruction || DOC2DECK_SETTINGS.defaults.changeItemInstruction || 'create item as stated')
     setDoc2DeckSupportInstructions(doc2DeckProfile.supportInstructions || defaults.supportInstructions)
     setDoc2DeckPriorInstructions(doc2DeckProfile.priorInstructions || defaults.priorInstructions)
@@ -1315,8 +1323,16 @@ async function buildPrimaryPromptPreviewText() {
       isDeckMateWorkflow && selectedChangeSlides.length
         ? ` Slide scope: update only these slides: ${selectedChangeSlides.join(', ')}.`
         : ''
+    const doc2DeckPptxFormattingGuidance = doc2DeckPptxOutputMode
+      ? (doc2DeckApplyChangesFormattingGuidance || DOC2DECK_SETTINGS.defaults.applyChangesFormattingGuidance || '').trim()
+      : ''
     const mainInstructionText = isDoc2DeckWorkflow
-      ? (applyChangeItemsGuidance || '').trim()
+      ? [
+          (applyChangeItemsGuidance || '').trim(),
+          doc2DeckPptxFormattingGuidance
+        ]
+          .filter(Boolean)
+          .join(' ')
       : `Apply all requested change items directly to the original ${contentNoun} and return the changed ${contentNoun} in markdown.${
           applyChangeItemsGuidance ? ` ${applyChangeItemsGuidance}` : ''
         }`
@@ -2249,7 +2265,9 @@ async function buildPrimaryPromptPreviewText() {
         guidance: doc2DeckGuidance,
         antiGuidance: doc2DeckAntiGuidance,
         applyChangeItemsGuidance: doc2DeckApplyChangeItemsGuidance,
+        applyChangesFormattingGuidance: doc2DeckApplyChangesFormattingGuidance,
         applyChangesAntiGuidance: doc2DeckApplyChangesAntiGuidance,
+        pptxOutputMode: doc2DeckPptxOutputMode,
         changeItemInstruction: doc2DeckChangeItemInstruction,
         supportInstructions: doc2DeckSupportInstructions,
         priorInstructions: doc2DeckPriorInstructions
@@ -2301,7 +2319,9 @@ async function buildPrimaryPromptPreviewText() {
     doc2DeckGuidance,
     doc2DeckAntiGuidance,
     doc2DeckApplyChangeItemsGuidance,
+    doc2DeckApplyChangesFormattingGuidance,
     doc2DeckApplyChangesAntiGuidance,
+    doc2DeckPptxOutputMode,
     doc2DeckChangeItemInstruction,
     doc2DeckSupportInstructions,
     doc2DeckPriorInstructions
@@ -2510,6 +2530,38 @@ async function buildPrimaryPromptPreviewText() {
                 }}
                 rows={3}
               />
+            </label>
+          )
+        case 'applyChangesFormattingGuidance':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.applyChangesFormattingGuidance || activeSettings.labels.applyChangesFormattingGuidance || 'Apply Changes Formatting Guidance'}
+              <textarea
+                name="apply_changes_formatting_guidance"
+                value={isDoc2DeckWorkflow ? doc2DeckApplyChangesFormattingGuidance : ''}
+                onChange={(event) => {
+                  if (isDoc2DeckWorkflow) {
+                    setDoc2DeckApplyChangesFormattingGuidance(event.target.value)
+                  }
+                }}
+                rows={4}
+              />
+            </label>
+          )
+        case 'pptxOutputMode':
+          return (
+            <label key={settingKey} className="checkbox-label">
+              <input
+                name="pptx_output_mode"
+                type="checkbox"
+                checked={isDoc2DeckWorkflow ? doc2DeckPptxOutputMode : false}
+                onChange={(event) => {
+                  if (isDoc2DeckWorkflow) {
+                    setDoc2DeckPptxOutputMode(event.target.checked)
+                  }
+                }}
+              />
+              {settingsLabels.pptxOutputMode || activeSettings.labels.pptxOutputMode || 'pptx output mode'}
             </label>
           )
         case 'changeItemInstruction':

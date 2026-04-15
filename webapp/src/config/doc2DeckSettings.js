@@ -17,7 +17,9 @@ export const DOC2DECK_SETTINGS = {
     formattingGuidance: 'Formatting Guidance',
     antiGuidance: 'Anti-Guidance',
     changeItemInstruction: 'Change Item Instruction',
+    applyChangesFormattingGuidance: 'Apply Changes Formatting Guidance',
     applyChangesAntiGuidance: 'Apply Changes Anti Guidance',
+    pptxOutputMode: 'pptx output mode',
     applyChangeItemsGuidance: 'Apply_Change_Items_Guidance'
   },
   settingsPanelLabels: {
@@ -28,7 +30,9 @@ export const DOC2DECK_SETTINGS = {
     formattingGuidance: 'Formatting Guidance',
     antiGuidance: 'Anti-Guidance',
     changeItemInstruction: 'Change Item Instruction',
+    applyChangesFormattingGuidance: 'Apply Changes Formatting Guidance',
     applyChangesAntiGuidance: 'Apply Changes Anti Guidance',
+    pptxOutputMode: 'pptx output mode',
     applyChangeItemsGuidance: 'Apply_Change_Items_Guidance',
     ignoreOcrErrors: 'Ignore obvious OCR misspellings',
     disableResponseLogging: 'Disable response logging',
@@ -48,7 +52,9 @@ export const DOC2DECK_SETTINGS = {
     'formattingGuidance',
     'antiGuidance',
     'changeItemInstruction',
+    'applyChangesFormattingGuidance',
     'applyChangesAntiGuidance',
+    'pptxOutputMode',
     'applyChangeItemsGuidance',
     'ignoreOcrErrors',
     'disableResponseLogging',
@@ -69,9 +75,12 @@ export const DOC2DECK_SETTINGS = {
     antiGuidance:
       'Do not add new ideas into the outline plan. Your job is to reflect only what is in the document.',
     changeItemInstruction: 'create item as stated',
+    applyChangesFormattingGuidance:
+      'Output strict JSON only. No markdown, prose, or code fences. Return a valid UTF-8 JSON object with schema: {"deck":{"title":string,"slides":[{"slide_number":number,"title":string,"bullets":[string],"speaker_notes":string,"layout":"title_and_content"|"section_header"|"two_column"|"image_left"|"image_right"}],"theme":{"name":string,"primary_color":string,"accent_color":string}}}. Include only changed slides relevant to the provided Change Items. Keep slide_number values aligned to the original slide numbering. Do not include null fields.',
     applyChangesAntiGuidance:
       'You are creating the actual presentation this user will deliver. Do not add comments or meta-statements or other forms of guidance.',
-    applyChangeItemsGuidance: ''
+    applyChangeItemsGuidance: '',
+    pptxOutputMode: false
   },
   ocrGuidanceText:
     'Ignore any OCR errors related to the mis-spelling of words that seems obvious. Do not report back these types of errors. For example: Objec@ive instead of Objective.',
