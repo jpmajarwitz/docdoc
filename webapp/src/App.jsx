@@ -320,42 +320,90 @@ function parseDoc2DeckPptxJson(rawText) {
     candidates.push(fencedMatch[1].trim())
   }
 
-  const firstBraceIndex = text.indexOf('{')
-  if (firstBraceIndex >= 0) {
-    let depth = 0
-    let inString = false
-    let escaped = false
-    for (let index = firstBraceIndex; index < text.length; index += 1) {
-      const char = text[index]
-      if (inString) {
-        if (escaped) {
-          escaped = false
-        } else if (char === '\\') {
-          escaped = true
-        } else if (char === '"') {
-          inString = false
+  const balancedJsonObjects = []
+  let depth = 0
+  let inString = false
+  let escaped = false
+  let objectStart = -1
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    if (inString) {
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === '"') {
+        inString = false
+      }
+      continue
+    }
+
+    if (char === '"') {
+      inString = true
+      continue
+    }
+
+    if (char === '{') {
+      if (depth === 0) {
+        objectStart = index
+      }
+      depth += 1
+      continue
+    }
+
+    if (char === '}') {
+      depth -= 1
+      if (depth === 0 && objectStart >= 0) {
+        balancedJsonObjects.push(text.slice(objectStart, index + 1).trim())
+        objectStart = -1
+      }
+    }
+  }
+
+  if (balancedJsonObjects.length) {
+    const parsedObjects = balancedJsonObjects
+      .map((chunk) => {
+        try {
+          return JSON.parse(chunk)
+        } catch (_error) {
+          return null
         }
-        continue
-      }
+      })
+      .filter(Boolean)
+    const deckObjects = parsedObjects.filter((item) => Array.isArray(item?.deck?.slides))
 
-      if (char === '"') {
-        inString = true
-        continue
-      }
+    if (deckObjects.length) {
+      const mergedSlidesMap = new Map()
+      deckObjects.forEach((item) => {
+        item.deck.slides.forEach((slide, index) => {
+          const parsedSlideNumber = Number.parseInt(`${slide?.slide_number ?? slide?.slideNumber ?? ''}`, 10)
+          const slideKey = Number.isFinite(parsedSlideNumber) ? parsedSlideNumber : `fallback-${mergedSlidesMap.size}-${index}`
+          mergedSlidesMap.set(slideKey, slide)
+        })
+      })
 
-      if (char === '{') {
-        depth += 1
-        continue
-      }
+      const firstDeck = deckObjects[0]
+      const mergedSlides = [...mergedSlidesMap.entries()]
+        .sort((left, right) => {
+          const [leftKey] = left
+          const [rightKey] = right
+          if (typeof leftKey === 'number' && typeof rightKey === 'number') {
+            return leftKey - rightKey
+          }
+          return `${leftKey}`.localeCompare(`${rightKey}`)
+        })
+        .map(([, slide]) => slide)
 
-      if (char === '}') {
-        depth -= 1
-        if (depth === 0) {
-          candidates.push(text.slice(firstBraceIndex, index + 1).trim())
-          break
+      return {
+        ...firstDeck,
+        deck: {
+          ...firstDeck.deck,
+          slides: mergedSlides
         }
       }
     }
+
+    candidates.push(...balancedJsonObjects)
   }
 
   for (const candidate of candidates) {
