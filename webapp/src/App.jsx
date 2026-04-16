@@ -323,15 +323,61 @@ function parseDoc2DeckPptxJson(rawText) {
   if (!text) {
     return null
   }
-  const withoutFence = text
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim()
-  try {
-    return JSON.parse(withoutFence)
-  } catch (_error) {
-    return null
+
+  const candidates = []
+  candidates.push(text)
+
+  const fencedMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  if (fencedMatch?.[1]) {
+    candidates.push(fencedMatch[1].trim())
   }
+
+  const firstBraceIndex = text.indexOf('{')
+  if (firstBraceIndex >= 0) {
+    let depth = 0
+    let inString = false
+    let escaped = false
+    for (let index = firstBraceIndex; index < text.length; index += 1) {
+      const char = text[index]
+      if (inString) {
+        if (escaped) {
+          escaped = false
+        } else if (char === '\\') {
+          escaped = true
+        } else if (char === '"') {
+          inString = false
+        }
+        continue
+      }
+
+      if (char === '"') {
+        inString = true
+        continue
+      }
+
+      if (char === '{') {
+        depth += 1
+        continue
+      }
+
+      if (char === '}') {
+        depth -= 1
+        if (depth === 0) {
+          candidates.push(text.slice(firstBraceIndex, index + 1).trim())
+          break
+        }
+      }
+    }
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate)
+    } catch (_error) {
+      // try next candidate
+    }
+  }
+  return null
 }
 
 let pptxGenJsLoaderPromise = null
