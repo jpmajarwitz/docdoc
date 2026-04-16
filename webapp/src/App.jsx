@@ -306,10 +306,10 @@ function parseDoc2DeckPptxJsonSections(rawText) {
     .sort((left, right) => left.slideNumber - right.slideNumber)
 }
 
-function parseDoc2DeckPptxJson(rawText) {
+function parseDoc2DeckPptxJsonWithMeta(rawText) {
   const text = `${rawText || ''}`.trim()
   if (!text) {
-    return null
+    return { parsed: null, usedFallback: false }
   }
 
   const candidates = []
@@ -395,11 +395,14 @@ function parseDoc2DeckPptxJson(rawText) {
         .map(([, slide]) => slide)
 
       return {
+        usedFallback: false,
+        parsed: {
         ...firstDeck,
         deck: {
           ...firstDeck.deck,
           slides: mergedSlides
         }
+      }
       }
     }
 
@@ -408,12 +411,16 @@ function parseDoc2DeckPptxJson(rawText) {
 
   for (const candidate of candidates) {
     try {
-      return JSON.parse(candidate)
+      return { parsed: JSON.parse(candidate), usedFallback: true }
     } catch (_error) {
       // try next candidate
     }
   }
-  return null
+  return { parsed: null, usedFallback: false }
+}
+
+function parseDoc2DeckPptxJson(rawText) {
+  return parseDoc2DeckPptxJsonWithMeta(rawText).parsed
 }
 
 let pptxGenJsLoaderPromise = null
@@ -848,6 +855,10 @@ export default function App({ appShell = 'ai' }) {
     () => (isDoc2DeckWorkflow ? parseDeckMarkdownSections(critiqueMarkdown) : []),
     [isDoc2DeckWorkflow, critiqueMarkdown]
   )
+  const changedDoc2DeckJsonParse = useMemo(
+    () => (isDoc2DeckWorkflow ? parseDoc2DeckPptxJsonWithMeta(changedDocumentMarkdown) : { parsed: null, usedFallback: false }),
+    [isDoc2DeckWorkflow, changedDocumentMarkdown]
+  )
   const changedDoc2DeckJsonSections = useMemo(
     () => (isDoc2DeckWorkflow ? parseDoc2DeckPptxJsonSections(changedDocumentMarkdown) : []),
     [isDoc2DeckWorkflow, changedDocumentMarkdown]
@@ -873,6 +884,13 @@ export default function App({ appShell = 'ai' }) {
     }
     return changedDoc2DeckSections.map((section) => section.content).join('\n\n')
   }, [isDoc2DeckWorkflow, doc2DeckPptxOutputMode, changedDoc2DeckSections, changedDoc2DeckJsonSections, changedDocumentMarkdown])
+
+  useEffect(() => {
+    if (!isDoc2DeckWorkflow || !changedDoc2DeckJsonParse.usedFallback) {
+      return
+    }
+    setError('Warning: Doc2Deck JSON fallback parsing was used. Some chunk content may not be fully processed.')
+  }, [isDoc2DeckWorkflow, changedDoc2DeckJsonParse.usedFallback])
 
   function extractFirstDeleteLogFileId(response) {
     const firstId = response?.deleteLogs?.fileIds?.[0]
@@ -1347,7 +1365,8 @@ export default function App({ appShell = 'ai' }) {
   }
 
   async function saveDoc2DeckPptxFromJsonOutput(jsonText, sourceFileName) {
-    const parsed = parseDoc2DeckPptxJson(jsonText)
+    const parseResult = parseDoc2DeckPptxJsonWithMeta(jsonText)
+    const parsed = parseResult.parsed
     const slides = Array.isArray(parsed?.deck?.slides) ? parsed.deck.slides : []
     if (!slides.length) {
       throw new Error('PPTX mode expected strict JSON with deck.slides[] but it could not be parsed.')
@@ -1393,7 +1412,7 @@ export default function App({ appShell = 'ai' }) {
     })
 
     await pptx.writeFile({ fileName: pptxFileName })
-    return pptxFileName
+    return { pptxFileName, usedFallback: parseResult.usedFallback }
   }
 
   function buildLlmRequest(messages) {
@@ -2304,8 +2323,11 @@ async function buildPrimaryPromptPreviewText() {
         if (isDoc2DeckWorkflow && doc2DeckPptxOutputMode) {
           saveTextToFile(outputText, changedOutputFileName, 'application/json;charset=utf-8')
           try {
-            const pptxFileName = await saveDoc2DeckPptxFromJsonOutput(outputText, changedOutputFileName)
+            const { pptxFileName, usedFallback } = await saveDoc2DeckPptxFromJsonOutput(outputText, changedOutputFileName)
             appendRequestLog('Generated PPTX from Doc2Deck JSON output.', { pptxFileName }, { submissionId })
+            if (usedFallback) {
+              setError('Warning: Doc2Deck JSON fallback parsing was used. Some chunk content may not be fully processed.')
+            }
           } catch (pptxError) {
             appendRequestLog('PPTX generation from Doc2Deck JSON output failed.', {
               error: normalizeRequestError(pptxError)
