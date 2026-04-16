@@ -1776,8 +1776,18 @@ async function buildPrimaryPromptPreviewText() {
             })()
           : operation === OPERATIONS.APPLY_CHANGE_ITEMS
             ? await (async () => {
-                const buildApplyChunkRequest = async (chunkChangeItems, cachedFileId = '') => {
+                const buildApplyChunkRequest = async (
+                  chunkChangeItems,
+                  {
+                    cachedFileId = '',
+                    shouldDeleteOnLlm = true
+                  } = {}
+                ) => {
                   let requestPayload = buildApplyChangeItemsRequest(chunkChangeItems)
+                  requestPayload = {
+                    ...requestPayload,
+                    deleteFileOnLlm: shouldDeleteOnLlm
+                  }
                   if (cachedFileId) {
                     requestPayload = {
                       ...requestPayload,
@@ -1857,6 +1867,8 @@ async function buildPrimaryPromptPreviewText() {
 
                     for (let chunkIndex = 0; chunkIndex < chunkPlans.length; chunkIndex += 1) {
                       const chunkPlan = chunkPlans[chunkIndex]
+                      const isFinalChunk = chunkIndex === chunkPlans.length - 1
+                      const shouldDeleteOnLlm = chunkPlans.length === 1 || isFinalChunk
                       const chunkSlideSet = new Set(chunkPlan.slides)
                       const chunkSlideItems = changeItems.filter((item) => {
                         const match = `${item.id || ''}`.match(/^slide-(\d+)$/i)
@@ -1873,7 +1885,10 @@ async function buildPrimaryPromptPreviewText() {
                       setStatus(`Invoking ${operationLabels[operation]} chunk ${chunkIndex + 1} of ${chunkPlans.length} (${chunkPlan.summary})...`)
                       const { requestPayloadBypassed, directFileEntries } = await buildApplyChunkRequest(
                         chunkChangeItems,
-                        cachedApplyFileId
+                        {
+                          cachedFileId: cachedApplyFileId,
+                          shouldDeleteOnLlm
+                        }
                       )
                       appendRequestLog('Submitting apply-change-items chunk request to backend.', {
                         chunkIndex: chunkIndex + 1,
@@ -1894,7 +1909,7 @@ async function buildPrimaryPromptPreviewText() {
                         requestPayloadBypassed,
                         bypassFileInput ? {} : directFileEntries
                       )
-                      if (!cachedApplyFileId) {
+                      if (!cachedApplyFileId && !shouldDeleteOnLlm) {
                         cachedApplyFileId = extractFirstDeleteLogFileId(response) || ''
                       }
 
@@ -1910,7 +1925,6 @@ async function buildPrimaryPromptPreviewText() {
                       )
                     }
 
-                    await cleanupApplyCachedFile(cachedApplyFileId, 'Doc2Deck apply chunking completed; deleting cached file.')
                     return { outputText: chunkOutputs.join('\n\n'), chunked: true }
                   } catch (chunkApplyError) {
                     await cleanupApplyCachedFile(cachedApplyFileId, 'Doc2Deck apply chunking failed; deleting cached file.')
