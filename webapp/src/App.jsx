@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import PptxGenJS from 'pptxgenjs'
 import logo from './assets/docdoc-logo.svg'
 import deckMateLogo from './assets/deck-mate-logo.svg'
 import doc2DeckLogo from './assets/doc2deck-logo.svg'
@@ -333,6 +332,42 @@ function parseDoc2DeckPptxJson(rawText) {
   } catch (_error) {
     return null
   }
+}
+
+let pptxGenJsLoaderPromise = null
+
+function loadPptxGenJsFromCdn() {
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('PptxGenJS can only be loaded in a browser environment.'))
+  }
+  if (window.PptxGenJS) {
+    return Promise.resolve(window.PptxGenJS)
+  }
+  if (!pptxGenJsLoaderPromise) {
+    pptxGenJsLoaderPromise = new Promise((resolve, reject) => {
+      const existingScript = document.querySelector('script[data-pptxgenjs-cdn="true"]')
+      if (existingScript) {
+        existingScript.addEventListener('load', () => resolve(window.PptxGenJS))
+        existingScript.addEventListener('error', () => reject(new Error('Failed to load PptxGenJS from CDN.')))
+        return
+      }
+
+      const script = document.createElement('script')
+      script.src = 'https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js'
+      script.async = true
+      script.dataset.pptxgenjsCdn = 'true'
+      script.addEventListener('load', () => {
+        if (window.PptxGenJS) {
+          resolve(window.PptxGenJS)
+        } else {
+          reject(new Error('PptxGenJS loaded but global constructor was not found.'))
+        }
+      })
+      script.addEventListener('error', () => reject(new Error('Failed to load PptxGenJS from CDN.')))
+      document.head.appendChild(script)
+    })
+  }
+  return pptxGenJsLoaderPromise
 }
 
 function PageShell({
@@ -1234,6 +1269,7 @@ export default function App({ appShell = 'ai' }) {
 
     const safeSource = (sourceFileName || 'changes.json').trim() || 'changes.json'
     const pptxFileName = `${safeSource.replace(/\.[^/.]+$/, '')}.pptx`
+    const PptxGenJS = await loadPptxGenJsFromCdn()
     const pptx = new PptxGenJS()
     pptx.layout = 'LAYOUT_WIDE'
     pptx.author = 'DocDoc'
