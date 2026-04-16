@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import PptxGenJS from 'pptxgenjs'
 import logo from './assets/docdoc-logo.svg'
 import deckMateLogo from './assets/deck-mate-logo.svg'
 import doc2DeckLogo from './assets/doc2deck-logo.svg'
@@ -316,6 +317,22 @@ function parseDoc2DeckPptxJsonSections(rawText) {
     })
     .filter(Boolean)
     .sort((left, right) => left.slideNumber - right.slideNumber)
+}
+
+function parseDoc2DeckPptxJson(rawText) {
+  const text = `${rawText || ''}`.trim()
+  if (!text) {
+    return null
+  }
+  const withoutFence = text
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim()
+  try {
+    return JSON.parse(withoutFence)
+  } catch (_error) {
+    return null
+  }
 }
 
 function PageShell({
@@ -1195,17 +1212,6 @@ export default function App({ appShell = 'ai' }) {
     URL.revokeObjectURL(url)
   }
 
-  function ensureFileExtension(desiredFileName, extension) {
-    const normalizedExtension = `${extension || ''}`.trim().toLowerCase().replace(/^\./, '')
-    if (!normalizedExtension) {
-      return (desiredFileName || '').trim()
-    }
-    const safeName = (desiredFileName || '').trim() || `output.${normalizedExtension}`
-    return safeName.toLowerCase().endsWith(`.${normalizedExtension}`)
-      ? safeName
-      : `${safeName}.${normalizedExtension}`
-  }
-
   function saveTextToFile(content, desiredFileName, mimeType = 'text/plain;charset=utf-8') {
     const fileName = (desiredFileName || 'output.txt').trim() || 'output.txt'
     const blob = new Blob([content || ''], { type: mimeType })
@@ -1217,6 +1223,55 @@ export default function App({ appShell = 'ai' }) {
     anchor.click()
     anchor.remove()
     URL.revokeObjectURL(url)
+  }
+
+  async function saveDoc2DeckPptxFromJsonOutput(jsonText, sourceFileName) {
+    const parsed = parseDoc2DeckPptxJson(jsonText)
+    const slides = Array.isArray(parsed?.deck?.slides) ? parsed.deck.slides : []
+    if (!slides.length) {
+      throw new Error('PPTX mode expected strict JSON with deck.slides[] but it could not be parsed.')
+    }
+
+    const safeSource = (sourceFileName || 'changes.json').trim() || 'changes.json'
+    const pptxFileName = `${safeSource.replace(/\.[^/.]+$/, '')}.pptx`
+    const pptx = new PptxGenJS()
+    pptx.layout = 'LAYOUT_WIDE'
+    pptx.author = 'DocDoc'
+    pptx.subject = `${parsed?.deck?.title || 'Doc2Deck'}`
+    pptx.title = `${parsed?.deck?.title || 'Doc2Deck Output'}`
+
+    slides.forEach((slideData, index) => {
+      const slide = pptx.addSlide()
+      const slideNumber = Number.parseInt(`${slideData?.slide_number ?? index + 1}`, 10)
+      const title = `${slideData?.title || `Slide ${slideNumber}`}`.trim() || `Slide ${slideNumber}`
+      const bullets = Array.isArray(slideData?.bullets) ? slideData.bullets.filter(Boolean).map((item) => `${item}`.trim()) : []
+      const speakerNotes = `${slideData?.speaker_notes || ''}`.trim()
+
+      slide.addText(`Slide ${slideNumber}: ${title}`, {
+        x: 0.5,
+        y: 0.3,
+        w: 12.3,
+        h: 0.6,
+        fontSize: 24,
+        bold: true
+      })
+
+      slide.addText(bullets.length ? bullets.map((item) => `• ${item}`).join('\n') : '• (No bullets provided)', {
+        x: 0.7,
+        y: 1.2,
+        w: 11.8,
+        h: 4.8,
+        fontSize: 18,
+        valign: 'top'
+      })
+
+      if (speakerNotes) {
+        slide.addNotes(`Speaker Notes:\n${speakerNotes}`)
+      }
+    })
+
+    await pptx.writeFile({ fileName: pptxFileName })
+    return pptxFileName
   }
 
   function buildLlmRequest(messages) {
@@ -2125,11 +2180,16 @@ async function buildPrimaryPromptPreviewText() {
         setChangedDocumentMarkdown(outputText)
         setChangeItems([])
         if (isDoc2DeckWorkflow && doc2DeckPptxOutputMode) {
-          const pptxFileName = ensureFileExtension(changedOutputFileName, 'pptx')
-          if (pptxFileName !== changedOutputFileName) {
-            setChangedOutputFileName(pptxFileName)
+          saveTextToFile(outputText, changedOutputFileName, 'application/json;charset=utf-8')
+          try {
+            const pptxFileName = await saveDoc2DeckPptxFromJsonOutput(outputText, changedOutputFileName)
+            appendRequestLog('Generated PPTX from Doc2Deck JSON output.', { pptxFileName }, { submissionId })
+          } catch (pptxError) {
+            appendRequestLog('PPTX generation from Doc2Deck JSON output failed.', {
+              error: normalizeRequestError(pptxError)
+            }, { submissionId })
+            setError(`PPTX generation failed: ${normalizeRequestError(pptxError)}`)
           }
-          saveTextToFile(outputText, pptxFileName, 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
         } else {
           saveMarkdownToFile(outputText, changedOutputFileName)
         }
