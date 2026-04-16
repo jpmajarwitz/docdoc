@@ -812,27 +812,31 @@ export default function App({ appShell = 'ai' }) {
     () => (isDoc2DeckWorkflow ? parseDeckMarkdownSections(critiqueMarkdown) : []),
     [isDoc2DeckWorkflow, critiqueMarkdown]
   )
+  const changedDoc2DeckJsonSections = useMemo(
+    () => (isDoc2DeckWorkflow ? parseDoc2DeckPptxJsonSections(changedDocumentMarkdown) : []),
+    [isDoc2DeckWorkflow, changedDocumentMarkdown]
+  )
   const changedDoc2DeckSections = useMemo(
     () => {
       if (!isDoc2DeckWorkflow) {
         return []
       }
-      if (doc2DeckPptxOutputMode) {
-        const parsedPptxSections = parseDoc2DeckPptxJsonSections(changedDocumentMarkdown)
-        if (parsedPptxSections.length) {
-          return parsedPptxSections
-        }
+      if (changedDoc2DeckJsonSections.length) {
+        return changedDoc2DeckJsonSections
       }
       return parseDeckMarkdownSections(changedDocumentMarkdown)
     },
-    [isDoc2DeckWorkflow, changedDocumentMarkdown, doc2DeckPptxOutputMode]
+    [isDoc2DeckWorkflow, changedDocumentMarkdown, changedDoc2DeckJsonSections]
   )
   const changedDoc2DeckDisplayText = useMemo(() => {
-    if (!isDoc2DeckWorkflow || !doc2DeckPptxOutputMode || !changedDoc2DeckSections.length) {
+    if (!isDoc2DeckWorkflow || !changedDoc2DeckSections.length) {
+      return changedDocumentMarkdown
+    }
+    if (!changedDoc2DeckJsonSections.length && !doc2DeckPptxOutputMode) {
       return changedDocumentMarkdown
     }
     return changedDoc2DeckSections.map((section) => section.content).join('\n\n')
-  }, [isDoc2DeckWorkflow, doc2DeckPptxOutputMode, changedDoc2DeckSections, changedDocumentMarkdown])
+  }, [isDoc2DeckWorkflow, doc2DeckPptxOutputMode, changedDoc2DeckSections, changedDoc2DeckJsonSections, changedDocumentMarkdown])
 
   function extractFirstDeleteLogFileId(response) {
     const firstId = response?.deleteLogs?.fileIds?.[0]
@@ -4019,11 +4023,11 @@ async function buildPrimaryPromptPreviewText() {
                   changedDoc2DeckDisplayText
                 }
                 onChange={(event) => {
-                  if (selectedChangedDoc2DeckSlideTab === 'all' && !doc2DeckPptxOutputMode) {
+                  if (selectedChangedDoc2DeckSlideTab === 'all' && !doc2DeckPptxOutputMode && !changedDoc2DeckJsonSections.length) {
                     setChangedDocumentMarkdown(event.target.value)
                   }
                 }}
-                readOnly={selectedChangedDoc2DeckSlideTab !== 'all' || doc2DeckPptxOutputMode}
+                readOnly={selectedChangedDoc2DeckSlideTab !== 'all' || doc2DeckPptxOutputMode || changedDoc2DeckJsonSections.length > 0}
                 rows={REVIEW_TEXTAREA_ROWS}
               />
             </label>
