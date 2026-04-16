@@ -267,6 +267,57 @@ function parseDeckCritiqueSections(markdown) {
   })
 }
 
+function parseDoc2DeckPptxJsonSections(rawText) {
+  const text = `${rawText || ''}`.trim()
+  if (!text) {
+    return []
+  }
+
+  const withoutFence = text
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim()
+
+  let parsed
+  try {
+    parsed = JSON.parse(withoutFence)
+  } catch (_parseError) {
+    return []
+  }
+
+  const slides = Array.isArray(parsed?.deck?.slides) ? parsed.deck.slides : []
+  return slides
+    .map((slide, index) => {
+      const slideNumber = Number.parseInt(`${slide?.slide_number ?? slide?.slideNumber ?? index + 1}`, 10)
+      if (!Number.isFinite(slideNumber)) {
+        return null
+      }
+      const title = `${slide?.title || `Slide ${slideNumber}`}`.trim() || `Slide ${slideNumber}`
+      const bullets = Array.isArray(slide?.bullets) ? slide.bullets.filter(Boolean).map((item) => `${item}`.trim()) : []
+      const speakerNotes = `${slide?.speaker_notes || slide?.speakerNotes || ''}`.trim()
+
+      const lines = [`Slide-${slideNumber} — ${title}`]
+      if (bullets.length) {
+        lines.push('', 'Bullets:')
+        bullets.forEach((bullet) => {
+          lines.push(`- ${bullet}`)
+        })
+      }
+      if (speakerNotes) {
+        lines.push('', 'Speaker Notes:', speakerNotes)
+      }
+
+      return {
+        slideNumber,
+        title,
+        lines,
+        content: lines.join('\n').trim()
+      }
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.slideNumber - right.slideNumber)
+}
+
 function PageShell({
   mode,
   topRightControls = null,
@@ -664,9 +715,26 @@ export default function App({ appShell = 'ai' }) {
     [isDoc2DeckWorkflow, critiqueMarkdown]
   )
   const changedDoc2DeckSections = useMemo(
-    () => (isDoc2DeckWorkflow ? parseDeckMarkdownSections(changedDocumentMarkdown) : []),
-    [isDoc2DeckWorkflow, changedDocumentMarkdown]
+    () => {
+      if (!isDoc2DeckWorkflow) {
+        return []
+      }
+      if (doc2DeckPptxOutputMode) {
+        const parsedPptxSections = parseDoc2DeckPptxJsonSections(changedDocumentMarkdown)
+        if (parsedPptxSections.length) {
+          return parsedPptxSections
+        }
+      }
+      return parseDeckMarkdownSections(changedDocumentMarkdown)
+    },
+    [isDoc2DeckWorkflow, changedDocumentMarkdown, doc2DeckPptxOutputMode]
   )
+  const changedDoc2DeckDisplayText = useMemo(() => {
+    if (!isDoc2DeckWorkflow || !doc2DeckPptxOutputMode || !changedDoc2DeckSections.length) {
+      return changedDocumentMarkdown
+    }
+    return changedDoc2DeckSections.map((section) => section.content).join('\n\n')
+  }, [isDoc2DeckWorkflow, doc2DeckPptxOutputMode, changedDoc2DeckSections, changedDocumentMarkdown])
 
   function extractFirstDeleteLogFileId(response) {
     const firstId = response?.deleteLogs?.fileIds?.[0]
@@ -3804,16 +3872,16 @@ async function buildPrimaryPromptPreviewText() {
               <textarea
                 value={
                   (selectedChangedDoc2DeckSlideTab === 'all'
-                    ? changedDocumentMarkdown
+                    ? changedDoc2DeckDisplayText
                     : changedDoc2DeckSections.find((section) => section.slideNumber === selectedChangedDoc2DeckSlideTab)?.content) ||
-                  changedDocumentMarkdown
+                  changedDoc2DeckDisplayText
                 }
                 onChange={(event) => {
-                  if (selectedChangedDoc2DeckSlideTab === 'all') {
+                  if (selectedChangedDoc2DeckSlideTab === 'all' && !doc2DeckPptxOutputMode) {
                     setChangedDocumentMarkdown(event.target.value)
                   }
                 }}
-                readOnly={selectedChangedDoc2DeckSlideTab !== 'all'}
+                readOnly={selectedChangedDoc2DeckSlideTab !== 'all' || doc2DeckPptxOutputMode}
                 rows={REVIEW_TEXTAREA_ROWS}
               />
             </label>
