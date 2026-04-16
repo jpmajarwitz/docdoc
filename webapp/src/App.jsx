@@ -1127,6 +1127,30 @@ export default function App({ appShell = 'ai' }) {
     URL.revokeObjectURL(url)
   }
 
+  function ensureFileExtension(desiredFileName, extension) {
+    const normalizedExtension = `${extension || ''}`.trim().toLowerCase().replace(/^\./, '')
+    if (!normalizedExtension) {
+      return (desiredFileName || '').trim()
+    }
+    const safeName = (desiredFileName || '').trim() || `output.${normalizedExtension}`
+    return safeName.toLowerCase().endsWith(`.${normalizedExtension}`)
+      ? safeName
+      : `${safeName}.${normalizedExtension}`
+  }
+
+  function saveTextToFile(content, desiredFileName, mimeType = 'text/plain;charset=utf-8') {
+    const fileName = (desiredFileName || 'output.txt').trim() || 'output.txt'
+    const blob = new Blob([content || ''], { type: mimeType })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = fileName
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  }
+
   function buildLlmRequest(messages) {
     return {
       apiMode: selectedApiMode,
@@ -1323,16 +1347,11 @@ async function buildPrimaryPromptPreviewText() {
       isDeckMateWorkflow && selectedChangeSlides.length
         ? ` Slide scope: update only these slides: ${selectedChangeSlides.join(', ')}.`
         : ''
-    const doc2DeckPptxFormattingGuidance = doc2DeckPptxOutputMode
-      ? (doc2DeckApplyChangesFormattingGuidance || DOC2DECK_SETTINGS.defaults.applyChangesFormattingGuidance || '').trim()
-      : ''
+    const doc2DeckPptxFormattingGuidance = (
+      doc2DeckApplyChangesFormattingGuidance || DOC2DECK_SETTINGS.defaults.applyChangesFormattingGuidance || ''
+    ).trim()
     const mainInstructionText = isDoc2DeckWorkflow
-      ? [
-          (applyChangeItemsGuidance || '').trim(),
-          doc2DeckPptxFormattingGuidance
-        ]
-          .filter(Boolean)
-          .join(' ')
+      ? (applyChangeItemsGuidance || '').trim()
       : `Apply all requested change items directly to the original ${contentNoun} and return the changed ${contentNoun} in markdown.${
           applyChangeItemsGuidance ? ` ${applyChangeItemsGuidance}` : ''
         }`
@@ -1340,11 +1359,35 @@ async function buildPrimaryPromptPreviewText() {
       ? (applyChangesAntiGuidance.trim() || DOC2DECK_SETTINGS.defaults.applyChangesAntiGuidance || '')
       : buildAntiGuidancePrompt()
 
-    const requestPayload = buildLlmRequest([
+    const applyMessages = [
       {
         type: 'input_text',
-        text: `Main Instruction: ${mainInstructionText}${slideScopeDirective} Anti-Guidance: ${applyAntiGuidance}`
+        text: `Main Instruction: ${mainInstructionText}${slideScopeDirective}`
       },
+      ...(isDoc2DeckWorkflow
+        ? [
+            {
+              type: 'input_text',
+              text: `Anti-Guidance: ${applyAntiGuidance}`
+            },
+            {
+              type: 'input_text',
+              text: `Formatting Guidance: ${
+                doc2DeckPptxOutputMode
+                  ? doc2DeckPptxFormattingGuidance
+                  : `Return the changed ${contentNoun} in markdown.`
+              }`
+            }
+          ]
+        : []),
+      ...(!isDoc2DeckWorkflow
+        ? [
+            {
+              type: 'input_text',
+              text: `Anti-Guidance: ${applyAntiGuidance}`
+            }
+          ]
+        : []),
       {
         type: 'input_text',
         text: `${applyChangeLabel}:\n${formatChangeItems(changeItemsInput)}`
@@ -1358,7 +1401,9 @@ async function buildPrimaryPromptPreviewText() {
         text: `Original ${contentNoun}:`
       },
       { type: 'input_file', source: 'original_document' }
-    ])
+    ]
+
+    const requestPayload = buildLlmRequest(applyMessages)
 
     if (isDeckMateWorkflow) {
       return {
@@ -2011,7 +2056,15 @@ async function buildPrimaryPromptPreviewText() {
       if (operation === OPERATIONS.APPLY_CHANGE_ITEMS) {
         setChangedDocumentMarkdown(outputText)
         setChangeItems([])
-        saveMarkdownToFile(outputText, changedOutputFileName)
+        if (isDoc2DeckWorkflow && doc2DeckPptxOutputMode) {
+          const pptxFileName = ensureFileExtension(changedOutputFileName, 'pptx')
+          if (pptxFileName !== changedOutputFileName) {
+            setChangedOutputFileName(pptxFileName)
+          }
+          saveTextToFile(outputText, pptxFileName, 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
+        } else {
+          saveMarkdownToFile(outputText, changedOutputFileName)
+        }
         setStatus('Applying change items completed successfully.')
       } else {
         setCritiqueMarkdown(outputText)
