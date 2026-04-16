@@ -268,20 +268,8 @@ function parseDeckCritiqueSections(markdown) {
 }
 
 function parseDoc2DeckPptxJsonSections(rawText) {
-  const text = `${rawText || ''}`.trim()
-  if (!text) {
-    return []
-  }
-
-  const withoutFence = text
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim()
-
-  let parsed
-  try {
-    parsed = JSON.parse(withoutFence)
-  } catch (_parseError) {
+  const parsed = parseDoc2DeckPptxJson(rawText)
+  if (!parsed) {
     return []
   }
 
