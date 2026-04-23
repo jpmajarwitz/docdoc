@@ -2830,12 +2830,12 @@ async function buildPrimaryPromptPreviewText() {
   function renderSettingsControl() {
     const settingsLabels = activeSettings.settingsPanelLabels || {}
     const settingsPanelOrder = activeSettings.settingsPanelOrder || []
-    const deckSettingsTabs = [
-      {
-        id: 'prompt_instructions',
-        label: 'Prompt Instructions',
-        keys: isDoc2DeckWorkflow
-          ? [
+    const settingsTabs = isDoc2DeckWorkflow
+      ? [
+          {
+            id: 'prompt_instructions',
+            label: 'Prompt Instructions',
+            keys: [
               'defaultTopic',
               'reviewObjective',
               'formattingGuidance',
@@ -2845,42 +2845,60 @@ async function buildPrimaryPromptPreviewText() {
               'applyChangesFormattingGuidance',
               'applyChangesAntiGuidance'
             ]
-          : [
-              'defaultTopic',
-              'reviewObjective',
-              'formattingGuidance',
-              'antiGuidance',
-              'changeItemInstruction',
-              'applyChangeItemsGuidance'
-            ]
-      },
-      {
-        id: 'application_controls',
-        label: 'Application Controls',
-        keys: isDoc2DeckWorkflow
-          ? [
-              'viewPrompt',
-              'logPanelEnabled',
-              'chunkingEnabled',
-              'chunkSize',
-              'chunkConcurrency',
-              'pptxOutputMode'
-            ]
-          : [
-              'viewPrompt',
-              'logPanelEnabled',
-              'chunkingEnabled',
-              'deckTotalSlides',
-              'chunkSize',
-              'chunkConcurrency'
-            ]
-      },
-      {
-        id: 'model_controls',
-        label: 'Model Controls',
-        keys: ['apiMode', 'llmModel', 'ignoreOcrErrors', 'disableResponseLogging', 'deleteFileOnLlm']
-      }
-    ]
+          },
+          {
+            id: 'application_controls',
+            label: 'Application Controls',
+            keys: ['viewPrompt', 'logPanelEnabled', 'chunkingEnabled', 'chunkSize', 'chunkConcurrency', 'pptxOutputMode']
+          },
+          {
+            id: 'model_controls',
+            label: 'Model Controls',
+            keys: ['apiMode', 'llmModel', 'ignoreOcrErrors', 'disableResponseLogging', 'deleteFileOnLlm']
+          }
+        ]
+      : isDeckMateWorkflow
+        ? [
+            {
+              id: 'prompt_instructions',
+              label: 'Prompt Instructions',
+              keys: [
+                'defaultTopic',
+                'reviewObjective',
+                'formattingGuidance',
+                'antiGuidance',
+                'changeItemInstruction',
+                'applyChangeItemsGuidance'
+              ]
+            },
+            {
+              id: 'application_controls',
+              label: 'Application Controls',
+              keys: ['viewPrompt', 'logPanelEnabled', 'chunkingEnabled', 'deckTotalSlides', 'chunkSize', 'chunkConcurrency']
+            },
+            {
+              id: 'model_controls',
+              label: 'Model Controls',
+              keys: ['apiMode', 'llmModel', 'ignoreOcrErrors', 'disableResponseLogging', 'deleteFileOnLlm']
+            }
+          ]
+        : [
+            {
+              id: 'prompt_instructions',
+              label: 'Prompt Instructions',
+              keys: ['defaultTopic', 'reviewObjective', 'formattingGuidance', 'antiGuidance', 'changeItemInstruction']
+            },
+            {
+              id: 'application_controls',
+              label: 'Application Controls',
+              keys: ['viewPrompt', 'bypassFileInput', 'logPanelEnabled']
+            },
+            {
+              id: 'model_controls',
+              label: 'Model Controls',
+              keys: ['apiMode', 'llmModel', 'ignoreOcrErrors', 'disableResponseLogging', 'deleteFileOnLlm']
+            }
+          ]
 
     function renderSettingsField(settingKey) {
       switch (settingKey) {
@@ -2941,7 +2959,7 @@ async function buildPrimaryPromptPreviewText() {
         case 'applyChangeItemsGuidance':
           return (
             <label key={settingKey}>
-              {settingsLabels.applyChangeItemsGuidance || activeSettings.labels.applyChangeItemsGuidance || 'Apply Changes Review Objective'}
+              {settingsLabels.applyChangeItemsGuidance || activeSettings.labels.applyChangeItemsGuidance || 'Apply Change Items Guidance'}
               <textarea
                 name="apply_change_items_guidance"
                 value={applyChangeItemsGuidance}
@@ -3175,14 +3193,20 @@ async function buildPrimaryPromptPreviewText() {
             <button type="button" className="settings-close" onClick={() => setSettingsOpen(false)}>
               Close
             </button>
-            {isDeckMateWorkflow || isDoc2DeckWorkflow ? (
+            {isDeckMateWorkflow || isDoc2DeckWorkflow || activeView === APP_VIEWS.DOCUMENT_DOCTOR ? (
               <>
                 <div
                   className="settings-tabs"
                   role="tablist"
-                  aria-label={isDoc2DeckWorkflow ? 'Doc2Deck settings tabs' : 'Deck Mate settings tabs'}
+                  aria-label={
+                    isDoc2DeckWorkflow
+                      ? 'Doc2Deck settings tabs'
+                      : isDeckMateWorkflow
+                        ? 'Deck Mate settings tabs'
+                        : 'Document Doctor settings tabs'
+                  }
                 >
-                  {deckSettingsTabs.map((tab) => (
+                  {settingsTabs.map((tab) => (
                     <button
                       key={tab.id}
                       type="button"
@@ -3196,7 +3220,7 @@ async function buildPrimaryPromptPreviewText() {
                     </button>
                   ))}
                 </div>
-                {(deckSettingsTabs.find((tab) => tab.id === deckSettingsTab) || deckSettingsTabs[0]).keys.map(
+                {(settingsTabs.find((tab) => tab.id === deckSettingsTab) || settingsTabs[0]).keys.map(
                   (settingKey) => renderSettingsField(settingKey)
                 )}
               </>
