@@ -723,6 +723,15 @@ export default function App({ appShell = 'ai' }) {
   const [chunkingEnabled, setChunkingEnabled] = useState(APP_SETTINGS.chunkingEnabledDefault ?? false)
   const [chunkSize, setChunkSize] = useState(APP_SETTINGS.chunkSizeDefault ?? 6)
   const [chunkConcurrency, setChunkConcurrency] = useState(APP_SETTINGS.chunkConcurrencyDefault ?? 2)
+  const [doc2DeckChunkingEnabled, setDoc2DeckChunkingEnabled] = useState(
+    DOC2DECK_SETTINGS.chunkingEnabledDefault ?? false
+  )
+  const [doc2DeckChunkSize, setDoc2DeckChunkSize] = useState(
+    DOC2DECK_SETTINGS.chunkSizeDefault ?? 6
+  )
+  const [doc2DeckChunkConcurrency, setDoc2DeckChunkConcurrency] = useState(
+    DOC2DECK_SETTINGS.chunkConcurrencyDefault ?? 2
+  )
   const [deckTotalSlidesSetting, setDeckTotalSlidesSetting] = useState(0)
   const [deckTotalSlidesInput, setDeckTotalSlidesInput] = useState(0)
   const [slidesToReviewInput, setSlidesToReviewInput] = useState('')
@@ -804,6 +813,9 @@ export default function App({ appShell = 'ai' }) {
   const applyChangesAntiGuidance = isDoc2DeckWorkflow
     ? doc2DeckApplyChangesAntiGuidance
     : antiGuidance
+  const activeChunkingEnabled = isDoc2DeckWorkflow ? doc2DeckChunkingEnabled : chunkingEnabled
+  const activeChunkSize = isDoc2DeckWorkflow ? doc2DeckChunkSize : chunkSize
+  const activeChunkConcurrency = isDoc2DeckWorkflow ? doc2DeckChunkConcurrency : chunkConcurrency
   const changeItemInstruction = isDeckMateWorkflow
     ? deckChangeItemInstruction
     : isDoc2DeckWorkflow
@@ -1062,6 +1074,30 @@ export default function App({ appShell = 'ai' }) {
     setDocChangeItemInstruction(value)
   }
 
+  function setChunkingEnabledForActive(value) {
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckChunkingEnabled(value)
+      return
+    }
+    setChunkingEnabled(value)
+  }
+
+  function setChunkSizeForActive(value) {
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckChunkSize(clampPositiveInteger(value, DOC2DECK_SETTINGS.chunkSizeDefault ?? 6))
+      return
+    }
+    setChunkSize(clampPositiveInteger(value, APP_SETTINGS.chunkSizeDefault ?? 6))
+  }
+
+  function setChunkConcurrencyForActive(value) {
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckChunkConcurrency(clampPositiveInteger(value, DOC2DECK_SETTINGS.chunkConcurrencyDefault ?? 2))
+      return
+    }
+    setChunkConcurrency(clampPositiveInteger(value, APP_SETTINGS.chunkConcurrencyDefault ?? 2))
+  }
+
   function applyUserProfileSettings(settings = {}) {
     setSelectedApiMode(settings.apiMode || APP_SETTINGS.defaultApiMode || 'responses')
     setSelectedModel(settings.model || APP_SETTINGS.defaultModel)
@@ -1105,6 +1141,9 @@ export default function App({ appShell = 'ai' }) {
     setDoc2DeckApplyChangesFormattingGuidance(doc2DeckProfile.applyChangesFormattingGuidance || DOC2DECK_SETTINGS.defaults.applyChangesFormattingGuidance || '')
     setDoc2DeckApplyChangesAntiGuidance(doc2DeckProfile.applyChangesAntiGuidance || DOC2DECK_SETTINGS.defaults.applyChangesAntiGuidance || '')
     setDoc2DeckPptxOutputMode(doc2DeckProfile.pptxOutputMode ?? (DOC2DECK_SETTINGS.defaults.pptxOutputMode ?? false))
+    setDoc2DeckChunkingEnabled(doc2DeckProfile.chunkingEnabled ?? (DOC2DECK_SETTINGS.chunkingEnabledDefault ?? false))
+    setDoc2DeckChunkSize(clampPositiveInteger(doc2DeckProfile.chunkSize, DOC2DECK_SETTINGS.chunkSizeDefault ?? 6))
+    setDoc2DeckChunkConcurrency(clampPositiveInteger(doc2DeckProfile.chunkConcurrency, DOC2DECK_SETTINGS.chunkConcurrencyDefault ?? 2))
     setDoc2DeckChangeItemInstruction(doc2DeckProfile.changeItemInstruction || DOC2DECK_SETTINGS.defaults.changeItemInstruction || 'create item as stated')
     setDoc2DeckSupportInstructions(doc2DeckProfile.supportInstructions || defaults.supportInstructions)
     setDoc2DeckPriorInstructions(doc2DeckProfile.priorInstructions || defaults.priorInstructions)
@@ -1796,9 +1835,9 @@ async function buildPrimaryPromptPreviewText() {
       contentNoun,
       selectedApiMode,
       selectedModel,
-      chunkingEnabled,
-      chunkSize,
-      chunkConcurrency,
+      chunkingEnabled: activeChunkingEnabled,
+      chunkSize: activeChunkSize,
+      chunkConcurrency: activeChunkConcurrency,
       deckTotalSlidesInput,
       slidesToReviewInput
     }, { submissionId })
@@ -1923,14 +1962,14 @@ async function buildPrimaryPromptPreviewText() {
                 throw new Error('Enter Slides To Review before invoking critique.')
               }
 
-              const shouldUseSlideSubsetChunks = isDeckMateWorkflow && chunkingEnabled && selectedSlides.length > 0
+              const shouldUseSlideSubsetChunks = isDeckMateWorkflow && activeChunkingEnabled && selectedSlides.length > 0
               if (!shouldUseSlideSubsetChunks) {
                 const singleSlideScopeSummary =
                   isDeckMateWorkflow && selectedSlides.length ? summarizeSlideGroup(selectedSlides) : ''
                 return runSinglePrimaryRequest(buildPrimaryCritiqueRequest(singleSlideScopeSummary))
               }
 
-              const configuredChunkSize = clampPositiveInteger(chunkSize, APP_SETTINGS.chunkSizeDefault ?? 6)
+              const configuredChunkSize = clampPositiveInteger(activeChunkSize, APP_SETTINGS.chunkSizeDefault ?? 6)
               let activeChunkSize =
                 isDeckMateWorkflow && deckAdaptiveChunkSize
                   ? clampPositiveInteger(deckAdaptiveChunkSize, configuredChunkSize)
@@ -1945,7 +1984,7 @@ async function buildPrimaryPromptPreviewText() {
                 const calculatedParallel = Math.max(1, Math.ceil(pendingSlides.length / activeChunkSize))
                 const maxParallel = Math.min(
                   calculatedParallel,
-                  clampPositiveInteger(chunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
+                  clampPositiveInteger(activeChunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
                   chunkedRequests.length
                 )
                 appendRequestLog('Chunking plan calculated for primary critique.', {
@@ -1954,7 +1993,7 @@ async function buildPrimaryPromptPreviewText() {
                   chunkSize: activeChunkSize,
                   chunkCount: chunkedRequests.length,
                   calculatedParallel,
-                  chunkConcurrencyCap: clampPositiveInteger(chunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
+                  chunkConcurrencyCap: clampPositiveInteger(activeChunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
                   maxParallel
                 }, { submissionId })
                 const completedResults = []
@@ -2156,12 +2195,12 @@ async function buildPrimaryPromptPreviewText() {
                   : []
                 const shouldUseDoc2DeckApplyChunks =
                   isDoc2DeckWorkflow &&
-                  chunkingEnabled &&
+                  activeChunkingEnabled &&
                   !bypassFileInput &&
                   selectedApplySlides.length > 0
 
                 if (shouldUseDoc2DeckApplyChunks) {
-                  const configuredChunkSize = clampPositiveInteger(chunkSize, APP_SETTINGS.chunkSizeDefault ?? 6)
+                  const configuredChunkSize = clampPositiveInteger(activeChunkSize, DOC2DECK_SETTINGS.chunkSizeDefault ?? 6)
                   const chunkPlans = buildPrimaryChunkedRequests(selectedApplySlides, configuredChunkSize).map((entry) => entry.chunk)
                   const nonSlideChangeItems = changeItems.filter((item) => !/^slide-\d+$/i.test(item.id || ''))
                   const chunkOutputs = []
@@ -2615,6 +2654,9 @@ async function buildPrimaryPromptPreviewText() {
         applyChangesFormattingGuidance: doc2DeckApplyChangesFormattingGuidance,
         applyChangesAntiGuidance: doc2DeckApplyChangesAntiGuidance,
         pptxOutputMode: doc2DeckPptxOutputMode,
+        chunkingEnabled: doc2DeckChunkingEnabled,
+        chunkSize: doc2DeckChunkSize,
+        chunkConcurrency: doc2DeckChunkConcurrency,
         changeItemInstruction: doc2DeckChangeItemInstruction,
         supportInstructions: doc2DeckSupportInstructions,
         priorInstructions: doc2DeckPriorInstructions
@@ -2669,6 +2711,9 @@ async function buildPrimaryPromptPreviewText() {
     doc2DeckApplyChangesFormattingGuidance,
     doc2DeckApplyChangesAntiGuidance,
     doc2DeckPptxOutputMode,
+    doc2DeckChunkingEnabled,
+    doc2DeckChunkSize,
+    doc2DeckChunkConcurrency,
     doc2DeckChangeItemInstruction,
     doc2DeckSupportInstructions,
     doc2DeckPriorInstructions
@@ -3002,7 +3047,7 @@ async function buildPrimaryPromptPreviewText() {
             </label>
           )
         case 'chunkingEnabled':
-          if (!isDeckMateWorkflow) {
+          if (!isDeckMateWorkflow && !isDoc2DeckWorkflow) {
             return null
           }
           return (
@@ -3010,14 +3055,14 @@ async function buildPrimaryPromptPreviewText() {
               <input
                 name="chunking_enabled"
                 type="checkbox"
-                checked={chunkingEnabled}
-                onChange={(event) => setChunkingEnabled(event.target.checked)}
+                checked={activeChunkingEnabled}
+                onChange={(event) => setChunkingEnabledForActive(event.target.checked)}
               />
               {settingsLabels.chunkingEnabled || 'Enable slide chunking'}
             </label>
           )
         case 'chunkSize':
-          if (!isDeckMateWorkflow) {
+          if (!isDeckMateWorkflow && !isDoc2DeckWorkflow) {
             return null
           }
           return (
@@ -3028,8 +3073,8 @@ async function buildPrimaryPromptPreviewText() {
                 type="number"
                 min={1}
                 step={1}
-                value={chunkSize}
-                onChange={(event) => setChunkSize(clampPositiveInteger(event.target.value, APP_SETTINGS.chunkSizeDefault ?? 6))}
+                value={activeChunkSize}
+                onChange={(event) => setChunkSizeForActive(event.target.value)}
               />
             </label>
           )
@@ -3051,7 +3096,7 @@ async function buildPrimaryPromptPreviewText() {
             </label>
           )
         case 'chunkConcurrency':
-          if (!isDeckMateWorkflow) {
+          if (!isDeckMateWorkflow && !isDoc2DeckWorkflow) {
             return null
           }
           return (
@@ -3062,10 +3107,8 @@ async function buildPrimaryPromptPreviewText() {
                 type="number"
                 min={1}
                 step={1}
-                value={chunkConcurrency}
-                onChange={(event) =>
-                  setChunkConcurrency(clampPositiveInteger(event.target.value, APP_SETTINGS.chunkConcurrencyDefault ?? 2))
-                }
+                value={activeChunkConcurrency}
+                onChange={(event) => setChunkConcurrencyForActive(event.target.value)}
               />
             </label>
           )
