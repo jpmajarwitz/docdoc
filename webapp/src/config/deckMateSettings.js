@@ -1,0 +1,82 @@
+export const DECK_MATE_SETTINGS = {
+  llmModels: [
+    { value: 'gpt-5-mini', label: 'gpt-5-mini' },
+    { value: 'gpt-5.4-nano', label: 'gpt-5.4-nano' },
+    { value: 'gpt-5.4-mini', label: 'gpt-5.4-mini' },
+    { value: 'gpt-5.4', label: 'gpt-5.4' }
+  ],
+  apiModes: [
+    { value: 'responses', label: 'responses' },
+    { value: 'chat', label: 'chat' }
+  ],
+  defaultApiMode: 'responses',
+  defaultModel: 'gpt-5-mini',
+  labels: {
+    defaultTopic: 'Default Topic',
+    reviewObjective: 'Review Objective',
+    formattingGuidance: 'Formatting Guidance',
+    antiGuidance: 'Anti-Guidance',
+    changeItemInstruction: 'Change Item Instruction',
+    applyChangeItemsGuidance: 'Apply_Change_Items_Guidance'
+  },
+  settingsPanelLabels: {
+    apiMode: 'API Mode',
+    llmModel: 'LLM Model',
+    defaultTopic: 'Default Topic',
+    reviewObjective: 'Review Objective',
+    formattingGuidance: 'Formatting Guidance',
+    antiGuidance: 'Anti-Guidance',
+    changeItemInstruction: 'Change Item Instruction',
+    applyChangeItemsGuidance: 'Apply_Change_Items_Guidance',
+    ignoreOcrErrors: 'Ignore obvious OCR misspellings',
+    disableResponseLogging: 'Disable response logging',
+    viewPrompt: 'View Prompt',
+    deleteFileOnLlm: 'Delete_File_On_LLM',
+    logPanelEnabled: 'Log_Panel_Enabled',
+    chunkingEnabled: 'Enable slide chunking',
+    deckTotalSlides: 'Total slides in deck',
+    chunkSize: 'Slides per chunk',
+    chunkConcurrency: 'Parallel chunk requests'
+  },
+  settingsPanelOrder: [
+    'apiMode',
+    'llmModel',
+    'defaultTopic',
+    'reviewObjective',
+    'formattingGuidance',
+    'antiGuidance',
+    'changeItemInstruction',
+    'applyChangeItemsGuidance',
+    'ignoreOcrErrors',
+    'disableResponseLogging',
+    'viewPrompt',
+    'deleteFileOnLlm',
+    'logPanelEnabled',
+    'chunkingEnabled',
+    'deckTotalSlides',
+    'chunkSize',
+    'chunkConcurrency'
+  ],
+  defaults: {
+    topic: 'This is a professional presentation covering <XXX>.',
+    reviewObjective:
+      'Proofread the presentation for consistency in tone, scope, and level of detail. Consider the presentation to be a refined draft that is complete in scope and intent. Suggest improvements only where necessary.',
+    formattingGuidance:
+      'Your response should be in Markdown format. Provide your output critique on a slide by slide basis with enumerated issues per slide, e.g., slide-1, issue-1, issue-2 … slide-2, issue1, issue2 …',
+    antiGuidance:
+      'Do not add new ideas into the presentation. Your job is to sharpen up what is already being communicated.',
+    changeItemInstruction: 'create item as stated',
+    applyChangeItemsGuidance:
+      'Limit the response to just the changed slides of the original presentation. Do not return slide content if no changes are made.'
+  },
+  ocrGuidanceText:
+    'Ignore any OCR errors related to the mis-spelling of words that seems obvious. Do not report back these types of errors. For example: Objec@ive instead of Objective.',
+  disableResponseLoggingDefault: true,
+  viewPromptDefault: false,
+  bypassFileInputDefault: false,
+  deleteFileOnLlmDefault: true,
+  logPanelEnabledDefault: false,
+  chunkingEnabledDefault: false,
+  chunkSizeDefault: 6,
+  chunkConcurrencyDefault: 2
+}
