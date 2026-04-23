@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import logo from './assets/docdoc-logo.svg'
 import deckMateLogo from './assets/deck-mate-logo.svg'
 import doc2DeckLogo from './assets/doc2deck-logo.svg'
+import zoomZillaLogo from './assets/zoom-zilla-logo.svg'
 import { APP_SETTINGS } from './config/appSettings'
 import { DECK_MATE_SETTINGS } from './config/deckMateSettings'
 import { DOC2DECK_SETTINGS } from './config/doc2DeckSettings'
@@ -10,7 +11,8 @@ const APP_VIEWS = {
   SUITE_HOME: 'suite_home',
   DOCUMENT_DOCTOR: 'document_doctor',
   DECK_MATE: 'deck_mate',
-  DOC2DECK: 'doc2deck'
+  DOC2DECK: 'doc2deck',
+  ZOOM_ZILLA: 'zoom_zilla'
 }
 
 const MODES = {
@@ -541,6 +543,9 @@ function detectAppNameFromPath() {
   if (path.includes('index-d2d')) {
     return 'doc2deck'
   }
+  if (path.includes('index-zz')) {
+    return 'zoom-zilla'
+  }
 
   return 'a-ideation'
 }
@@ -676,7 +681,8 @@ export default function App({ appShell = 'ai' }) {
   const dedicatedViewByShell = {
     dd: APP_VIEWS.DOCUMENT_DOCTOR,
     dm: APP_VIEWS.DECK_MATE,
-    d2d: APP_VIEWS.DOC2DECK
+    d2d: APP_VIEWS.DOC2DECK,
+    zz: APP_VIEWS.ZOOM_ZILLA
   }
   const dedicatedView = dedicatedViewByShell[appShell] || APP_VIEWS.SUITE_HOME
   const isSuiteShell = dedicatedView === APP_VIEWS.SUITE_HOME
@@ -2610,6 +2616,10 @@ async function buildPrimaryPromptPreviewText() {
       window.__AIDEATION_APP_NAME = 'doc2deck'
       return
     }
+    if (activeView === APP_VIEWS.ZOOM_ZILLA) {
+      window.__AIDEATION_APP_NAME = 'zoom-zilla'
+      return
+    }
 
     window.__AIDEATION_APP_NAME = 'a-ideation'
   }, [activeView])
@@ -3458,6 +3468,10 @@ async function buildPrimaryPromptPreviewText() {
               <img src={doc2DeckLogo} alt="Doc 2 Deck logo" />
               <span>Doc2Deck</span>
             </button>
+            <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.ZOOM_ZILLA)}>
+              <img src={zoomZillaLogo} alt="Zoom-Zilla logo" />
+              <span>Zoom-Zilla</span>
+            </button>
           </div>
         </section>
         {showAuthRequiredNotice ? (
@@ -3502,12 +3516,40 @@ async function buildPrimaryPromptPreviewText() {
           brandLogo: doc2DeckLogo,
           brandAlt: 'Document Doctor and Deck Mate united logo'
         }
+      : activeView === APP_VIEWS.ZOOM_ZILLA
+        ? {
+            appTitle: 'Zoom-Zilla',
+            appSubtitle: 'Create Actionable Insight from Meeting Transcripts',
+            brandLogo: zoomZillaLogo,
+            brandAlt: 'Zoom-Zilla dinosaur assistant logo'
+          }
       : {
           appTitle: 'The Document Doctor',
           appSubtitle: 'A Professional Review Tool for Document Authors',
           brandLogo: logo,
           brandAlt: 'Cartoon paper doctor logo'
         }
+
+  if (activeView === APP_VIEWS.ZOOM_ZILLA) {
+    return (
+      <PageShell
+        mode={MODES.DOC_DEFINE}
+        {...workflowShellProps}
+        topRightControls={
+          <>
+            {renderBackToSuiteButton()}
+            {renderLogoutButton()}
+          </>
+        }
+      >
+        {renderError()}
+        <section className="card">
+          <h2>Zoom-Zilla</h2>
+          <p className="muted">Create Actionable Insight from Meeting Transcripts</p>
+        </section>
+      </PageShell>
+    )
+  }
 
   if (currentMode === MODES.DOC_DEFINE) {
     return (
