@@ -2841,8 +2841,8 @@ async function buildPrimaryPromptPreviewText() {
               'formattingGuidance',
               'antiGuidance',
               'changeItemInstruction',
-              'applyChangesFormattingGuidance',
               'applyChangeItemsGuidance',
+              'applyChangesFormattingGuidance',
               'applyChangesAntiGuidance'
             ]
           : [
@@ -2862,7 +2862,6 @@ async function buildPrimaryPromptPreviewText() {
               'viewPrompt',
               'logPanelEnabled',
               'chunkingEnabled',
-              'deckTotalSlides',
               'chunkSize',
               'chunkConcurrency',
               'pptxOutputMode'
@@ -2942,7 +2941,7 @@ async function buildPrimaryPromptPreviewText() {
         case 'applyChangeItemsGuidance':
           return (
             <label key={settingKey}>
-              {settingsLabels.applyChangeItemsGuidance || activeSettings.labels.applyChangeItemsGuidance || 'Apply Change Items Guidance'}
+              {settingsLabels.applyChangeItemsGuidance || activeSettings.labels.applyChangeItemsGuidance || 'Apply Changes Review Objective'}
               <textarea
                 name="apply_change_items_guidance"
                 value={applyChangeItemsGuidance}
@@ -3090,7 +3089,7 @@ async function buildPrimaryPromptPreviewText() {
             </label>
           )
         case 'chunkingEnabled':
-          if (!isDeckMateWorkflow && !isDoc2DeckWorkflow) {
+          if (!isDeckMateWorkflow) {
             return null
           }
           return (
@@ -3122,7 +3121,7 @@ async function buildPrimaryPromptPreviewText() {
             </label>
           )
         case 'deckTotalSlides':
-          if (!isDeckMateWorkflow && !isDoc2DeckWorkflow) {
+          if (!isDeckMateWorkflow) {
             return null
           }
           return (

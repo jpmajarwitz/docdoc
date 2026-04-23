@@ -20,7 +20,7 @@ export const DOC2DECK_SETTINGS = {
     applyChangesFormattingGuidance: 'Apply Changes Formatting Guidance',
     applyChangesAntiGuidance: 'Apply Changes Anti-Guidance',
     pptxOutputMode: 'pptx output mode',
-    applyChangeItemsGuidance: 'Apply Change Items Guidance'
+    applyChangeItemsGuidance: 'Apply Changes Review Objective'
   },
   settingsPanelLabels: {
     apiMode: 'API Mode',
@@ -33,14 +33,13 @@ export const DOC2DECK_SETTINGS = {
     applyChangesFormattingGuidance: 'Apply Changes Formatting Guidance',
     applyChangesAntiGuidance: 'Apply Changes Anti-Guidance',
     pptxOutputMode: 'pptx output mode',
-    applyChangeItemsGuidance: 'Apply Change Items Guidance',
+    applyChangeItemsGuidance: 'Apply Changes Review Objective',
     ignoreOcrErrors: 'Ignore obvious OCR misspellings',
     disableResponseLogging: 'Disable response logging',
     viewPrompt: 'View Prompt',
     bypassFileInput: 'Bypass_File_Input',
     deleteFileOnLlm: 'Delete File on AI Platform',
     logPanelEnabled: 'Log Panel Enabled',
-    deckTotalSlides: 'Total slides in deck',
     chunkingEnabled: 'Enable slide chunking',
     chunkSize: 'Slides per chunk',
     chunkConcurrency: 'Parallel chunk requests'
@@ -60,7 +59,6 @@ export const DOC2DECK_SETTINGS = {
     'viewPrompt',
     'logPanelEnabled',
     'chunkingEnabled',
-    'deckTotalSlides',
     'chunkSize',
     'chunkConcurrency',
     'ignoreOcrErrors',
