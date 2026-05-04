@@ -15,6 +15,7 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $password === '') {
 }
 
 $pdo = auth_get_pdo($config);
+auth_ensure_user_trial_columns($pdo);
 $user = auth_get_user_by_email($pdo, auth_normalize_email($email));
 if (!$user || !password_verify($password, $user['password_hash'])) {
     php_backend_error(401, 'Invalid credentials.');
@@ -22,6 +23,9 @@ if (!$user || !password_verify($password, $user['password_hash'])) {
 
 if (($user['status'] ?? '') !== 'active') {
     php_backend_error(403, 'Account is not active. Verify your email first.');
+}
+if (!auth_user_trial_is_active($user)) {
+    php_backend_error(403, 'Trial period has ended.');
 }
 
 session_regenerate_id(true);

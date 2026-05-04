@@ -719,11 +719,13 @@ export default function App({ appShell = 'ai' }) {
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
   const [authDisplayName, setAuthDisplayName] = useState('')
+  const [authAccountType, setAuthAccountType] = useState('trial')
   const [authInfo, setAuthInfo] = useState('')
   const [authSubmitting, setAuthSubmitting] = useState(false)
   const [registrationReadyForVerify, setRegistrationReadyForVerify] = useState(false)
   const [authOverlayOpen, setAuthOverlayOpen] = useState(!isSuiteShell)
   const [showAuthRequiredNotice, setShowAuthRequiredNotice] = useState(false)
+  const [showTrialExpiredNotice, setShowTrialExpiredNotice] = useState(false)
   const [verifyToken, setVerifyToken] = useState('')
   const [resetToken, setResetToken] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -1242,6 +1244,9 @@ export default function App({ appShell = 'ai' }) {
       } else {
         setAuthUser(null)
         setProfileLoaded(false)
+        if (data.trialExpired) {
+          setShowTrialExpiredNotice(true)
+        }
       }
     } catch (sessionError) {
       setAuthUser(null)
@@ -1263,7 +1268,8 @@ export default function App({ appShell = 'ai' }) {
         const response = await postJson(AUTH_ENDPOINTS.REGISTER, {
           email: authEmail,
           password: authPassword,
-          displayName: authDisplayName
+          displayName: authDisplayName,
+          accountType: authAccountType
         })
         setRegistrationReadyForVerify(true)
         if (response.verificationEmailSent) {
@@ -1289,7 +1295,12 @@ export default function App({ appShell = 'ai' }) {
         await loadUserProfileSettings()
       }
     } catch (authError) {
-      setError(normalizeRequestError(authError))
+      const message = normalizeRequestError(authError)
+      if (message.toLowerCase().includes('trial period has ended')) {
+        setShowTrialExpiredNotice(true)
+      } else {
+        setError(message)
+      }
     } finally {
       setAuthSubmitting(false)
     }
@@ -3381,6 +3392,15 @@ async function buildPrimaryPromptPreviewText() {
                 />
               </label>
             ) : null}
+            {authMode === 'register' ? (
+              <label>
+                Account Type
+                <select value={authAccountType} onChange={(event) => setAuthAccountType(event.target.value)}>
+                  <option value="trial">30 day trial account</option>
+                  <option value="subscription">subscription account</option>
+                </select>
+              </label>
+            ) : null}
             <button type="submit" className="primary-button" disabled={authSubmitting}>
               {authSubmitting
                 ? authMode === 'register'
@@ -3562,6 +3582,18 @@ async function buildPrimaryPromptPreviewText() {
                   Open Sign-In
                 </button>
                 <button type="button" className="secondary-button" onClick={() => setShowAuthRequiredNotice(false)}>
+                  Close
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+        {showTrialExpiredNotice ? (
+          <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Trial period ended">
+            <section className="card auth-required-popup">
+              <p>Your trial period has ended.</p>
+              <div className="auth-inline-row">
+                <button type="button" className="secondary-button" onClick={() => setShowTrialExpiredNotice(false)}>
                   Close
                 </button>
               </div>

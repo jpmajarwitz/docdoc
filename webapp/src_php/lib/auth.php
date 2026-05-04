@@ -106,9 +106,69 @@ function auth_get_user_by_email(PDO $pdo, $emailNormalized)
 
 function auth_get_user_by_id(PDO $pdo, $userId)
 {
-    $stmt = $pdo->prepare('SELECT id, email, display_name, status FROM users WHERE id = :id LIMIT 1');
+    $stmt = $pdo->prepare('SELECT id, email, display_name, status, account_type, trial_period_days, trial_start_at FROM users WHERE id = :id LIMIT 1');
     $stmt->execute(['id' => $userId]);
     return $stmt->fetch() ?: null;
+}
+
+function auth_users_columns(PDO $pdo)
+{
+    static $cached = null;
+    if (is_array($cached)) {
+        return $cached;
+    }
+
+    $cached = [];
+    $stmt = $pdo->query('SHOW COLUMNS FROM users');
+    foreach ($stmt->fetchAll() as $row) {
+        $field = isset($row['Field']) ? strtolower((string) $row['Field']) : '';
+        if ($field !== '') {
+            $cached[$field] = true;
+        }
+    }
+
+    return $cached;
+}
+
+function auth_ensure_user_trial_columns(PDO $pdo)
+{
+    $columns = auth_users_columns($pdo);
+    $alterFragments = [];
+    if (!isset($columns['account_type'])) {
+        $alterFragments[] = "ADD COLUMN account_type VARCHAR(20) NOT NULL DEFAULT 'subscription'";
+    }
+    if (!isset($columns['trial_period_days'])) {
+        $alterFragments[] = 'ADD COLUMN trial_period_days INT NULL';
+    }
+    if (!isset($columns['trial_start_at'])) {
+        $alterFragments[] = 'ADD COLUMN trial_start_at DATETIME NULL';
+    }
+
+    if ($alterFragments) {
+        $sql = 'ALTER TABLE users ' . implode(', ', $alterFragments);
+        $pdo->exec($sql);
+    }
+}
+
+function auth_user_trial_is_active($user)
+{
+    $accountType = strtolower((string) ($user['account_type'] ?? 'subscription'));
+    if ($accountType !== 'trial') {
+        return true;
+    }
+
+    $trialStartAtRaw = (string) ($user['trial_start_at'] ?? '');
+    $trialDays = (int) ($user['trial_period_days'] ?? 0);
+    if ($trialStartAtRaw === '' || $trialDays < 1) {
+        return false;
+    }
+
+    $trialStartTs = strtotime($trialStartAtRaw);
+    if ($trialStartTs === false) {
+        return false;
+    }
+    $trialEndTs = strtotime('+' . $trialDays . ' days', $trialStartTs);
+    return time() < $trialEndTs;
 }
 
 function auth_session_timeout_seconds($config)

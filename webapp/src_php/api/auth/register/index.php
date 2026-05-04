@@ -10,6 +10,10 @@ $payload = auth_read_json_body();
 $email = trim((string) ($payload['email'] ?? ''));
 $password = (string) ($payload['password'] ?? '');
 $displayName = trim((string) ($payload['displayName'] ?? ''));
+$requestedAccountType = strtolower(trim((string) ($payload['accountType'] ?? 'trial')));
+$accountType = $requestedAccountType === 'subscription' ? 'subscription' : 'trial';
+$trialPeriodDays = $accountType === 'trial' ? 30 : null;
+$trialStartAt = $accountType === 'trial' ? date('Y-m-d H:i:s') : null;
 
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     php_backend_error(400, 'A valid email is required.');
@@ -18,6 +22,7 @@ auth_validate_password($password);
 
 $emailNormalized = auth_normalize_email($email);
 $pdo = auth_get_pdo($config);
+auth_ensure_user_trial_columns($pdo);
 $existing = auth_get_user_by_email($pdo, $emailNormalized);
 if ($existing) {
     php_backend_error(409, 'An account with that email already exists.');
@@ -27,13 +32,16 @@ $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 $status = 'pending_verification';
 
 try {
-    $stmt = $pdo->prepare('INSERT INTO users (email, email_normalized, password_hash, display_name, status) VALUES (:email, :email_normalized, :password_hash, :display_name, :status)');
+    $stmt = $pdo->prepare('INSERT INTO users (email, email_normalized, password_hash, display_name, status, account_type, trial_period_days, trial_start_at) VALUES (:email, :email_normalized, :password_hash, :display_name, :status, :account_type, :trial_period_days, :trial_start_at)');
     $stmt->execute([
         'email' => $email,
         'email_normalized' => $emailNormalized,
         'password_hash' => $passwordHash,
         'display_name' => $displayName,
         'status' => $status,
+        'account_type' => $accountType,
+        'trial_period_days' => $trialPeriodDays,
+        'trial_start_at' => $trialStartAt,
     ]);
     $userId = (int) $pdo->lastInsertId();
 
