@@ -89,15 +89,17 @@ function php_backend_apply_cors($config)
 
 function php_backend_json_response($status, $payload)
 {
+    $encodedPayload = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     php_backend_log('operation_result', [
         'operation' => php_backend_operation_name(),
         'status' => (int) $status,
         'success' => ((int) $status) < 400,
+        'bytes' => strlen((string) $encodedPayload),
     ]);
 
     http_response_code($status);
     header('Content-Type: application/json');
-    echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    echo $encodedPayload;
     exit;
 }
 
@@ -106,11 +108,27 @@ function php_backend_error($status, $detail)
     php_backend_json_response($status, ['detail' => $detail]);
 }
 
+function php_backend_log_bytes($context)
+{
+    if (isset($context['bytes']) && is_numeric($context['bytes'])) {
+        return max(0, (int) $context['bytes']);
+    }
+    if (isset($context['response']) && is_string($context['response'])) {
+        return strlen($context['response']);
+    }
+    $contentLength = $_SERVER['CONTENT_LENGTH'] ?? '';
+    if (is_numeric($contentLength)) {
+        return max(0, (int) $contentLength);
+    }
+    return 0;
+}
+
 function php_backend_log($event, $context = [])
 {
     $ipAddress = php_backend_client_ip();
     $loginName = php_backend_login_name();
     $applicationName = php_backend_application_name();
+    $bytes = php_backend_log_bytes($context);
 
     $timeZone = new DateTimeZone('America/New_York');
     $nowEastern = new DateTimeImmutable('now', $timeZone);
@@ -120,6 +138,7 @@ function php_backend_log($event, $context = [])
         'application' => $applicationName,
         'ip_address' => $ipAddress,
         'login_name' => $loginName,
+        'bytes' => $bytes,
         'context' => $context,
     ];
     $serialized = '[docdoc] ' . json_encode($payload);
