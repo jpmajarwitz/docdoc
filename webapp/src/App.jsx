@@ -1,0 +1,4536 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { APP_SETTINGS } from './config/appSettings'
+import { DECK_MATE_SETTINGS } from './config/deckMateSettings'
+import { DOC2DECK_SETTINGS } from './config/doc2DeckSettings'
+
+const APP_VIEWS = {
+  SUITE_HOME: 'suite_home',
+  DOCUMENT_DOCTOR: 'document_doctor',
+  DECK_MATE: 'deck_mate',
+  DOC2DECK: 'doc2deck',
+  ZOOM_ZILLA: 'zoom_zilla'
+}
+
+const MODES = {
+  DOC_DEFINE: 'doc_define_mode',
+  INVOKE: 'invoke_model_mode',
+  RESULT_SAVED: 'llm_result_saved_mode',
+  CRITIQUE_REVIEW: 'critique_review_mode',
+  VIEW_CHANGED: 'view_changed_document_mode'
+}
+
+const MODE_LABELS = {
+  [MODES.DOC_DEFINE]: 'Document Definition',
+  [MODES.INVOKE]: 'Invoking Model',
+  [MODES.CRITIQUE_REVIEW]: 'Review Critique',
+  [MODES.RESULT_SAVED]: 'Model Result Saved',
+  [MODES.VIEW_CHANGED]: 'Review Changed Document'
+}
+
+const OPERATIONS = {
+  CRITIQUE_PRIMARY: 'critique_primary_document',
+  APPLY_CHANGE_ITEMS: 'apply_change_items',
+  CRITIQUE_CHANGED: 'critique_changed_document'
+}
+
+const RAW_API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+const API_BASE_URL =
+  typeof window !== 'undefined' && window.location.protocol === 'https:'
+    ? RAW_API_BASE_URL.replace(/^http:\/\//, 'https://')
+    : RAW_API_BASE_URL
+
+const API_ENDPOINTS = {
+  [OPERATIONS.CRITIQUE_PRIMARY]: `${API_BASE_URL}/api/critique/`,
+  [OPERATIONS.APPLY_CHANGE_ITEMS]: `${API_BASE_URL}/api/apply-change-items/`,
+  [OPERATIONS.CRITIQUE_CHANGED]: `${API_BASE_URL}/api/critique-changed-document/`
+}
+
+const AUTH_ENDPOINTS = {
+  SESSION: `${API_BASE_URL}/api/auth/session/`,
+  REGISTER: `${API_BASE_URL}/api/auth/register/`,
+  VERIFY_EMAIL: `${API_BASE_URL}/api/auth/verify-email/`,
+  LOGIN: `${API_BASE_URL}/api/auth/login/`,
+  LOGOUT: `${API_BASE_URL}/api/auth/logout/`,
+  PROFILE: `${API_BASE_URL}/api/auth/profile/`,
+  FORGOT_PASSWORD: `${API_BASE_URL}/api/auth/forgot-password/`,
+  RESET_PASSWORD: `${API_BASE_URL}/api/auth/reset-password/`,
+  CONTACT_REQUEST: `${API_BASE_URL}/api/auth/contact-request/`,
+  ACCESS_CHECK: `${API_BASE_URL}/api/auth/access-check/`
+}
+
+const defaults = {
+  supportInstructions: '',
+  priorInstructions: ''
+}
+
+const operationLabels = {
+  [OPERATIONS.CRITIQUE_PRIMARY]: 'primary document critique',
+  [OPERATIONS.APPLY_CHANGE_ITEMS]: 'change-item application',
+  [OPERATIONS.CRITIQUE_CHANGED]: 'changed-document critique'
+}
+
+const REVIEW_TEXTAREA_ROWS = 34
+const DOCDOC_LOGO_PATH = `${import.meta.env.BASE_URL}assets/docdoc-logo-small.jpg`
+const DECK_MATE_LOGO_PATH = `${import.meta.env.BASE_URL}assets/deck-mate-logo-small.jpg`
+const DOC2DECK_LOGO_PATH = `${import.meta.env.BASE_URL}assets/doc2deck-logo-small.jpg`
+const ZOOM_ZILLA_LOGO_PATH = `${import.meta.env.BASE_URL}assets/zoom-zilla-logo-small.jpg`
+
+function emptyChangeDraft(defaultInstruction = 'create item as stated') {
+  return {
+    id: '',
+    instruction: defaultInstruction
+  }
+}
+
+function formatChangeItems(changeItems) {
+  if (!changeItems.length) {
+    return 'No change items were supplied.'
+  }
+
+  return changeItems.map((item) => `- ${item.id}: ${item.instruction}`).join('\n')
+}
+
+function extractDeckSlidesFromChangeItems(changeItems) {
+  const slides = new Set()
+  const slidePattern = /\bslide[-\s]*(\d+)\b/gi
+  changeItems.forEach((item) => {
+    const combined = `${item?.id || ''} ${item?.instruction || ''}`
+    let match = slidePattern.exec(combined)
+    while (match) {
+      const slideNumber = Number.parseInt(match[1], 10)
+      if (Number.isFinite(slideNumber)) {
+        slides.add(slideNumber)
+      }
+      match = slidePattern.exec(combined)
+    }
+  })
+  return [...slides].sort((left, right) => left - right)
+}
+
+function clampPositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(`${value ?? ''}`, 10)
+  if (Number.isNaN(parsed) || parsed < 1) {
+    return fallback
+  }
+  return parsed
+}
+
+function extractFirstInteger(value) {
+  const match = `${value ?? ''}`.match(/(\d+)/)
+  if (!match) {
+    return null
+  }
+  return Number.parseInt(match[1], 10)
+}
+
+function parseSlidesToReviewInput(value) {
+  const trimmed = `${value || ''}`.trim()
+  if (!trimmed) {
+    return []
+  }
+
+  const selections = new Set()
+  const tokens = trimmed
+    .split(/[;,]+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+
+  if (!tokens.length) {
+    return []
+  }
+
+  tokens.forEach((token) => {
+      const rangeMatch = token.match(/^(\d+)\s*-\s*(\d+)$/)
+      if (rangeMatch) {
+        const start = Number.parseInt(rangeMatch[1], 10)
+        const end = Number.parseInt(rangeMatch[2], 10)
+      if (start < 1 || end < 1) {
+        throw new Error(`Slides To Review contains an out-of-range value: ${token}`)
+      }
+      const low = Math.min(start, end)
+      const high = Math.max(start, end)
+      for (let current = low; current <= high; current += 1) {
+        selections.add(current)
+      }
+      return
+    }
+
+    const singleMatch = token.match(/^\d+$/)
+    if (!singleMatch) {
+      throw new Error(`Slides To Review contains an invalid token: ${token}`)
+    }
+
+    const slide = Number.parseInt(token, 10)
+    if (slide < 1) {
+      throw new Error(`Slides To Review contains an out-of-range value: ${token}`)
+    }
+    selections.add(slide)
+  })
+
+  return [...selections].sort((left, right) => left - right)
+}
+
+function summarizeSlideGroup(slides) {
+  if (!slides.length) {
+    return 'no slides'
+  }
+
+  const ranges = []
+  let rangeStart = slides[0]
+  let previous = slides[0]
+
+  for (let index = 1; index < slides.length; index += 1) {
+    const current = slides[index]
+    if (current === previous + 1) {
+      previous = current
+      continue
+    }
+    ranges.push([rangeStart, previous])
+    rangeStart = current
+    previous = current
+  }
+  ranges.push([rangeStart, previous])
+
+  const parts = ranges.map(([start, end]) => {
+    if (start === end) {
+      return `slide ${start}`
+    }
+    return `slides ${start} through ${end}`
+  })
+
+  if (parts.length === 1) {
+    return parts[0]
+  }
+
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
+}
+
+function parseDeckMarkdownSections(markdown) {
+  const lines = `${markdown || ''}`.split('\n')
+  const sections = []
+  let currentSection = null
+
+  lines.forEach((line) => {
+    const slideMatch = line.match(/^\s{0,3}(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?\s*slide[-\s]*(\d+)\b(?:\s*\*\*)?[:\-]?\s*(.*)$/i)
+    if (slideMatch) {
+      const matchedSlideNumber = Number.parseInt(slideMatch[1], 10)
+      if (currentSection && currentSection.slideNumber === matchedSlideNumber) {
+        currentSection.lines.push(line)
+        return
+      }
+      if (currentSection) {
+        sections.push(currentSection)
+      }
+      currentSection = {
+        slideNumber: matchedSlideNumber,
+        title: line.trim(),
+        lines: [line]
+      }
+      return
+    }
+
+    if (currentSection) {
+      currentSection.lines.push(line)
+    }
+  })
+
+  if (currentSection) {
+    sections.push(currentSection)
+  }
+
+  return sections.map((section) => ({
+    ...section,
+    content: section.lines.join('\n').trim()
+  }))
+}
+
+function parseDeckCritiqueSections(markdown) {
+  return parseDeckMarkdownSections(markdown).map((section) => {
+    const content = section.lines.join('\n').trim()
+    const issueSet = new Set()
+    const issuePattern = /\bissue[-\s]*(\d+)\b/gi
+    let issueMatch = issuePattern.exec(content)
+    while (issueMatch) {
+      issueSet.add(Number.parseInt(issueMatch[1], 10))
+      issueMatch = issuePattern.exec(content)
+    }
+    const issues = [...issueSet]
+      .filter((value) => Number.isFinite(value))
+      .sort((left, right) => left - right)
+      .map((issueNumber) => ({
+        issueNumber,
+        optionValue: `slide-${section.slideNumber}/issue-${issueNumber}`,
+        optionLabel: `Slide ${section.slideNumber} / Issue ${issueNumber}`
+      }))
+
+    return {
+      ...section,
+      content,
+      issues
+    }
+  })
+}
+
+function parseDoc2DeckPptxJsonSections(rawText) {
+  const parsed = parseDoc2DeckPptxJson(rawText)
+  if (!parsed) {
+    return []
+  }
+
+  const slides = Array.isArray(parsed?.deck?.slides) ? parsed.deck.slides : []
+  return slides
+    .map((slide, index) => {
+      const slideNumber = Number.parseInt(`${slide?.slide_number ?? slide?.slideNumber ?? index + 1}`, 10)
+      if (!Number.isFinite(slideNumber)) {
+        return null
+      }
+      const title = `${slide?.title || `Slide ${slideNumber}`}`.trim() || `Slide ${slideNumber}`
+      const bullets = Array.isArray(slide?.bullets) ? slide.bullets.filter(Boolean).map((item) => `${item}`.trim()) : []
+      const speakerNotes = `${slide?.speaker_notes || slide?.speakerNotes || ''}`.trim()
+
+      const lines = [`Slide-${slideNumber} — ${title}`]
+      if (bullets.length) {
+        lines.push('', 'Bullets:')
+        bullets.forEach((bullet) => {
+          lines.push(`- ${bullet}`)
+        })
+      }
+      if (speakerNotes) {
+        lines.push('', 'Speaker Notes:', speakerNotes)
+      }
+
+      return {
+        slideNumber,
+        title,
+        lines,
+        content: lines.join('\n').trim()
+      }
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.slideNumber - right.slideNumber)
+}
+
+function parseDoc2DeckPptxJsonWithMeta(rawText) {
+  const text = `${rawText || ''}`.trim()
+  if (!text) {
+    return { parsed: null, usedFallback: false }
+  }
+
+  const candidates = []
+  candidates.push(text)
+
+  const fencedMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  if (fencedMatch?.[1]) {
+    candidates.push(fencedMatch[1].trim())
+  }
+
+  const balancedJsonObjects = []
+  let depth = 0
+  let inString = false
+  let escaped = false
+  let objectStart = -1
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    if (inString) {
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === '"') {
+        inString = false
+      }
+      continue
+    }
+
+    if (char === '"') {
+      inString = true
+      continue
+    }
+
+    if (char === '{') {
+      if (depth === 0) {
+        objectStart = index
+      }
+      depth += 1
+      continue
+    }
+
+    if (char === '}') {
+      depth -= 1
+      if (depth === 0 && objectStart >= 0) {
+        balancedJsonObjects.push(text.slice(objectStart, index + 1).trim())
+        objectStart = -1
+      }
+    }
+  }
+
+  if (balancedJsonObjects.length) {
+    const parsedObjects = balancedJsonObjects
+      .map((chunk) => {
+        try {
+          return JSON.parse(chunk)
+        } catch (_error) {
+          return null
+        }
+      })
+      .filter(Boolean)
+    const deckObjects = parsedObjects.filter((item) => Array.isArray(item?.deck?.slides))
+
+    if (deckObjects.length) {
+      const mergedSlidesMap = new Map()
+      deckObjects.forEach((item) => {
+        item.deck.slides.forEach((slide, index) => {
+          const parsedSlideNumber = Number.parseInt(`${slide?.slide_number ?? slide?.slideNumber ?? ''}`, 10)
+          const slideKey = Number.isFinite(parsedSlideNumber) ? parsedSlideNumber : `fallback-${mergedSlidesMap.size}-${index}`
+          mergedSlidesMap.set(slideKey, slide)
+        })
+      })
+
+      const firstDeck = deckObjects[0]
+      const mergedSlides = [...mergedSlidesMap.entries()]
+        .sort((left, right) => {
+          const [leftKey] = left
+          const [rightKey] = right
+          if (typeof leftKey === 'number' && typeof rightKey === 'number') {
+            return leftKey - rightKey
+          }
+          return `${leftKey}`.localeCompare(`${rightKey}`)
+        })
+        .map(([, slide]) => slide)
+
+      return {
+        usedFallback: false,
+        parsed: {
+        ...firstDeck,
+        deck: {
+          ...firstDeck.deck,
+          slides: mergedSlides
+        }
+      }
+      }
+    }
+
+    candidates.push(...balancedJsonObjects)
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return { parsed: JSON.parse(candidate), usedFallback: true }
+    } catch (_error) {
+      // try next candidate
+    }
+  }
+  return { parsed: null, usedFallback: false }
+}
+
+function parseDoc2DeckPptxJson(rawText) {
+  return parseDoc2DeckPptxJsonWithMeta(rawText).parsed
+}
+
+let pptxGenJsLoaderPromise = null
+
+function loadPptxGenJsFromCdn() {
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('PptxGenJS can only be loaded in a browser environment.'))
+  }
+  if (window.PptxGenJS) {
+    return Promise.resolve(window.PptxGenJS)
+  }
+  if (!pptxGenJsLoaderPromise) {
+    pptxGenJsLoaderPromise = new Promise((resolve, reject) => {
+      const existingScript = document.querySelector('script[data-pptxgenjs-cdn="true"]')
+      if (existingScript) {
+        existingScript.addEventListener('load', () => resolve(window.PptxGenJS))
+        existingScript.addEventListener('error', () => reject(new Error('Failed to load PptxGenJS from CDN.')))
+        return
+      }
+
+      const script = document.createElement('script')
+      script.src = 'https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js'
+      script.async = true
+      script.dataset.pptxgenjsCdn = 'true'
+      script.addEventListener('load', () => {
+        if (window.PptxGenJS) {
+          resolve(window.PptxGenJS)
+        } else {
+          reject(new Error('PptxGenJS loaded but global constructor was not found.'))
+        }
+      })
+      script.addEventListener('error', () => reject(new Error('Failed to load PptxGenJS from CDN.')))
+      document.head.appendChild(script)
+    })
+  }
+  return pptxGenJsLoaderPromise
+}
+
+function PageShell({
+  mode,
+  topRightControls = null,
+  children,
+  appTitle = 'The Document Doctor',
+  appSubtitle = 'A Professional Review Tool for Document Authors',
+  brandLogo = DOCDOC_LOGO_PATH,
+  brandAlt = 'Cartoon paper doctor logo',
+  brandFallbackText = ''
+}) {
+  const [brandLoadFailed, setBrandLoadFailed] = useState(false)
+
+  useEffect(() => {
+    setBrandLoadFailed(false)
+  }, [brandLogo])
+
+  return (
+    <main className="layout">
+      <header className="hero card">
+        <div className="hero-corner hero-left">
+          {brandLoadFailed ? (
+            <div className="brand-logo-placeholder">{brandFallbackText || 'Logo'}</div>
+          ) : (
+            <img
+              className="brand-logo"
+              src={brandLogo}
+              alt={brandAlt}
+              onError={() => {
+                setBrandLoadFailed(true)
+              }}
+            />
+          )}
+        </div>
+        <div className="hero-title-group">
+          <h1>{appTitle}</h1>
+          <p className="hero-subtitle">{appSubtitle}</p>
+        </div>
+        <div className="hero-corner hero-right">
+          <div className="hero-right-stack">{topRightControls}</div>
+        </div>
+      </header>
+      {children}
+    </main>
+  )
+}
+
+function normalizeRequestError(error) {
+  if (error instanceof TypeError) {
+    return 'Unable to reach the backend API. If this page is loaded over HTTPS, make sure the backend URL is also HTTPS (no mixed content), then rebuild and redeploy your dist files.'
+  }
+
+  return error.message || 'Backend request failed.'
+}
+
+function preferHttpsOnSecurePage(endpoint) {
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && endpoint.startsWith('http://')) {
+    return `https://${endpoint.slice('http://'.length)}`
+  }
+
+  return endpoint
+}
+
+function endpointCandidates(endpoint) {
+  const secureEndpoint = preferHttpsOnSecurePage(endpoint)
+  const normalized = secureEndpoint.replace(/\/api\/api\//g, '/api/')
+  const seeds = [secureEndpoint, normalized]
+  const candidates = []
+
+  seeds.forEach((seed) => {
+    const base = seed.replace(/\/+$/, '')
+    candidates.push(`${base}/`, seed, `${base}/index.php`)
+  })
+
+  return [...new Set(candidates)]
+}
+
+function isRetryableGatewayError(error) {
+  const message = (error && error.message ? String(error.message) : '').toLowerCase()
+  return message.includes('status 502') || message.includes('status 503') || message.includes('status 504')
+}
+
+function detectAppNameFromPath() {
+  if (typeof window === 'undefined') {
+    return 'a-ideation'
+  }
+
+  if (window.__AIDEATION_APP_NAME) {
+    return String(window.__AIDEATION_APP_NAME).toLowerCase()
+  }
+
+  const path = `${window.location.pathname}`.toLowerCase()
+  if (path.includes('index-dd')) {
+    return 'docdoc'
+  }
+  if (path.includes('index-dm')) {
+    return 'deckmate'
+  }
+  if (path.includes('index-d2d')) {
+    return 'doc2deck'
+  }
+  if (path.includes('index-zz')) {
+    return 'zoom-zilla'
+  }
+
+  return 'a-ideation'
+}
+
+function withAppHeaders(headers = {}) {
+  return {
+    ...headers,
+    'X-App-Name': detectAppNameFromPath()
+  }
+}
+
+async function fetchWithEndpointFallback(endpoint, init) {
+  const candidates = endpointCandidates(endpoint)
+  let lastResponse = null
+  const endpointTrace = []
+
+  for (const candidate of candidates) {
+    const response = await fetch(candidate, init)
+    endpointTrace.push({ endpoint: candidate, status: response.status })
+    const isRedirect = [301, 302, 307, 308].includes(response.status)
+    const retryableGatewayStatus = [502, 503, 504].includes(response.status)
+    const redirectTarget = response.headers.get('location') || ''
+    const insecureRedirect =
+      typeof window !== 'undefined' &&
+      window.location.protocol === 'https:' &&
+      redirectTarget.startsWith('http://')
+
+    if (response.status !== 404 && !retryableGatewayStatus && !(isRedirect && insecureRedirect)) {
+      response.__endpointTrace = endpointTrace
+      return response
+    }
+
+    lastResponse = response
+  }
+
+  if (lastResponse) {
+    lastResponse.__endpointTrace = endpointTrace
+  }
+  return lastResponse
+}
+
+function summarizeEndpointTrace(endpointTrace = []) {
+  if (!endpointTrace.length) {
+    return ''
+  }
+  return endpointTrace
+    .map((item) => `${item.endpoint} -> ${item.status}`)
+    .join(' | ')
+}
+
+async function readBackendJson(response) {
+  const contentType = response.headers.get('content-type') || ''
+
+  if (!contentType.includes('application/json')) {
+    const responseText = await response.text()
+    const maybeHtml = responseText.trim().startsWith('<')
+    const preview = responseText.replace(/\s+/g, ' ').trim().slice(0, 220)
+    throw new Error(
+      maybeHtml
+        ? `Backend returned HTML instead of JSON (status ${response.status}). Verify VITE_API_BASE_URL points to your backend API and uses HTTPS when the site is served over HTTPS. Response preview: ${preview}`
+        : `Backend returned non-JSON response (status ${response.status}). Response preview: ${preview}`
+    )
+  }
+
+  return response.json()
+}
+
+async function postMultipart(endpoint, payload, fileEntries = {}) {
+  const formData = new FormData()
+  formData.append('request', JSON.stringify(payload))
+
+  Object.entries(fileEntries).forEach(([fieldName, file]) => {
+    if (file) {
+      formData.append(fieldName, file)
+    }
+  })
+
+  const response = await fetchWithEndpointFallback(endpoint, {
+    method: 'POST',
+    headers: withAppHeaders(),
+    body: formData,
+    credentials: 'include'
+  })
+
+  const data = await readBackendJson(response)
+  data.__endpointTrace = response.__endpointTrace || []
+  if (!response.ok) {
+    const traceSummary = summarizeEndpointTrace(response.__endpointTrace || [])
+    throw new Error(`${data.detail || 'Backend request failed.'}${traceSummary ? ` Endpoint attempts: ${traceSummary}` : ''}`)
+  }
+
+  return data
+}
+
+async function postJson(endpoint, payload) {
+  const response = await fetchWithEndpointFallback(endpoint, {
+    method: 'POST',
+    headers: withAppHeaders({
+      'Content-Type': 'application/json'
+    }),
+    body: JSON.stringify(payload),
+    credentials: 'include'
+  })
+
+  const data = await readBackendJson(response)
+  data.__endpointTrace = response.__endpointTrace || []
+  if (!response.ok) {
+    const traceSummary = summarizeEndpointTrace(response.__endpointTrace || [])
+    throw new Error(`${data.detail || 'Backend request failed.'}${traceSummary ? ` Endpoint attempts: ${traceSummary}` : ''}`)
+  }
+
+  return data
+}
+
+async function getJson(endpoint) {
+  const response = await fetchWithEndpointFallback(endpoint, {
+    method: 'GET',
+    headers: withAppHeaders(),
+    credentials: 'include'
+  })
+
+  const data = await readBackendJson(response)
+  data.__endpointTrace = response.__endpointTrace || []
+  if (!response.ok) {
+    const traceSummary = summarizeEndpointTrace(response.__endpointTrace || [])
+    throw new Error(`${data.detail || 'Backend request failed.'}${traceSummary ? ` Endpoint attempts: ${traceSummary}` : ''}`)
+  }
+
+  return data
+}
+
+export default function App({ appShell = 'ai' }) {
+  const gettingStartedQuestions = [
+    'What is the A-Ideation Professional Productivity toolset?',
+    'What are the benefits of using a browser-based AI agent?',
+    'What is Document Doctor?',
+    'What is Deck Mate?',
+    'What is Doc2Deck?',
+    'What is Zoom-Zilla?'
+  ]
+  const dedicatedViewByShell = {
+    dd: APP_VIEWS.DOCUMENT_DOCTOR,
+    dm: APP_VIEWS.DECK_MATE,
+    d2d: APP_VIEWS.DOC2DECK,
+    zz: APP_VIEWS.ZOOM_ZILLA
+  }
+  const dedicatedView = dedicatedViewByShell[appShell] || APP_VIEWS.SUITE_HOME
+  const isSuiteShell = dedicatedView === APP_VIEWS.SUITE_HOME
+  const homeView = isSuiteShell ? APP_VIEWS.SUITE_HOME : dedicatedView
+  const [authLoading, setAuthLoading] = useState(true)
+  const [authUser, setAuthUser] = useState(null)
+  const [authMode, setAuthMode] = useState('login')
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authDisplayName, setAuthDisplayName] = useState('')
+  const [authFirstName, setAuthFirstName] = useState('')
+  const [authLastName, setAuthLastName] = useState('')
+  const [authPhoneNumber, setAuthPhoneNumber] = useState('')
+  const [authJobTitle, setAuthJobTitle] = useState('')
+  const [contactSubmittedForEmail, setContactSubmittedForEmail] = useState('')
+  const [accessEmailInput, setAccessEmailInput] = useState('')
+  const [accessFlowMode, setAccessFlowMode] = useState('entry')
+  const [accessFlowMessage, setAccessFlowMessage] = useState('')
+  const [authEmailLocked, setAuthEmailLocked] = useState(false)
+  const [authAccountType, setAuthAccountType] = useState('trial')
+  const [authInfo, setAuthInfo] = useState('')
+  const [authSubmitting, setAuthSubmitting] = useState(false)
+  const [registrationReadyForVerify, setRegistrationReadyForVerify] = useState(false)
+  const [authOverlayOpen, setAuthOverlayOpen] = useState(!isSuiteShell)
+  const [showAuthRequiredNotice, setShowAuthRequiredNotice] = useState(false)
+  const [showTrialExpiredNotice, setShowTrialExpiredNotice] = useState(false)
+  const [verifyToken, setVerifyToken] = useState('')
+  const [resetToken, setResetToken] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [activeView, setActiveView] = useState(homeView)
+  const [activeGettingStartedQuestion, setActiveGettingStartedQuestion] = useState('')
+  const [zoomTileLogoFailed, setZoomTileLogoFailed] = useState(false)
+  const isDeckMateWorkflow = activeView === APP_VIEWS.DECK_MATE
+  const isDoc2DeckWorkflow = activeView === APP_VIEWS.DOC2DECK
+  const activeSettings = isDeckMateWorkflow
+    ? DECK_MATE_SETTINGS
+    : isDoc2DeckWorkflow
+      ? DOC2DECK_SETTINGS
+      : APP_SETTINGS
+  const contentNoun = isDeckMateWorkflow ? 'presentation' : 'document'
+  const contentNounPlural = isDeckMateWorkflow ? 'presentations' : 'documents'
+  const contentNounTitle = isDeckMateWorkflow ? 'Presentation' : 'Document'
+  const [currentMode, setCurrentMode] = useState(MODES.DOC_DEFINE)
+  const [docFile, setDocFile] = useState(null)
+  const [supportingFile, setSupportingFile] = useState(null)
+  const [priorResponseFile, setPriorResponseFile] = useState(null)
+  const [selectedApiMode, setSelectedApiMode] = useState(APP_SETTINGS.defaultApiMode || 'responses')
+  const [selectedModel, setSelectedModel] = useState(APP_SETTINGS.defaultModel)
+  const [ignoreOcrErrors, setIgnoreOcrErrors] = useState(true)
+  const [disableResponseLogging, setDisableResponseLogging] = useState(
+    APP_SETTINGS.disableResponseLoggingDefault ?? true
+  )
+  const [viewPromptEnabled, setViewPromptEnabled] = useState(APP_SETTINGS.viewPromptDefault ?? true)
+  const [bypassFileInput, setBypassFileInput] = useState(APP_SETTINGS.bypassFileInputDefault ?? true)
+  const [deleteFileOnLlm, setDeleteFileOnLlm] = useState(APP_SETTINGS.deleteFileOnLlmDefault ?? true)
+  const [logPanelEnabled, setLogPanelEnabled] = useState(APP_SETTINGS.logPanelEnabledDefault ?? false)
+  const [chunkingEnabled, setChunkingEnabled] = useState(APP_SETTINGS.chunkingEnabledDefault ?? false)
+  const [chunkSize, setChunkSize] = useState(APP_SETTINGS.chunkSizeDefault ?? 6)
+  const [chunkConcurrency, setChunkConcurrency] = useState(APP_SETTINGS.chunkConcurrencyDefault ?? 2)
+  const [doc2DeckChunkingEnabled, setDoc2DeckChunkingEnabled] = useState(
+    DOC2DECK_SETTINGS.chunkingEnabledDefault ?? false
+  )
+  const [doc2DeckChunkSize, setDoc2DeckChunkSize] = useState(
+    DOC2DECK_SETTINGS.chunkSizeDefault ?? 6
+  )
+  const [doc2DeckChunkConcurrency, setDoc2DeckChunkConcurrency] = useState(
+    DOC2DECK_SETTINGS.chunkConcurrencyDefault ?? 2
+  )
+  const [deckTotalSlidesSetting, setDeckTotalSlidesSetting] = useState(0)
+  const [deckTotalSlidesInput, setDeckTotalSlidesInput] = useState(0)
+  const [slidesToReviewInput, setSlidesToReviewInput] = useState('')
+  const [isCalculatingSlides, setIsCalculatingSlides] = useState(false)
+  const [deckCachedPrimaryFileId, setDeckCachedPrimaryFileId] = useState('')
+  const [showPromptPanel, setShowPromptPanel] = useState(false)
+  const [promptPreviewText, setPromptPreviewText] = useState('')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [deckSettingsTab, setDeckSettingsTab] = useState('prompt_instructions')
+  const settingsDropdownRef = useRef(null)
+  const profileSaveTimerRef = useRef(null)
+  const activeSubmissionIdRef = useRef(null)
+  const deckFileExpiryTimerRef = useRef(null)
+  const [profileLoaded, setProfileLoaded] = useState(false)
+  const [docTopic, setDocTopic] = useState(APP_SETTINGS.defaults.topic)
+  const [docObjective, setDocObjective] = useState(APP_SETTINGS.defaults.reviewObjective)
+  const [docGuidance, setDocGuidance] = useState(APP_SETTINGS.defaults.formattingGuidance)
+  const [docAntiGuidance, setDocAntiGuidance] = useState(APP_SETTINGS.defaults.antiGuidance)
+  const [docApplyChangeItemsGuidance, setDocApplyChangeItemsGuidance] = useState(
+    APP_SETTINGS.defaults.applyChangeItemsGuidance || ''
+  )
+  const [docChangeItemInstruction, setDocChangeItemInstruction] = useState(
+    APP_SETTINGS.defaults.changeItemInstruction || 'create item as stated'
+  )
+  const [deckTopic, setDeckTopic] = useState(DECK_MATE_SETTINGS.defaults.topic)
+  const [deckObjective, setDeckObjective] = useState(DECK_MATE_SETTINGS.defaults.reviewObjective)
+  const [deckGuidance, setDeckGuidance] = useState(DECK_MATE_SETTINGS.defaults.formattingGuidance)
+  const [deckAntiGuidance, setDeckAntiGuidance] = useState(DECK_MATE_SETTINGS.defaults.antiGuidance)
+  const [deckApplyChangeItemsGuidance, setDeckApplyChangeItemsGuidance] = useState(
+    DECK_MATE_SETTINGS.defaults.applyChangeItemsGuidance || ''
+  )
+  const [deckChangeItemInstruction, setDeckChangeItemInstruction] = useState(
+    DECK_MATE_SETTINGS.defaults.changeItemInstruction || 'create item as stated'
+  )
+  const [doc2DeckTopic, setDoc2DeckTopic] = useState(DOC2DECK_SETTINGS.defaults.topic)
+  const [doc2DeckObjective, setDoc2DeckObjective] = useState(DOC2DECK_SETTINGS.defaults.reviewObjective)
+  const [doc2DeckGuidance, setDoc2DeckGuidance] = useState(DOC2DECK_SETTINGS.defaults.formattingGuidance)
+  const [doc2DeckAntiGuidance, setDoc2DeckAntiGuidance] = useState(DOC2DECK_SETTINGS.defaults.antiGuidance)
+  const [doc2DeckApplyChangeItemsGuidance, setDoc2DeckApplyChangeItemsGuidance] = useState(
+    DOC2DECK_SETTINGS.defaults.applyChangeItemsGuidance || ''
+  )
+  const [doc2DeckApplyChangesFormattingGuidance, setDoc2DeckApplyChangesFormattingGuidance] = useState(
+    DOC2DECK_SETTINGS.defaults.applyChangesFormattingGuidance || ''
+  )
+  const [doc2DeckApplyChangesAntiGuidance, setDoc2DeckApplyChangesAntiGuidance] = useState(
+    DOC2DECK_SETTINGS.defaults.applyChangesAntiGuidance || ''
+  )
+  const [doc2DeckPptxOutputMode, setDoc2DeckPptxOutputMode] = useState(
+    DOC2DECK_SETTINGS.defaults.pptxOutputMode ?? false
+  )
+  const [doc2DeckChangeItemInstruction, setDoc2DeckChangeItemInstruction] = useState(
+    DOC2DECK_SETTINGS.defaults.changeItemInstruction || 'create item as stated'
+  )
+  const [docSupportInstructions, setDocSupportInstructions] = useState(defaults.supportInstructions)
+  const [docPriorInstructions, setDocPriorInstructions] = useState(defaults.priorInstructions)
+  const [deckSupportInstructions, setDeckSupportInstructions] = useState(defaults.supportInstructions)
+  const [deckPriorInstructions, setDeckPriorInstructions] = useState(defaults.priorInstructions)
+  const [doc2DeckSupportInstructions, setDoc2DeckSupportInstructions] = useState(defaults.supportInstructions)
+  const [doc2DeckPriorInstructions, setDoc2DeckPriorInstructions] = useState(defaults.priorInstructions)
+  const topic = isDeckMateWorkflow ? deckTopic : isDoc2DeckWorkflow ? doc2DeckTopic : docTopic
+  const objective = isDeckMateWorkflow ? deckObjective : isDoc2DeckWorkflow ? doc2DeckObjective : docObjective
+  const guidance = isDeckMateWorkflow ? deckGuidance : isDoc2DeckWorkflow ? doc2DeckGuidance : docGuidance
+  const antiGuidance = isDeckMateWorkflow ? deckAntiGuidance : isDoc2DeckWorkflow ? doc2DeckAntiGuidance : docAntiGuidance
+  const supportInstructions = isDeckMateWorkflow
+    ? deckSupportInstructions
+    : isDoc2DeckWorkflow
+      ? doc2DeckSupportInstructions
+      : docSupportInstructions
+  const priorInstructions = isDeckMateWorkflow
+    ? deckPriorInstructions
+    : isDoc2DeckWorkflow
+      ? doc2DeckPriorInstructions
+      : docPriorInstructions
+  const applyChangeItemsGuidance = isDeckMateWorkflow
+    ? deckApplyChangeItemsGuidance
+    : isDoc2DeckWorkflow
+      ? doc2DeckApplyChangeItemsGuidance
+      : docApplyChangeItemsGuidance
+  const applyChangesAntiGuidance = isDoc2DeckWorkflow
+    ? doc2DeckApplyChangesAntiGuidance
+    : antiGuidance
+  const activeChunkingEnabled = isDoc2DeckWorkflow ? doc2DeckChunkingEnabled : chunkingEnabled
+  const activeChunkSize = isDoc2DeckWorkflow ? doc2DeckChunkSize : chunkSize
+  const activeChunkConcurrency = isDoc2DeckWorkflow ? doc2DeckChunkConcurrency : chunkConcurrency
+  const changeItemInstruction = isDeckMateWorkflow
+    ? deckChangeItemInstruction
+    : isDoc2DeckWorkflow
+      ? doc2DeckChangeItemInstruction
+      : docChangeItemInstruction
+  const [critiqueMarkdown, setCritiqueMarkdown] = useState('')
+  const [changedDocumentMarkdown, setChangedDocumentMarkdown] = useState('')
+  const [critiqueOutputFileName, setCritiqueOutputFileName] = useState('critique.md')
+  const [changedOutputFileName, setChangedOutputFileName] = useState('changes.md')
+  const [status, setStatus] = useState(`Ready for ${contentNoun} definition.`)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [lastOperation, setLastOperation] = useState(null)
+  const [changeItems, setChangeItems] = useState([])
+  const [changeItemDraft, setChangeItemDraft] = useState(
+    emptyChangeDraft(APP_SETTINGS.defaults.changeItemInstruction || 'create item as stated')
+  )
+  const [requestLogLines, setRequestLogLines] = useState([])
+  const [lastCritiqueWaitMs, setLastCritiqueWaitMs] = useState(null)
+  const [selectedDeckSlideTab, setSelectedDeckSlideTab] = useState('all')
+  const [selectedChangedDeckSlideTab, setSelectedChangedDeckSlideTab] = useState('all')
+  const [selectedDeckIssueOptions, setSelectedDeckIssueOptions] = useState([])
+  const [selectedDoc2DeckSlideTab, setSelectedDoc2DeckSlideTab] = useState('all')
+  const [selectedChangedDoc2DeckSlideTab, setSelectedChangedDoc2DeckSlideTab] = useState('all')
+  const [selectedDoc2DeckSlides, setSelectedDoc2DeckSlides] = useState([])
+  const [deckAdaptiveChunkSize, setDeckAdaptiveChunkSize] = useState(null)
+  const [deckChunkLastReduction, setDeckChunkLastReduction] = useState(0)
+  const [deckChunkSuccessStreak, setDeckChunkSuccessStreak] = useState(0)
+
+  const deckCritiqueSections = useMemo(
+    () => (isDeckMateWorkflow ? parseDeckCritiqueSections(critiqueMarkdown) : []),
+    [isDeckMateWorkflow, critiqueMarkdown]
+  )
+  const deckIssueOptions = useMemo(
+    () => deckCritiqueSections.flatMap((section) => section.issues),
+    [deckCritiqueSections]
+  )
+  const visibleDeckIssueOptions = useMemo(() => {
+    if (selectedDeckSlideTab === 'all') {
+      return deckIssueOptions
+    }
+    return deckIssueOptions.filter((option) => option.optionValue.startsWith(`slide-${selectedDeckSlideTab}/`))
+  }, [deckIssueOptions, selectedDeckSlideTab])
+  const changedDeckSections = useMemo(
+    () => (isDeckMateWorkflow ? parseDeckMarkdownSections(changedDocumentMarkdown) : []),
+    [isDeckMateWorkflow, changedDocumentMarkdown]
+  )
+  const doc2DeckCritiqueSections = useMemo(
+    () => (isDoc2DeckWorkflow ? parseDeckMarkdownSections(critiqueMarkdown) : []),
+    [isDoc2DeckWorkflow, critiqueMarkdown]
+  )
+  const changedDoc2DeckJsonParse = useMemo(
+    () => (isDoc2DeckWorkflow ? parseDoc2DeckPptxJsonWithMeta(changedDocumentMarkdown) : { parsed: null, usedFallback: false }),
+    [isDoc2DeckWorkflow, changedDocumentMarkdown]
+  )
+  const changedDoc2DeckJsonSections = useMemo(
+    () => (isDoc2DeckWorkflow ? parseDoc2DeckPptxJsonSections(changedDocumentMarkdown) : []),
+    [isDoc2DeckWorkflow, changedDocumentMarkdown]
+  )
+  const changedDoc2DeckSections = useMemo(
+    () => {
+      if (!isDoc2DeckWorkflow) {
+        return []
+      }
+      if (changedDoc2DeckJsonSections.length) {
+        return changedDoc2DeckJsonSections
+      }
+      return parseDeckMarkdownSections(changedDocumentMarkdown)
+    },
+    [isDoc2DeckWorkflow, changedDocumentMarkdown, changedDoc2DeckJsonSections]
+  )
+  const changedDoc2DeckDisplayText = useMemo(() => {
+    if (!isDoc2DeckWorkflow || !changedDoc2DeckSections.length) {
+      return changedDocumentMarkdown
+    }
+    if (!changedDoc2DeckJsonSections.length && !doc2DeckPptxOutputMode) {
+      return changedDocumentMarkdown
+    }
+    return changedDoc2DeckSections.map((section) => section.content).join('\n\n')
+  }, [isDoc2DeckWorkflow, doc2DeckPptxOutputMode, changedDoc2DeckSections, changedDoc2DeckJsonSections, changedDocumentMarkdown])
+
+  useEffect(() => {
+    if (!isDoc2DeckWorkflow || !changedDoc2DeckJsonParse.usedFallback) {
+      return
+    }
+    setError('Warning: Doc2Deck JSON fallback parsing was used. Some chunk content may not be fully processed.')
+  }, [isDoc2DeckWorkflow, changedDoc2DeckJsonParse.usedFallback])
+
+  function extractFirstDeleteLogFileId(response) {
+    const firstId = response?.deleteLogs?.fileIds?.[0]
+    if (typeof firstId === 'string' && firstId.startsWith('file-')) {
+      return firstId
+    }
+
+    const firstPhpId = response?.deleteLogs?.files?.[0]?.fileId
+    if (typeof firstPhpId === 'string' && firstPhpId.startsWith('file-')) {
+      return firstPhpId
+    }
+
+    return ''
+  }
+
+  function clearDeckFileExpiryTimer() {
+    if (deckFileExpiryTimerRef.current) {
+      window.clearTimeout(deckFileExpiryTimerRef.current)
+      deckFileExpiryTimerRef.current = null
+    }
+  }
+
+  function scheduleDeckFileExpiryCleanup() {
+    clearDeckFileExpiryTimer()
+    deckFileExpiryTimerRef.current = window.setTimeout(() => {
+      cleanupDeckCachedPrimaryFile('Deck file cache expired after 10 minutes.')
+    }, 10 * 60 * 1000)
+  }
+
+  async function cleanupDeckCachedPrimaryFile(reason = 'Deck file cleanup requested.') {
+    clearDeckFileExpiryTimer()
+    if (!deckCachedPrimaryFileId) {
+      return
+    }
+
+    const cachedId = deckCachedPrimaryFileId
+    setDeckCachedPrimaryFileId('')
+    try {
+      appendRequestLog('Deleting cached Deck Mate file id.', { reason, fileId: cachedId })
+      await postMultipart(API_ENDPOINTS[OPERATIONS.CRITIQUE_PRIMARY], {
+        apiMode: 'responses',
+        model: 'gpt-5.4-nano',
+        store: false,
+        deleteFileOnLlm: true,
+        systemPrompt: 'You are a highly skilled assistant to an experienced professional in the field indicated.',
+        messages: [
+          { type: 'input_text', text: 'Acknowledge file deletion request.' },
+          { type: 'input_file', source: cachedId }
+        ]
+      }, {})
+    } catch (cleanupError) {
+      appendRequestLog('Cached Deck Mate file deletion failed.', { reason, error: normalizeRequestError(cleanupError), fileId: cachedId })
+    }
+  }
+
+  function appendRequestLog(message, details = null, options = {}) {
+    if (!logPanelEnabled) {
+      return
+    }
+    if (options.submissionId && activeSubmissionIdRef.current !== options.submissionId) {
+      return
+    }
+
+    const timestamp = new Date().toISOString()
+    const body =
+      details && typeof details === 'object'
+        ? `${message}\n${JSON.stringify(details, null, 2)}`
+        : `${message}${details ? ` ${details}` : ''}`
+    setRequestLogLines((lines) => [...lines, `[${timestamp}] ${body}`])
+  }
+
+  function clearRequestLog() {
+    setRequestLogLines([])
+  }
+
+  function setTopicForActive(value) {
+    if (isDeckMateWorkflow) {
+      setDeckTopic(value)
+      return
+    }
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckTopic(value)
+      return
+    }
+    setDocTopic(value)
+  }
+
+  function setObjectiveForActive(value) {
+    if (isDeckMateWorkflow) {
+      setDeckObjective(value)
+      return
+    }
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckObjective(value)
+      return
+    }
+    setDocObjective(value)
+  }
+
+  function setGuidanceForActive(value) {
+    if (isDeckMateWorkflow) {
+      setDeckGuidance(value)
+      return
+    }
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckGuidance(value)
+      return
+    }
+    setDocGuidance(value)
+  }
+
+  function setAntiGuidanceForActive(value) {
+    if (isDeckMateWorkflow) {
+      setDeckAntiGuidance(value)
+      return
+    }
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckAntiGuidance(value)
+      return
+    }
+    setDocAntiGuidance(value)
+  }
+
+  function setSupportInstructionsForActive(value) {
+    if (isDeckMateWorkflow) {
+      setDeckSupportInstructions(value)
+      return
+    }
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckSupportInstructions(value)
+      return
+    }
+    setDocSupportInstructions(value)
+  }
+
+  function setPriorInstructionsForActive(value) {
+    if (isDeckMateWorkflow) {
+      setDeckPriorInstructions(value)
+      return
+    }
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckPriorInstructions(value)
+      return
+    }
+    setDocPriorInstructions(value)
+  }
+
+  function setApplyChangeItemsGuidanceForActive(value) {
+    if (isDeckMateWorkflow) {
+      setDeckApplyChangeItemsGuidance(value)
+      return
+    }
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckApplyChangeItemsGuidance(value)
+      return
+    }
+    setDocApplyChangeItemsGuidance(value)
+  }
+
+  function setChangeItemInstructionForActive(value) {
+    if (isDeckMateWorkflow) {
+      setDeckChangeItemInstruction(value)
+      return
+    }
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckChangeItemInstruction(value)
+      return
+    }
+    setDocChangeItemInstruction(value)
+  }
+
+  function setChunkingEnabledForActive(value) {
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckChunkingEnabled(value)
+      return
+    }
+    setChunkingEnabled(value)
+  }
+
+  function setChunkSizeForActive(value) {
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckChunkSize(clampPositiveInteger(value, DOC2DECK_SETTINGS.chunkSizeDefault ?? 6))
+      return
+    }
+    setChunkSize(clampPositiveInteger(value, APP_SETTINGS.chunkSizeDefault ?? 6))
+  }
+
+  function setChunkConcurrencyForActive(value) {
+    if (isDoc2DeckWorkflow) {
+      setDoc2DeckChunkConcurrency(clampPositiveInteger(value, DOC2DECK_SETTINGS.chunkConcurrencyDefault ?? 2))
+      return
+    }
+    setChunkConcurrency(clampPositiveInteger(value, APP_SETTINGS.chunkConcurrencyDefault ?? 2))
+  }
+
+  function applyUserProfileSettings(settings = {}) {
+    setSelectedApiMode(settings.apiMode || APP_SETTINGS.defaultApiMode || 'responses')
+    setSelectedModel(settings.model || APP_SETTINGS.defaultModel)
+    setIgnoreOcrErrors(settings.ignoreOcrErrors ?? true)
+    setDisableResponseLogging(settings.disableResponseLogging ?? (APP_SETTINGS.disableResponseLoggingDefault ?? true))
+    setViewPromptEnabled(settings.viewPromptEnabled ?? (APP_SETTINGS.viewPromptDefault ?? false))
+    setBypassFileInput(settings.bypassFileInput ?? (APP_SETTINGS.bypassFileInputDefault ?? false))
+    setDeleteFileOnLlm(settings.deleteFileOnLlm ?? (APP_SETTINGS.deleteFileOnLlmDefault ?? true))
+    setLogPanelEnabled(settings.logPanelEnabled ?? (APP_SETTINGS.logPanelEnabledDefault ?? false))
+    setChunkingEnabled(settings.chunkingEnabled ?? (APP_SETTINGS.chunkingEnabledDefault ?? false))
+    setChunkSize(clampPositiveInteger(settings.chunkSize, APP_SETTINGS.chunkSizeDefault ?? 6))
+    setChunkConcurrency(clampPositiveInteger(settings.chunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2))
+    setDeckTotalSlidesSetting(clampPositiveInteger(settings.deckTotalSlides, 0))
+
+    const docProfile = settings.doc || {}
+    const deckProfile = settings.deck || {}
+    const doc2DeckProfile = settings.doc2deck || {}
+    setDocTopic(docProfile.topic || APP_SETTINGS.defaults.topic)
+    setDocObjective(docProfile.objective || APP_SETTINGS.defaults.reviewObjective)
+    setDocGuidance(docProfile.guidance || APP_SETTINGS.defaults.formattingGuidance)
+    setDocAntiGuidance(docProfile.antiGuidance || APP_SETTINGS.defaults.antiGuidance)
+    setDocApplyChangeItemsGuidance(docProfile.applyChangeItemsGuidance || '')
+    setDocChangeItemInstruction(docProfile.changeItemInstruction || APP_SETTINGS.defaults.changeItemInstruction || 'create item as stated')
+    setDocSupportInstructions(docProfile.supportInstructions || defaults.supportInstructions)
+    setDocPriorInstructions(docProfile.priorInstructions || defaults.priorInstructions)
+
+    setDeckTopic(deckProfile.topic || DECK_MATE_SETTINGS.defaults.topic)
+    setDeckObjective(deckProfile.objective || DECK_MATE_SETTINGS.defaults.reviewObjective)
+    setDeckGuidance(deckProfile.guidance || DECK_MATE_SETTINGS.defaults.formattingGuidance)
+    setDeckAntiGuidance(deckProfile.antiGuidance || DECK_MATE_SETTINGS.defaults.antiGuidance)
+    setDeckApplyChangeItemsGuidance(deckProfile.applyChangeItemsGuidance || DECK_MATE_SETTINGS.defaults.applyChangeItemsGuidance || '')
+    setDeckChangeItemInstruction(deckProfile.changeItemInstruction || DECK_MATE_SETTINGS.defaults.changeItemInstruction || 'create item as stated')
+    setDeckSupportInstructions(deckProfile.supportInstructions || defaults.supportInstructions)
+    setDeckPriorInstructions(deckProfile.priorInstructions || defaults.priorInstructions)
+
+    setDoc2DeckTopic(doc2DeckProfile.topic || DOC2DECK_SETTINGS.defaults.topic)
+    setDoc2DeckObjective(doc2DeckProfile.objective || DOC2DECK_SETTINGS.defaults.reviewObjective)
+    setDoc2DeckGuidance(doc2DeckProfile.guidance || DOC2DECK_SETTINGS.defaults.formattingGuidance)
+    setDoc2DeckAntiGuidance(doc2DeckProfile.antiGuidance || DOC2DECK_SETTINGS.defaults.antiGuidance)
+    setDoc2DeckApplyChangeItemsGuidance(doc2DeckProfile.applyChangeItemsGuidance || DOC2DECK_SETTINGS.defaults.applyChangeItemsGuidance || '')
+    setDoc2DeckApplyChangesFormattingGuidance(doc2DeckProfile.applyChangesFormattingGuidance || DOC2DECK_SETTINGS.defaults.applyChangesFormattingGuidance || '')
+    setDoc2DeckApplyChangesAntiGuidance(doc2DeckProfile.applyChangesAntiGuidance || DOC2DECK_SETTINGS.defaults.applyChangesAntiGuidance || '')
+    const legacyDoc2DeckChunkingEnabled = settings.chunkingEnabled
+    const legacyDoc2DeckChunkSize = settings.chunkSize
+    const legacyDoc2DeckChunkConcurrency = settings.chunkConcurrency
+    setDoc2DeckPptxOutputMode(doc2DeckProfile.pptxOutputMode ?? (DOC2DECK_SETTINGS.defaults.pptxOutputMode ?? false))
+    setDoc2DeckChunkingEnabled(
+      doc2DeckProfile.chunkingEnabled ??
+        legacyDoc2DeckChunkingEnabled ??
+        (DOC2DECK_SETTINGS.chunkingEnabledDefault ?? false)
+    )
+    setDoc2DeckChunkSize(
+      clampPositiveInteger(
+        doc2DeckProfile.chunkSize ?? legacyDoc2DeckChunkSize,
+        DOC2DECK_SETTINGS.chunkSizeDefault ?? 6
+      )
+    )
+    setDoc2DeckChunkConcurrency(
+      clampPositiveInteger(
+        doc2DeckProfile.chunkConcurrency ?? legacyDoc2DeckChunkConcurrency,
+        DOC2DECK_SETTINGS.chunkConcurrencyDefault ?? 2
+      )
+    )
+    setDoc2DeckChangeItemInstruction(doc2DeckProfile.changeItemInstruction || DOC2DECK_SETTINGS.defaults.changeItemInstruction || 'create item as stated')
+    setDoc2DeckSupportInstructions(doc2DeckProfile.supportInstructions || defaults.supportInstructions)
+    setDoc2DeckPriorInstructions(doc2DeckProfile.priorInstructions || defaults.priorInstructions)
+  }
+
+  async function loadUserProfileSettings() {
+    try {
+      const data = await getJson(AUTH_ENDPOINTS.PROFILE)
+      if (data.settings && typeof data.settings === 'object') {
+        applyUserProfileSettings(data.settings)
+      }
+    } catch (_profileError) {
+      // keep local defaults when profile read fails
+    } finally {
+      setProfileLoaded(true)
+    }
+  }
+
+  async function saveUserProfileSettings(settings) {
+    try {
+      await postJson(AUTH_ENDPOINTS.PROFILE, { settings })
+    } catch (_profileSaveError) {
+      // ignore persistence failure to avoid blocking UI
+    }
+  }
+
+  function resetAuthInputs() {
+    setAuthEmail('')
+    setAuthPassword('')
+    setAuthDisplayName('')
+    setVerifyToken('')
+    setResetToken('')
+    setNewPassword('')
+    setAuthInfo('')
+    setError('')
+  }
+
+  async function loadSession() {
+    setAuthLoading(true)
+    try {
+      const data = await getJson(AUTH_ENDPOINTS.SESSION)
+      if (data.authenticated && data.user) {
+        setAuthUser(data.user)
+        await loadUserProfileSettings()
+      } else {
+        setAuthUser(null)
+        setProfileLoaded(false)
+        if (data.trialExpired) {
+          setShowTrialExpiredNotice(true)
+        }
+      }
+    } catch (sessionError) {
+      setAuthUser(null)
+      setProfileLoaded(false)
+      setAuthInfo(`Session check failed: ${normalizeRequestError(sessionError)}`)
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  function clearAuthPanelMessages() {
+    setError('')
+    setAuthInfo('')
+    setRegistrationReadyForVerify(false)
+  }
+
+  function openAuthOverlay(mode = 'login') {
+    clearAuthPanelMessages()
+    setAuthMode(mode)
+    setAuthOverlayOpen(true)
+  }
+
+  function closeAuthOverlay() {
+    clearAuthPanelMessages()
+    setAuthOverlayOpen(false)
+  }
+
+  async function handleAuthSubmit(event) {
+    event.preventDefault()
+    setError('')
+    setAuthInfo('')
+    setAuthSubmitting(true)
+    try {
+      if (authMode === 'register') {
+        if (!contactSubmittedForEmail || contactSubmittedForEmail !== authEmail.trim().toLowerCase()) {
+          setError(`Before creating an account, submit your contact request for ${authEmail}.`)
+          return
+        }
+        setAuthInfo('Please wait while account is being created...')
+        const response = await postJson(AUTH_ENDPOINTS.REGISTER, {
+          email: authEmail,
+          password: authPassword,
+          displayName: authDisplayName,
+          accountType: authAccountType
+        })
+        setRegistrationReadyForVerify(true)
+        if (response.verificationEmailSent) {
+          setAuthInfo(
+            `Registration successful. Verification email sent.${response.verificationToken ? ` Token: ${response.verificationToken}` : ''}`
+          )
+        } else {
+          setAuthInfo(
+            `Registration successful, but verification email could not be sent from the server. ${response.verificationEmailError || ''}${response.verificationToken ? ` Token: ${response.verificationToken}` : ''}`
+          )
+        }
+      } else {
+        setRegistrationReadyForVerify(false)
+        setAuthInfo('Please wait while signing in...')
+        const response = await postJson(AUTH_ENDPOINTS.LOGIN, {
+          email: authEmail,
+          password: authPassword
+        })
+        setAuthUser(response.user || null)
+        setAuthInfo('')
+        setAuthOverlayOpen(false)
+        setShowAuthRequiredNotice(false)
+        await loadUserProfileSettings()
+      }
+    } catch (authError) {
+      const message = normalizeRequestError(authError)
+      if (message.toLowerCase().includes('trial period has ended')) {
+        setShowTrialExpiredNotice(true)
+      } else {
+        setError(message)
+      }
+    } finally {
+      setAuthSubmitting(false)
+    }
+  }
+
+  async function handleContactRequestSubmit(event) {
+    event.preventDefault()
+    setError('')
+    setAuthInfo('Submitting contact request...')
+    try {
+      await postJson(AUTH_ENDPOINTS.CONTACT_REQUEST, {
+        firstName: authFirstName,
+        lastName: authLastName,
+        phoneNumber: authPhoneNumber,
+        email: authEmail,
+        jobTitle: authJobTitle
+      })
+      setContactSubmittedForEmail(authEmail.trim().toLowerCase())
+      setAuthInfo('Contact request submitted. You can register after approval.')
+    } catch (contactError) {
+      setError(normalizeRequestError(contactError))
+      setAuthInfo('')
+    }
+  }
+
+  async function handleAccessEmailSubmit(event) {
+    event.preventDefault()
+    setError('')
+    setAuthInfo('')
+    setAccessFlowMessage('')
+    try {
+      const response = await postJson(AUTH_ENDPOINTS.ACCESS_CHECK, { email: accessEmailInput })
+      const checkedEmail = `${response.email || accessEmailInput}`.trim()
+      setAuthEmail(checkedEmail)
+      if (response.mode === 'pending') {
+        setAccessFlowMode('pending')
+        setAccessFlowMessage(response.message || '')
+        return
+      }
+      if (response.mode === 'contact') {
+        setAccessFlowMode('contact')
+        setAuthEmailLocked(true)
+        openAuthOverlay('register')
+        return
+      }
+      if (response.mode === 'register') {
+        setAccessFlowMode('register')
+        setAuthEmailLocked(true)
+        openAuthOverlay('register')
+        return
+      }
+      setAccessFlowMode('login')
+      setAuthEmailLocked(true)
+      openAuthOverlay('login')
+    } catch (accessError) {
+      setError(normalizeRequestError(accessError))
+    }
+  }
+
+  async function handleVerifyEmail(event) {
+    event.preventDefault()
+    setError('')
+    setAuthInfo('')
+    try {
+      const response = await postJson(AUTH_ENDPOINTS.VERIFY_EMAIL, { token: verifyToken })
+      setAuthInfo(response.message || 'Email verified. You can now sign in.')
+      setVerifyToken('')
+      setAuthMode('login')
+    } catch (verifyError) {
+      setError(normalizeRequestError(verifyError))
+    }
+  }
+
+  async function handleForgotPassword() {
+    setError('')
+    setAuthInfo('')
+    try {
+      const response = await postJson(AUTH_ENDPOINTS.FORGOT_PASSWORD, { email: authEmail })
+      setAuthInfo(
+        `${response.message || 'If the email exists, reset instructions were created.'}${
+          response.resetToken ? ` Reset token: ${response.resetToken}` : ''
+        }`
+      )
+    } catch (forgotError) {
+      setError(normalizeRequestError(forgotError))
+    }
+  }
+
+  async function handleResetPassword(event) {
+    event.preventDefault()
+    setError('')
+    setAuthInfo('')
+    try {
+      const response = await postJson(AUTH_ENDPOINTS.RESET_PASSWORD, {
+        token: resetToken,
+        newPassword
+      })
+      setAuthInfo(response.message || 'Password updated. You can sign in now.')
+      setResetToken('')
+      setNewPassword('')
+      setAuthMode('login')
+    } catch (resetError) {
+      setError(normalizeRequestError(resetError))
+    }
+  }
+
+  async function handleLogout() {
+    setError('')
+    try {
+      await postJson(AUTH_ENDPOINTS.LOGOUT, {})
+    } catch (logoutError) {
+      setError(normalizeRequestError(logoutError))
+    } finally {
+      await clearApplicationContext('User logout; clearing application context.')
+      setAuthUser(null)
+      setProfileLoaded(false)
+      resetAuthInputs()
+      setActiveView(homeView)
+      setAuthOverlayOpen(false)
+      setShowAuthRequiredNotice(false)
+    }
+  }
+
+  async function clearApplicationContext(reason = 'Clearing application context.') {
+    if (deckCachedPrimaryFileId) {
+      await cleanupDeckCachedPrimaryFile(reason)
+    }
+    setCurrentMode(MODES.DOC_DEFINE)
+    setDocFile(null)
+    setSupportingFile(null)
+    setPriorResponseFile(null)
+    setDeckTotalSlidesInput(0)
+    setSlidesToReviewInput('')
+    setIsCalculatingSlides(false)
+    setShowPromptPanel(false)
+    setPromptPreviewText('')
+    setSettingsOpen(false)
+    setCritiqueMarkdown('')
+    setChangedDocumentMarkdown('')
+    setCritiqueOutputFileName('critique.md')
+    setChangedOutputFileName('changes.md')
+    setStatus(`Ready for ${contentNoun} definition.`)
+    setError('')
+    setLoading(false)
+    setLastOperation(null)
+    setChangeItems([])
+    setChangeItemDraft(emptyChangeDraft(changeItemInstruction.trim() || 'create item as stated'))
+    setRequestLogLines([])
+    setLastCritiqueWaitMs(null)
+    setSelectedDeckSlideTab('all')
+    setSelectedChangedDeckSlideTab('all')
+    setSelectedDeckIssueOptions([])
+    setSelectedDoc2DeckSlideTab('all')
+    setSelectedChangedDoc2DeckSlideTab('all')
+    setSelectedDoc2DeckSlides([])
+  }
+
+  async function handleProtectedNavigation(view) {
+    setError('')
+    setAuthInfo('')
+    try {
+      const session = await getJson(AUTH_ENDPOINTS.SESSION)
+      if (session.authenticated && session.user) {
+        setAuthUser(session.user)
+        if (!profileLoaded || !authUser || authUser.id !== session.user.id) {
+          await loadUserProfileSettings()
+        }
+        await clearApplicationContext('Switching applications from A-Ideation home.')
+        setActiveView(view)
+        return
+      }
+    } catch (sessionError) {
+      setAuthInfo(`Session check failed: ${normalizeRequestError(sessionError)}`)
+    }
+
+    setAuthUser(null)
+    setProfileLoaded(false)
+    setShowAuthRequiredNotice(true)
+    openAuthOverlay('login')
+  }
+
+  function buildAntiGuidancePrompt() {
+    const parts = [antiGuidance.trim()]
+
+    if (ignoreOcrErrors && activeSettings.ocrGuidanceText.trim()) {
+      parts.push(activeSettings.ocrGuidanceText.trim())
+    }
+
+    return parts.filter(Boolean).join(' ')
+  }
+
+  function saveMarkdownToFile(content, desiredFileName) {
+    const safeName = (desiredFileName || 'output.md').trim() || 'output.md'
+    const fileName = safeName.toLowerCase().endsWith('.md') ? safeName : `${safeName}.md`
+    const blob = new Blob([content || ''], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = fileName
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  function saveTextToFile(content, desiredFileName, mimeType = 'text/plain;charset=utf-8') {
+    const fileName = (desiredFileName || 'output.txt').trim() || 'output.txt'
+    const blob = new Blob([content || ''], { type: mimeType })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = fileName
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  async function saveDoc2DeckPptxFromJsonOutput(jsonText, sourceFileName) {
+    const parseResult = parseDoc2DeckPptxJsonWithMeta(jsonText)
+    const parsed = parseResult.parsed
+    const slides = Array.isArray(parsed?.deck?.slides) ? parsed.deck.slides : []
+    if (!slides.length) {
+      throw new Error('PPTX mode expected strict JSON with deck.slides[] but it could not be parsed.')
+    }
+
+    const safeSource = (sourceFileName || 'changes.json').trim() || 'changes.json'
+    const pptxFileName = `${safeSource.replace(/\.[^/.]+$/, '')}.pptx`
+    const PptxGenJS = await loadPptxGenJsFromCdn()
+    const pptx = new PptxGenJS()
+    pptx.layout = 'LAYOUT_WIDE'
+    pptx.author = 'DocDoc'
+    pptx.subject = `${parsed?.deck?.title || 'Doc2Deck'}`
+    pptx.title = `${parsed?.deck?.title || 'Doc2Deck Output'}`
+
+    slides.forEach((slideData, index) => {
+      const slide = pptx.addSlide()
+      const slideNumber = Number.parseInt(`${slideData?.slide_number ?? index + 1}`, 10)
+      const title = `${slideData?.title || `Slide ${slideNumber}`}`.trim() || `Slide ${slideNumber}`
+      const bullets = Array.isArray(slideData?.bullets) ? slideData.bullets.filter(Boolean).map((item) => `${item}`.trim()) : []
+      const speakerNotes = `${slideData?.speaker_notes || ''}`.trim()
+
+      slide.addText(`Slide ${slideNumber}: ${title}`, {
+        x: 0.5,
+        y: 0.3,
+        w: 12.3,
+        h: 0.6,
+        fontSize: 24,
+        bold: true
+      })
+
+      slide.addText(bullets.length ? bullets.map((item) => `• ${item}`).join('\n') : '• (No bullets provided)', {
+        x: 0.7,
+        y: 1.2,
+        w: 11.8,
+        h: 4.8,
+        fontSize: 18,
+        valign: 'top'
+      })
+
+      if (speakerNotes) {
+        slide.addNotes(`Speaker Notes:\n${speakerNotes}`)
+      }
+    })
+
+    await pptx.writeFile({ fileName: pptxFileName })
+    return { pptxFileName, usedFallback: parseResult.usedFallback }
+  }
+
+  function buildLlmRequest(messages) {
+    return {
+      apiMode: selectedApiMode,
+      model: selectedModel,
+      store: !disableResponseLogging,
+      deleteFileOnLlm,
+      systemPrompt: 'You are a highly skilled assistant to an experienced professional in the field indicated.',
+      messages
+    }
+  }
+
+  async function readFileAsTextPayload(file) {
+    if (!file) {
+      return ''
+    }
+
+    try {
+      return await file.text()
+    } catch (_error) {
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      const chunkSize = 0x8000
+      let binary = ''
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.slice(i, i + chunkSize))
+      }
+      return `BASE64:${btoa(binary)}`
+    }
+  }
+
+  async function maybeBypassFileMessages(messages, fileEntries = {}) {
+    if (!bypassFileInput) {
+      return messages
+    }
+
+    const sourceLabels = {
+      primary_document: 'PRIMARY DOCUMENT',
+      supporting_document: 'SUPPORTING DOCUMENT',
+      prior_response_document: 'PRIOR RESPONSE DOCUMENT',
+      original_document: 'ORIGINAL DOCUMENT'
+    }
+
+    const built = []
+    for (const message of messages) {
+      if (message.type !== 'input_file') {
+        built.push(message)
+        continue
+      }
+
+      const file = fileEntries[message.source]
+      if (!file) {
+        continue
+      }
+
+      const fileText = await readFileAsTextPayload(file)
+      const label = sourceLabels[message.source] || message.source || 'DOCUMENT'
+      built.push({
+        type: 'input_text',
+        text: `${label} CONTENT START:\n${fileText}\n${label} CONTENT END`
+      })
+    }
+
+    return built
+  }
+
+async function buildPrimaryPromptPreviewText() {
+    const requestPayload = buildPrimaryCritiqueRequest()
+    requestPayload.messages = await maybeBypassFileMessages(requestPayload.messages, {
+      primary_document: docFile,
+      supporting_document: supportingFile,
+      prior_response_document: priorResponseFile
+    })
+
+    const openAiEndpoint =
+      selectedApiMode === 'chat'
+        ? 'https://api.openai.com/v1/chat/completions'
+        : 'https://api.openai.com/v1/responses'
+
+    if (selectedApiMode !== 'chat') {
+      return JSON.stringify(
+        {
+          openAiEndpoint,
+          ...requestPayload
+        },
+        null,
+        2
+      )
+    }
+
+    const chatContent = requestPayload.messages.map((item) =>
+      item.type === 'input_text'
+        ? { type: 'text', text: item.text || '' }
+        : { type: 'file', file: { source: item.source || 'file_reference' } }
+    )
+
+    return JSON.stringify(
+      {
+        openAiEndpoint,
+        model: requestPayload.model,
+        store: requestPayload.store,
+        messages: [
+          { role: 'system', content: requestPayload.systemPrompt },
+          { role: 'user', content: chatContent }
+        ]
+      },
+      null,
+      2
+    )
+  }
+
+  function buildPrimaryCritiqueRequest(slideScopeSummary = '') {
+    const messages = [
+      {
+        type: 'input_text',
+        text: `Primary ${contentNoun} to critique. Topic: ${topic} Objective: ${objective} Guidance: ${guidance} Anti-Guidance: ${buildAntiGuidancePrompt()}`
+      },
+      { type: 'input_file', source: 'primary_document' }
+    ]
+
+    if (isDeckMateWorkflow && slideScopeSummary) {
+      messages.push({
+        type: 'input_text',
+        text: `Chunk instruction: Process only ${slideScopeSummary}.`
+      })
+    }
+
+    if (supportingFile) {
+      messages.push({
+        type: 'input_text',
+        text: `Supporting ${contentNoun} included for context. Instructions: ${supportInstructions || 'None provided.'}`
+      })
+      messages.push({ type: 'input_file', source: 'supporting_document' })
+    }
+
+    if (priorResponseFile) {
+      messages.push({
+        type: 'input_text',
+        text: `Prior response ${contentNoun} included for context. Instructions: ${priorInstructions || 'None provided.'}`
+      })
+      messages.push({ type: 'input_file', source: 'prior_response_document' })
+    }
+
+    return buildLlmRequest(messages)
+  }
+
+  function buildPrimaryChunkedRequests(selectedSlides, explicitChunkSize = null) {
+    const normalizedChunkSize = clampPositiveInteger(
+      explicitChunkSize ?? chunkSize,
+      APP_SETTINGS.chunkSizeDefault ?? 6
+    )
+    const chunks = []
+    for (let start = 0; start < selectedSlides.length; start += normalizedChunkSize) {
+      const chunkSlides = selectedSlides.slice(start, start + normalizedChunkSize)
+      chunks.push({
+        slides: chunkSlides,
+        summary: summarizeSlideGroup(chunkSlides)
+      })
+    }
+
+    return chunks.map((chunk) => {
+      const requestPayload = buildPrimaryCritiqueRequest()
+      const chunkInstruction = `Chunk instruction: Process only ${chunk.summary}.`
+      return {
+        chunk,
+        requestPayload: {
+          ...requestPayload,
+          messages: [
+            ...requestPayload.messages,
+            {
+              type: 'input_text',
+              text: chunkInstruction
+            }
+          ]
+        }
+      }
+    })
+  }
+
+  function buildApplyChangeItemsRequest(changeItemsInput = changeItems) {
+    const selectedChangeSlides = (isDeckMateWorkflow || isDoc2DeckWorkflow)
+      ? extractDeckSlidesFromChangeItems(changeItemsInput)
+      : []
+    const critiqueSectionsBySlide = parseDeckCritiqueSections(critiqueMarkdown)
+    const critiqueTextForApply =
+      (isDeckMateWorkflow || isDoc2DeckWorkflow) && selectedChangeSlides.length && critiqueSectionsBySlide.length
+        ? critiqueSectionsBySlide
+            .filter((section) => selectedChangeSlides.includes(section.slideNumber))
+            .map((section) => section.content)
+            .join('\n\n')
+        : critiqueMarkdown
+
+    const applyChangeLabel = 'Change Items'
+    const critiqueLabel = isDoc2DeckWorkflow ? 'Slide Plan' : 'Original critique'
+    const slideScopeDirective =
+      isDeckMateWorkflow && selectedChangeSlides.length
+        ? ` Slide scope: update only these slides: ${selectedChangeSlides.join(', ')}.`
+        : ''
+    const doc2DeckPptxFormattingGuidance = (
+      doc2DeckApplyChangesFormattingGuidance || DOC2DECK_SETTINGS.defaults.applyChangesFormattingGuidance || ''
+    ).trim()
+    const mainInstructionText = isDoc2DeckWorkflow
+      ? (applyChangeItemsGuidance || '').trim()
+      : `Apply all requested change items directly to the original ${contentNoun} and return the changed ${contentNoun} in markdown.${
+          applyChangeItemsGuidance ? ` ${applyChangeItemsGuidance}` : ''
+        }`
+    const applyAntiGuidance = isDoc2DeckWorkflow
+      ? (applyChangesAntiGuidance.trim() || DOC2DECK_SETTINGS.defaults.applyChangesAntiGuidance || '')
+      : buildAntiGuidancePrompt()
+
+    const applyMessages = [
+      {
+        type: 'input_text',
+        text: `Main Instruction: ${mainInstructionText}${slideScopeDirective}`
+      },
+      ...(isDoc2DeckWorkflow
+        ? [
+            {
+              type: 'input_text',
+              text: `Anti-Guidance: ${applyAntiGuidance}`
+            },
+            {
+              type: 'input_text',
+              text: `Formatting Guidance: ${
+                doc2DeckPptxOutputMode
+                  ? doc2DeckPptxFormattingGuidance
+                  : `Return the changed ${contentNoun} in markdown.`
+              }`
+            }
+          ]
+        : []),
+      ...(!isDoc2DeckWorkflow
+        ? [
+            {
+              type: 'input_text',
+              text: `Anti-Guidance: ${applyAntiGuidance}`
+            }
+          ]
+        : []),
+      {
+        type: 'input_text',
+        text: `${applyChangeLabel}:\n${formatChangeItems(changeItemsInput)}`
+      },
+      {
+        type: 'input_text',
+        text: `${critiqueLabel}:\n${critiqueTextForApply}`
+      },
+      {
+        type: 'input_text',
+        text: `Original ${contentNoun}:`
+      },
+      { type: 'input_file', source: 'original_document' }
+    ]
+
+    const requestPayload = buildLlmRequest(applyMessages)
+
+    if (isDeckMateWorkflow) {
+      return {
+        ...requestPayload,
+        deleteFileOnLlm: true
+      }
+    }
+
+    return requestPayload
+  }
+
+  function buildChangedDocCritiqueRequest() {
+    return buildLlmRequest([
+      {
+        type: 'input_text',
+        text: `Critique the included changed ${contentNoun} using the original review configuration. Topic: ${topic} Objective: ${objective} Guidance: ${guidance} Anti-Guidance: ${buildAntiGuidancePrompt()}`
+      },
+      {
+        type: 'input_text',
+        text: `Changed ${contentNoun} body:\n${changedDocumentMarkdown}`
+      }
+    ])
+  }
+
+  async function detectDeckTotalSlidesFromFile(file) {
+    if (!file || !isDeckMateWorkflow) {
+      return
+    }
+
+    const requestPayload = {
+      apiMode: 'responses',
+      model: 'gpt-5.4-nano',
+      store: false,
+      deleteFileOnLlm: false,
+      systemPrompt:
+        'You return only the numeric answer requested by the user. Do not include labels, prose, punctuation, or extra text.',
+      messages: [
+        {
+          type: 'input_text',
+          text: 'Return the total number of slides in this presentation as a single integer only.'
+        },
+        { type: 'input_file', source: 'primary_document' }
+      ]
+    }
+
+    appendRequestLog('Detecting total slides from selected deck file.', {
+      endpoint: API_ENDPOINTS[OPERATIONS.CRITIQUE_PRIMARY],
+      model: 'gpt-5.4-nano',
+      requestPayload
+    })
+
+    const response = await postMultipart(API_ENDPOINTS[OPERATIONS.CRITIQUE_PRIMARY], requestPayload, {
+      primary_document: file
+    })
+    const detectedFileId = extractFirstDeleteLogFileId(response)
+    if (detectedFileId) {
+      setDeckCachedPrimaryFileId(detectedFileId)
+      scheduleDeckFileExpiryCleanup()
+    }
+    appendRequestLog('Slide detection response received.', {
+      outputText: response.outputText,
+      retainedFileId: detectedFileId || null
+    })
+    const detectedSlides = extractFirstInteger(response.outputText)
+    if (!detectedSlides || detectedSlides < 1) {
+      throw new Error(`Unable to determine total slides from model output: ${response.outputText || '<empty response>'}`)
+    }
+    setDeckTotalSlidesInput(detectedSlides)
+  }
+
+  async function handlePrimaryDocumentChange(event) {
+    const selectedFile = event.target.files?.[0] || null
+    setDocFile(selectedFile)
+    if (!selectedFile || !isDeckMateWorkflow) {
+      if (!selectedFile && isDeckMateWorkflow) {
+        await cleanupDeckCachedPrimaryFile('Deck file cleared by user.')
+      }
+      setIsCalculatingSlides(false)
+      return
+    }
+
+    try {
+      await cleanupDeckCachedPrimaryFile('Replacing Deck file with newly selected file.')
+      setIsCalculatingSlides(true)
+      setDeckTotalSlidesInput(0)
+      setStatus('calculating number of slides')
+      await detectDeckTotalSlidesFromFile(selectedFile)
+      setError('')
+      setStatus('Slide count detected from uploaded presentation.')
+    } catch (slideCountError) {
+      setError(`Slide count detection failed: ${normalizeRequestError(slideCountError)}`)
+      setStatus('Slide count detection failed. Enter Total Slides manually.')
+    } finally {
+      setIsCalculatingSlides(false)
+    }
+  }
+
+  async function invokeOperation(operation) {
+    if (!docFile) {
+      setError(`Upload the primary ${contentNoun} before invoking the model.`)
+      setCurrentMode(MODES.DOC_DEFINE)
+      return
+    }
+
+    if (operation === OPERATIONS.APPLY_CHANGE_ITEMS && !changeItems.length) {
+      setError('Create at least one change item before applying changes.')
+      setCurrentMode(MODES.CRITIQUE_REVIEW)
+      return
+    }
+
+    if (operation === OPERATIONS.CRITIQUE_CHANGED && !changedDocumentMarkdown.trim()) {
+      setError(`There is no changed ${contentNoun} to critique yet.`)
+      setCurrentMode(MODES.RESULT_SAVED)
+      return
+    }
+
+    const submissionId = `submission-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const operationStartedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    activeSubmissionIdRef.current = submissionId
+    setLoading(true)
+    setError('')
+    clearRequestLog()
+    appendRequestLog('New user submission started.', {
+      operation,
+      operationLabel: operationLabels[operation],
+      contentNoun,
+      selectedApiMode,
+      selectedModel,
+      chunkingEnabled: activeChunkingEnabled,
+      chunkSize: activeChunkSize,
+      chunkConcurrency: activeChunkConcurrency,
+      deckTotalSlidesInput,
+      slidesToReviewInput
+    }, { submissionId })
+    setCurrentMode(MODES.INVOKE)
+    setLastOperation(operation)
+    if (operation === OPERATIONS.APPLY_CHANGE_ITEMS) {
+      setLastCritiqueWaitMs(null)
+    }
+    setStatus(`Invoking ${operationLabels[operation]} via the backend proxy...`)
+
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+
+    try {
+      const llmData =
+        operation === OPERATIONS.CRITIQUE_PRIMARY
+          ? await (async () => {
+              const directFileEntries = {
+                primary_document: docFile,
+                supporting_document: supportingFile,
+                prior_response_document: priorResponseFile
+              }
+              const runSinglePrimaryRequest = async (requestPayload, chunkContext = null) => {
+                const usingDeckCachedFile = isDeckMateWorkflow && Boolean(deckCachedPrimaryFileId)
+                const requestPayloadWithCachedFile = usingDeckCachedFile
+                  ? {
+                      ...requestPayload,
+                      deleteFileOnLlm: false,
+                      messages: requestPayload.messages.map((message) =>
+                        message.type === 'input_file' && message.source === 'primary_document'
+                          ? { ...message, source: deckCachedPrimaryFileId }
+                          : message
+                      )
+                    }
+                  : requestPayload
+                const requestPayloadBypassed = {
+                  ...requestPayloadWithCachedFile,
+                  messages: await maybeBypassFileMessages(
+                    requestPayloadWithCachedFile.messages,
+                    usingDeckCachedFile
+                      ? {
+                          ...directFileEntries,
+                          primary_document: null
+                        }
+                      : directFileEntries
+                  )
+                }
+                appendRequestLog('Submitting primary critique request to backend.', {
+                  endpoint: API_ENDPOINTS[operation],
+                  bypassFileInput,
+                  deleteFileOnLlm,
+                  apiMode: selectedApiMode,
+                  model: selectedModel,
+                  requestPayload: requestPayloadBypassed,
+                  chunkContext,
+                  fileEntries: Object.fromEntries(
+                    Object.entries(directFileEntries).map(([key, file]) => [
+                      key,
+                      file ? { name: file.name, size: file.size, type: file.type } : null
+                    ])
+                  )
+                }, { submissionId })
+
+                try {
+                  const response = await postMultipart(
+                    API_ENDPOINTS[operation],
+                    requestPayloadBypassed,
+                    bypassFileInput
+                      ? {}
+                      : usingDeckCachedFile
+                        ? {
+                            ...directFileEntries,
+                            primary_document: null
+                          }
+                        : directFileEntries
+                  )
+                  appendRequestLog('Primary critique response received.', {
+                    chunkContext,
+                    outputTextLength: (response.outputText || '').length,
+                    deleteLogs: response.deleteLogs || null,
+                    endpointTrace: response.__endpointTrace || null
+                  }, { submissionId })
+                  return response
+                } catch (primaryError) {
+                  appendRequestLog('Primary critique request failed.', {
+                    chunkContext,
+                    error: normalizeRequestError(primaryError)
+                  }, { submissionId })
+                  if (!bypassFileInput || !isRetryableGatewayError(primaryError)) {
+                    throw primaryError
+                  }
+
+                  setStatus('Gateway timeout detected. Retrying request...')
+                  appendRequestLog('Retrying primary critique request after retryable gateway error.', { chunkContext }, { submissionId })
+                  const retryResponse = await postMultipart(
+                    API_ENDPOINTS[operation],
+                    requestPayloadBypassed,
+                    bypassFileInput
+                      ? {}
+                      : usingDeckCachedFile
+                        ? {
+                            ...directFileEntries,
+                            primary_document: null
+                          }
+                        : directFileEntries
+                  )
+                  appendRequestLog('Primary critique retry response received.', {
+                    chunkContext,
+                    outputTextLength: (retryResponse.outputText || '').length,
+                    deleteLogs: retryResponse.deleteLogs || null,
+                    endpointTrace: retryResponse.__endpointTrace || null
+                  }, { submissionId })
+                  return retryResponse
+                }
+              }
+
+              const totalSlides = clampPositiveInteger(deckTotalSlidesInput, 0)
+              const selectedSlides = isDeckMateWorkflow
+                ? parseSlidesToReviewInput(slidesToReviewInput)
+                : []
+
+              if (isDeckMateWorkflow && !selectedSlides.length) {
+                throw new Error('Enter Slides To Review before invoking critique.')
+              }
+
+              const shouldUseSlideSubsetChunks = isDeckMateWorkflow && activeChunkingEnabled && selectedSlides.length > 0
+              if (!shouldUseSlideSubsetChunks) {
+                const singleSlideScopeSummary =
+                  isDeckMateWorkflow && selectedSlides.length ? summarizeSlideGroup(selectedSlides) : ''
+                return runSinglePrimaryRequest(buildPrimaryCritiqueRequest(singleSlideScopeSummary))
+              }
+
+              const configuredChunkSize = clampPositiveInteger(activeChunkSize, APP_SETTINGS.chunkSizeDefault ?? 6)
+              let activeChunkSize =
+                isDeckMateWorkflow && deckAdaptiveChunkSize
+                  ? clampPositiveInteger(deckAdaptiveChunkSize, configuredChunkSize)
+                  : configuredChunkSize
+              let reductionAmountUsed = deckChunkLastReduction
+              let attemptsRemaining = isDeckMateWorkflow ? 3 : 1
+              let pendingSlides = [...selectedSlides]
+              const accumulatedSuccessfulChunks = []
+
+              while (attemptsRemaining > 0) {
+                const chunkedRequests = buildPrimaryChunkedRequests(pendingSlides, activeChunkSize)
+                const calculatedParallel = Math.max(1, Math.ceil(pendingSlides.length / activeChunkSize))
+                const maxParallel = Math.min(
+                  calculatedParallel,
+                  clampPositiveInteger(activeChunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
+                  chunkedRequests.length
+                )
+                appendRequestLog('Chunking plan calculated for primary critique.', {
+                  totalSlidesForDisplay: totalSlides,
+                  selectedSlidesCount: pendingSlides.length,
+                  chunkSize: activeChunkSize,
+                  chunkCount: chunkedRequests.length,
+                  calculatedParallel,
+                  chunkConcurrencyCap: clampPositiveInteger(activeChunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
+                  maxParallel
+                }, { submissionId })
+                const completedResults = []
+                const failedResults = []
+
+                for (let assignedIndex = 0; assignedIndex < chunkedRequests.length; assignedIndex += 1) {
+                  const assignedChunk = chunkedRequests[assignedIndex]
+                  setStatus(
+                    `Invoking ${operationLabels[operation]} chunk ${assignedIndex + 1} of ${chunkedRequests.length} (${assignedChunk.chunk.summary})...`
+                  )
+                  appendRequestLog('Invoking chunk request.', {
+                    chunkIndex: assignedIndex + 1,
+                    chunkCount: chunkedRequests.length,
+                    slideSummary: assignedChunk.chunk.summary,
+                    chunkSize: activeChunkSize
+                  }, { submissionId })
+                  try {
+                    const chunkResult = await runSinglePrimaryRequest(assignedChunk.requestPayload, {
+                      chunkIndex: assignedIndex + 1,
+                      slideSummary: assignedChunk.chunk.summary,
+                      chunkSize: activeChunkSize
+                    })
+                    completedResults.push({
+                      index: assignedChunk.chunk.slides[0] ?? assignedIndex,
+                      chunk: assignedChunk.chunk,
+                      outputText: chunkResult.outputText
+                    })
+                    setStatus(`Completed ${completedResults.length}/${chunkedRequests.length} chunks...`)
+                  } catch (chunkError) {
+                    failedResults.push({
+                      index: assignedIndex,
+                      chunk: assignedChunk.chunk,
+                      error: normalizeRequestError(chunkError)
+                    })
+                    appendRequestLog('Chunk failure detected; stopping remaining chunks for this attempt.', {
+                      failedChunkIndex: assignedIndex + 1,
+                      failedChunkSummary: assignedChunk.chunk.summary
+                    }, { submissionId })
+                    break
+                  }
+                }
+                appendRequestLog('Chunking run completed.', {
+                  successCount: completedResults.length,
+                  failedCount: failedResults.length,
+                  chunkSize: activeChunkSize,
+                  failedChunks: failedResults.map((item) => ({
+                    chunkIndex: item.index + 1,
+                    slideSummary: item.chunk.summary,
+                    error: item.error
+                  }))
+                }, { submissionId })
+
+                if (!failedResults.length) {
+                  if (isDeckMateWorkflow) {
+                    if (activeChunkSize < configuredChunkSize) {
+                      const previousAdaptive = clampPositiveInteger(deckAdaptiveChunkSize, configuredChunkSize)
+                      const nextStreak = activeChunkSize === previousAdaptive ? deckChunkSuccessStreak + 1 : 1
+                      if (nextStreak >= 2 && reductionAmountUsed > 0) {
+                        const recoveredChunkSize = Math.min(configuredChunkSize, activeChunkSize + reductionAmountUsed)
+                        setDeckAdaptiveChunkSize(recoveredChunkSize >= configuredChunkSize ? null : recoveredChunkSize)
+                        setDeckChunkSuccessStreak(0)
+                        setDeckChunkLastReduction(
+                          recoveredChunkSize >= configuredChunkSize ? 0 : Math.max(1, configuredChunkSize - recoveredChunkSize)
+                        )
+                        appendRequestLog('Recovered Deck Mate chunk size after consecutive successful calls.', {
+                          priorChunkSize: activeChunkSize,
+                          recoveredChunkSize
+                        }, { submissionId })
+                      } else {
+                        setDeckAdaptiveChunkSize(activeChunkSize)
+                        setDeckChunkSuccessStreak(nextStreak)
+                        if (reductionAmountUsed > 0) {
+                          setDeckChunkLastReduction(reductionAmountUsed)
+                        }
+                      }
+                    } else {
+                      setDeckAdaptiveChunkSize(null)
+                      setDeckChunkSuccessStreak(0)
+                      setDeckChunkLastReduction(0)
+                    }
+                  }
+
+                  const orderedOutput = completedResults
+                    .concat(accumulatedSuccessfulChunks)
+                    .sort((left, right) => left.index - right.index)
+                    .map(
+                      (item) =>
+                        `### ${item.chunk.summary}\n\n${item.outputText || '_No critique returned for this chunk._'}`
+                    )
+                    .join('\n\n')
+
+                  return { outputText: orderedOutput, chunked: true }
+                }
+
+                attemptsRemaining -= 1
+                if (attemptsRemaining < 1 || !isDeckMateWorkflow) {
+                  const failureSummary = failedResults
+                    .map((item) => `chunk ${item.index + 1} (${item.chunk.summary})`)
+                    .join(', ')
+                  throw new Error(`Chunked critique failed for ${failedResults.length}/${chunkedRequests.length} chunks: ${failureSummary}`)
+                }
+
+                const failedChunk = failedResults[0]?.chunk
+                const failedSlideStart = failedChunk?.slides?.[0]
+                const nextPendingSlidesIndex = Number.isFinite(failedSlideStart)
+                  ? pendingSlides.findIndex((slideNumber) => slideNumber >= failedSlideStart)
+                  : -1
+                if (nextPendingSlidesIndex > 0) {
+                  accumulatedSuccessfulChunks.push(...completedResults)
+                  pendingSlides = pendingSlides.slice(nextPendingSlidesIndex)
+                }
+
+                const reducedChunkSize = Math.max(1, Math.min(activeChunkSize - 1, Math.floor(activeChunkSize * 0.75)))
+                reductionAmountUsed = Math.max(1, activeChunkSize - reducedChunkSize)
+                setDeckAdaptiveChunkSize(reducedChunkSize)
+                setDeckChunkLastReduction(reductionAmountUsed)
+                setDeckChunkSuccessStreak(0)
+                appendRequestLog('Deck Mate chunk retry triggered after critique failure. Reducing chunk size by 25%.', {
+                  previousChunkSize: activeChunkSize,
+                  nextChunkSize: reducedChunkSize,
+                  retrySlides: pendingSlides,
+                  attemptsRemaining
+                }, { submissionId })
+                activeChunkSize = reducedChunkSize
+              }
+
+              throw new Error('Chunked critique failed after retry attempts.')
+            })()
+          : operation === OPERATIONS.APPLY_CHANGE_ITEMS
+            ? await (async () => {
+                const buildApplyChunkRequest = async (
+                  chunkChangeItems,
+                  {
+                    cachedFileId = '',
+                    shouldDeleteOnLlm = true
+                  } = {}
+                ) => {
+                  let requestPayload = buildApplyChangeItemsRequest(chunkChangeItems)
+                  requestPayload = {
+                    ...requestPayload,
+                    deleteFileOnLlm: shouldDeleteOnLlm
+                  }
+                  if (cachedFileId) {
+                    requestPayload = {
+                      ...requestPayload,
+                      messages: requestPayload.messages.map((message) =>
+                        message.type === 'input_file' && message.source === 'original_document'
+                          ? { ...message, source: cachedFileId }
+                          : message
+                      )
+                    }
+                  }
+                  const directFileEntries = {
+                    original_document: cachedFileId ? null : docFile
+                  }
+                  const requestPayloadBypassed = {
+                    ...requestPayload,
+                    messages: await maybeBypassFileMessages(requestPayload.messages, directFileEntries)
+                  }
+                  return { requestPayloadBypassed, directFileEntries }
+                }
+
+                const cleanupApplyCachedFile = async (fileId, reason) => {
+                  if (!fileId) {
+                    return
+                  }
+                  try {
+                    appendRequestLog('Deleting cached Doc2Deck apply file id.', { reason, fileId }, { submissionId })
+                    await postMultipart(API_ENDPOINTS[OPERATIONS.CRITIQUE_PRIMARY], {
+                      apiMode: 'responses',
+                      model: 'gpt-5.4-nano',
+                      store: false,
+                      deleteFileOnLlm: true,
+                      systemPrompt: 'Acknowledge file deletion request.',
+                      messages: [
+                        { type: 'input_text', text: 'Acknowledge file deletion request.' },
+                        { type: 'input_file', source: fileId }
+                      ]
+                    }, {})
+                  } catch (cleanupError) {
+                    if (isRetryableGatewayError(cleanupError)) {
+                      appendRequestLog('Cached Doc2Deck apply file deletion returned a retryable gateway error; file may already be deleted on OpenAI.', {
+                        reason,
+                        fileId,
+                        error: normalizeRequestError(cleanupError)
+                      }, { submissionId })
+                      return
+                    }
+                    appendRequestLog('Cached Doc2Deck apply file deletion failed.', {
+                      reason,
+                      fileId,
+                      error: normalizeRequestError(cleanupError)
+                    }, { submissionId })
+                  }
+                }
+
+                const selectedApplySlides = isDoc2DeckWorkflow
+                  ? extractDeckSlidesFromChangeItems(changeItems)
+                  : []
+                const shouldUseDoc2DeckApplyChunks =
+                  isDoc2DeckWorkflow &&
+                  activeChunkingEnabled &&
+                  !bypassFileInput &&
+                  selectedApplySlides.length > 0
+
+                if (shouldUseDoc2DeckApplyChunks) {
+                  const configuredChunkSize = clampPositiveInteger(activeChunkSize, DOC2DECK_SETTINGS.chunkSizeDefault ?? 6)
+                  const chunkPlans = buildPrimaryChunkedRequests(selectedApplySlides, configuredChunkSize).map((entry) => entry.chunk)
+                  const nonSlideChangeItems = changeItems.filter((item) => !/^slide-\d+$/i.test(item.id || ''))
+                  const chunkOutputs = []
+                  let cachedApplyFileId = ''
+
+                  try {
+                    appendRequestLog('Chunking plan calculated for Doc2Deck apply changes.', {
+                      selectedSlidesCount: selectedApplySlides.length,
+                      chunkSize: configuredChunkSize,
+                      chunkCount: chunkPlans.length
+                    }, { submissionId })
+
+                    for (let chunkIndex = 0; chunkIndex < chunkPlans.length; chunkIndex += 1) {
+                      const chunkPlan = chunkPlans[chunkIndex]
+                      const isFinalChunk = chunkIndex === chunkPlans.length - 1
+                      const shouldDeleteOnLlm = chunkPlans.length === 1 || isFinalChunk
+                      const chunkSlideSet = new Set(chunkPlan.slides)
+                      const chunkSlideItems = changeItems.filter((item) => {
+                        const match = `${item.id || ''}`.match(/^slide-(\d+)$/i)
+                        if (!match) {
+                          return false
+                        }
+                        const slideNumber = Number.parseInt(match[1], 10)
+                        return chunkSlideSet.has(slideNumber)
+                      })
+                      const chunkChangeItems = chunkIndex === 0
+                        ? [...nonSlideChangeItems, ...chunkSlideItems]
+                        : chunkSlideItems
+
+                      setStatus(`Invoking ${operationLabels[operation]} chunk ${chunkIndex + 1} of ${chunkPlans.length} (${chunkPlan.summary})...`)
+                      const { requestPayloadBypassed, directFileEntries } = await buildApplyChunkRequest(
+                        chunkChangeItems,
+                        {
+                          cachedFileId: cachedApplyFileId,
+                          shouldDeleteOnLlm
+                        }
+                      )
+                      appendRequestLog('Submitting apply-change-items chunk request to backend.', {
+                        chunkIndex: chunkIndex + 1,
+                        chunkCount: chunkPlans.length,
+                        chunkSummary: chunkPlan.summary,
+                        usingCachedFileId: Boolean(cachedApplyFileId),
+                        requestPayload: requestPayloadBypassed,
+                        fileEntries: Object.fromEntries(
+                          Object.entries(directFileEntries).map(([key, file]) => [
+                            key,
+                            file ? { name: file.name, size: file.size, type: file.type } : null
+                          ])
+                        )
+                      }, { submissionId })
+
+                      const response = await postMultipart(
+                        API_ENDPOINTS[operation],
+                        requestPayloadBypassed,
+                        bypassFileInput ? {} : directFileEntries
+                      )
+                      if (!cachedApplyFileId && !shouldDeleteOnLlm) {
+                        cachedApplyFileId = extractFirstDeleteLogFileId(response) || ''
+                      }
+
+                      appendRequestLog('Apply-change-items chunk response received.', {
+                        chunkIndex: chunkIndex + 1,
+                        chunkCount: chunkPlans.length,
+                        chunkSummary: chunkPlan.summary,
+                        outputTextLength: (response.outputText || '').length,
+                        retainedFileId: cachedApplyFileId || null
+                      }, { submissionId })
+                      chunkOutputs.push(
+                        `### ${chunkPlan.summary}\n\n${response.outputText || '_No changed content returned for this chunk._'}`
+                      )
+                    }
+
+                    return { outputText: chunkOutputs.join('\n\n'), chunked: true }
+                  } catch (chunkApplyError) {
+                    await cleanupApplyCachedFile(cachedApplyFileId, 'Doc2Deck apply chunking failed; deleting cached file.')
+                    throw chunkApplyError
+                  }
+                }
+
+                const requestPayload = buildApplyChangeItemsRequest()
+                const directFileEntries = {
+                  original_document: docFile
+                }
+                const requestPayloadBypassed = {
+                  ...requestPayload,
+                  messages: await maybeBypassFileMessages(requestPayload.messages, directFileEntries)
+                }
+                appendRequestLog('Submitting apply-change-items request to backend.', {
+                  endpoint: API_ENDPOINTS[operation],
+                  bypassFileInput,
+                  requestPayload: requestPayloadBypassed,
+                  fileEntries: Object.fromEntries(
+                    Object.entries(directFileEntries).map(([key, file]) => [
+                      key,
+                      file ? { name: file.name, size: file.size, type: file.type } : null
+                    ])
+                  )
+                }, { submissionId })
+
+                try {
+                  const response = await postMultipart(
+                    API_ENDPOINTS[operation],
+                    requestPayloadBypassed,
+                    bypassFileInput ? {} : directFileEntries
+                  )
+                  appendRequestLog('Apply-change-items response received.', {
+                    outputTextLength: (response.outputText || '').length,
+                    deleteLogs: response.deleteLogs || null,
+                    endpointTrace: response.__endpointTrace || null
+                  }, { submissionId })
+                  return response
+                } catch (applyError) {
+                  appendRequestLog('Apply-change-items request failed.', {
+                    error: normalizeRequestError(applyError)
+                  }, { submissionId })
+                  if (!bypassFileInput || !isRetryableGatewayError(applyError)) {
+                    throw applyError
+                  }
+
+                  setStatus('Gateway timeout detected. Retrying request...')
+                  appendRequestLog('Retrying apply-change-items request after retryable gateway error.', null, { submissionId })
+                  const retryResponse = await postMultipart(
+                    API_ENDPOINTS[operation],
+                    requestPayloadBypassed,
+                    bypassFileInput ? {} : directFileEntries
+                  )
+                  appendRequestLog('Apply-change-items retry response received.', {
+                    outputTextLength: (retryResponse.outputText || '').length
+                  }, { submissionId })
+                  return retryResponse
+                }
+              })()
+            : await (async () => {
+                const payload = buildChangedDocCritiqueRequest()
+                appendRequestLog('Submitting changed-document critique request to backend.', {
+                  endpoint: API_ENDPOINTS[operation],
+                  payload
+                }, { submissionId })
+                const response = await postJson(API_ENDPOINTS[operation], payload)
+                appendRequestLog('Changed-document critique response received.', {
+                  outputTextLength: (response.outputText || '').length
+                }, { submissionId })
+                return response
+              })()
+
+      const outputText = llmData.outputText
+
+      // eslint-disable-next-line no-console
+      console.info('[Delete_File_On_LLM] operation response:', {
+        operation,
+        apiMode: selectedApiMode,
+        deleteFileOnLlm,
+        deleteLogs: llmData.deleteLogs || null,
+      })
+
+      if (operation === OPERATIONS.APPLY_CHANGE_ITEMS) {
+        setChangedDocumentMarkdown(outputText)
+        setChangeItems([])
+        if (isDoc2DeckWorkflow && doc2DeckPptxOutputMode) {
+          saveTextToFile(outputText, changedOutputFileName, 'application/json;charset=utf-8')
+          try {
+            const { pptxFileName, usedFallback } = await saveDoc2DeckPptxFromJsonOutput(outputText, changedOutputFileName)
+            appendRequestLog('Generated PPTX from Doc2Deck JSON output.', { pptxFileName }, { submissionId })
+            if (usedFallback) {
+              setError('Warning: Doc2Deck JSON fallback parsing was used. Some chunk content may not be fully processed.')
+            }
+          } catch (pptxError) {
+            appendRequestLog('PPTX generation from Doc2Deck JSON output failed.', {
+              error: normalizeRequestError(pptxError)
+            }, { submissionId })
+            setError(`PPTX generation failed: ${normalizeRequestError(pptxError)}`)
+          }
+        } else {
+          saveMarkdownToFile(outputText, changedOutputFileName)
+        }
+        setStatus('Applying change items completed successfully.')
+      } else {
+        setCritiqueMarkdown(outputText)
+        if (operation === OPERATIONS.CRITIQUE_PRIMARY || operation === OPERATIONS.CRITIQUE_CHANGED) {
+          const finishedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
+          setLastCritiqueWaitMs(Math.max(0, finishedAt - operationStartedAt))
+        }
+        if (operation === OPERATIONS.CRITIQUE_PRIMARY) {
+          saveMarkdownToFile(outputText, critiqueOutputFileName)
+          if (isDeckMateWorkflow) {
+            await cleanupDeckCachedPrimaryFile('Primary Deck Mate critique completed; deleting cached file.')
+          }
+        }
+        setStatus(
+          operation === OPERATIONS.CRITIQUE_CHANGED
+            ? `Changed-${contentNoun} critique completed successfully.`
+            : `Primary ${contentNoun} critique completed successfully.`
+        )
+      }
+
+      setCurrentMode(MODES.RESULT_SAVED)
+    } catch (invocationError) {
+      if (operation === OPERATIONS.CRITIQUE_PRIMARY && isDeckMateWorkflow) {
+        await cleanupDeckCachedPrimaryFile('Primary Deck Mate critique failed; deleting cached file.')
+      }
+      appendRequestLog('Invocation ended in failure.', { error: normalizeRequestError(invocationError) }, { submissionId })
+      setError(`Invocation failed: ${normalizeRequestError(invocationError)}`)
+      setStatus('The request did not complete.')
+      setCurrentMode(
+        operation === OPERATIONS.APPLY_CHANGE_ITEMS ? MODES.CRITIQUE_REVIEW : MODES.DOC_DEFINE
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function addChangeItem() {
+    const trimmedId = changeItemDraft.id.trim()
+    const trimmedInstruction = changeItemDraft.instruction.trim()
+
+    if (!trimmedId) {
+      setError('Enter a change item ID before adding it.')
+      return
+    }
+
+    if (changeItems.some((item) => item.id === trimmedId)) {
+      setError(`Change item '${trimmedId}' already exists.`)
+      return
+    }
+
+    setChangeItems((items) => [
+      ...items,
+      { id: trimmedId, instruction: trimmedInstruction || changeItemInstruction.trim() || 'create item as stated' }
+    ])
+    setChangeItemDraft(emptyChangeDraft(changeItemInstruction.trim() || 'create item as stated'))
+    setError('')
+  }
+
+  function addDeckIssueSelectionsAsChangeItems() {
+    if (!selectedDeckIssueOptions.length) {
+      setError('Select at least one Slide / Issue combination first.')
+      return
+    }
+
+    const optionMap = Object.fromEntries(
+      deckIssueOptions.map((item) => [item.optionValue, item])
+    )
+    const itemsToAdd = selectedDeckIssueOptions
+      .map((optionValue) => optionMap[optionValue])
+      .filter(Boolean)
+      .filter((item) => !changeItems.some((existing) => existing.id === item.optionValue))
+      .map((item) => ({
+        id: item.optionValue,
+        instruction: changeItemInstruction.trim() || 'create item as stated'
+      }))
+
+    if (!itemsToAdd.length) {
+      setError('All selected Slide / Issue combinations are already present.')
+      return
+    }
+
+    setChangeItems((items) => [...items, ...itemsToAdd])
+    setSelectedDeckIssueOptions([])
+    setError('')
+  }
+
+  function addDoc2DeckSlideSelectionsAsChangeItems() {
+    if (!selectedDoc2DeckSlides.length) {
+      setError('Select at least one Slide first.')
+      return
+    }
+
+    const itemsToAdd = selectedDoc2DeckSlides
+      .map((slideIdRaw) => `${slideIdRaw}`.trim())
+      .filter((slideId) => /^slide-\d+$/i.test(slideId))
+      .map((slideId) => slideId.toLowerCase())
+      .filter((slideId) => !changeItems.some((existing) => existing.id.toLowerCase() === slideId))
+      .map((slideId) => {
+        return {
+          id: slideId,
+          instruction: changeItemInstruction.trim() || 'create item as stated'
+        }
+      })
+
+    if (!itemsToAdd.length) {
+      setError('All selected slides are already present in Change Items.')
+      return
+    }
+
+    setChangeItems((items) => [...items, ...itemsToAdd])
+    setSelectedDoc2DeckSlides([])
+    setError('')
+  }
+
+  function updateChangeItemInstruction(changeId, instruction) {
+    setChangeItems((items) =>
+      items.map((item) =>
+        item.id === changeId
+          ? { ...item, instruction }
+          : item
+      )
+    )
+    setError('')
+  }
+
+  function removeChangeItem(changeId) {
+    setChangeItems((items) => items.filter((item) => item.id !== changeId))
+    setError('')
+  }
+
+  function resetToDefinitionMode() {
+    if (isDeckMateWorkflow) {
+      void cleanupDeckCachedPrimaryFile('Reset to definition mode; clearing cached Deck file.')
+    }
+    setCurrentMode(MODES.DOC_DEFINE)
+    setDocFile(null)
+    setSlidesToReviewInput('')
+    setLastCritiqueWaitMs(null)
+    setError('')
+    setStatus(`Ready for ${contentNoun} definition.`)
+  }
+
+  function renderBackToSuiteButton() {
+    return (
+      <button
+        type="button"
+        className="header-text-link"
+        onClick={async () => {
+          await clearApplicationContext('Navigating back to A-Ideation home.')
+          if (isSuiteShell) {
+            setActiveView(APP_VIEWS.SUITE_HOME)
+            return
+          }
+          window.location.assign('./index-ai.html')
+        }}
+      >
+        Back to A-Ideation
+      </button>
+    )
+  }
+
+  function renderLogoutButton() {
+    return (
+      <button type="button" className="header-text-link" onClick={handleLogout}>
+        Logout
+      </button>
+    )
+  }
+
+  function renderError() {
+    if (!error) {
+      return null
+    }
+
+    return <div className="error-banner">{error}</div>
+  }
+
+  function renderRequestLogPanel() {
+    if (!logPanelEnabled) {
+      return null
+    }
+
+    return (
+      <section className="card">
+        <h2>Request Log</h2>
+        <textarea
+          name="request_log_panel"
+          value={requestLogLines.join('\n\n')}
+          readOnly
+          rows={12}
+          className="critique-editor"
+        />
+      </section>
+    )
+  }
+
+  useEffect(() => {
+    loadSession()
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (activeView === APP_VIEWS.DOCUMENT_DOCTOR) {
+      window.__AIDEATION_APP_NAME = 'docdoc'
+      return
+    }
+    if (activeView === APP_VIEWS.DECK_MATE) {
+      window.__AIDEATION_APP_NAME = 'deckmate'
+      return
+    }
+    if (activeView === APP_VIEWS.DOC2DECK) {
+      window.__AIDEATION_APP_NAME = 'doc2deck'
+      return
+    }
+    if (activeView === APP_VIEWS.ZOOM_ZILLA) {
+      window.__AIDEATION_APP_NAME = 'zoom-zilla'
+      return
+    }
+
+    window.__AIDEATION_APP_NAME = 'a-ideation'
+  }, [activeView])
+
+  useEffect(() => {
+    if (isDeckMateWorkflow && bypassFileInput) {
+      setBypassFileInput(false)
+    }
+  }, [isDeckMateWorkflow, bypassFileInput])
+
+  useEffect(() => {
+    if (!authUser || !profileLoaded) {
+      return
+    }
+
+    if (profileSaveTimerRef.current) {
+      window.clearTimeout(profileSaveTimerRef.current)
+    }
+
+    const settings = {
+      apiMode: selectedApiMode,
+      model: selectedModel,
+      ignoreOcrErrors,
+      disableResponseLogging,
+      viewPromptEnabled,
+      bypassFileInput,
+      deleteFileOnLlm,
+      logPanelEnabled,
+      chunkingEnabled,
+      chunkSize,
+      chunkConcurrency,
+      deckTotalSlides: deckTotalSlidesSetting,
+      doc: {
+        topic: docTopic,
+        objective: docObjective,
+        guidance: docGuidance,
+        antiGuidance: docAntiGuidance,
+        applyChangeItemsGuidance: docApplyChangeItemsGuidance,
+        changeItemInstruction: docChangeItemInstruction,
+        supportInstructions: docSupportInstructions,
+        priorInstructions: docPriorInstructions
+      },
+      deck: {
+        topic: deckTopic,
+        objective: deckObjective,
+        guidance: deckGuidance,
+        antiGuidance: deckAntiGuidance,
+        applyChangeItemsGuidance: deckApplyChangeItemsGuidance,
+        changeItemInstruction: deckChangeItemInstruction,
+        supportInstructions: deckSupportInstructions,
+        priorInstructions: deckPriorInstructions
+      },
+      doc2deck: {
+        topic: doc2DeckTopic,
+        objective: doc2DeckObjective,
+        guidance: doc2DeckGuidance,
+        antiGuidance: doc2DeckAntiGuidance,
+        applyChangeItemsGuidance: doc2DeckApplyChangeItemsGuidance,
+        applyChangesFormattingGuidance: doc2DeckApplyChangesFormattingGuidance,
+        applyChangesAntiGuidance: doc2DeckApplyChangesAntiGuidance,
+        pptxOutputMode: doc2DeckPptxOutputMode,
+        chunkingEnabled: doc2DeckChunkingEnabled,
+        chunkSize: doc2DeckChunkSize,
+        chunkConcurrency: doc2DeckChunkConcurrency,
+        changeItemInstruction: doc2DeckChangeItemInstruction,
+        supportInstructions: doc2DeckSupportInstructions,
+        priorInstructions: doc2DeckPriorInstructions
+      }
+    }
+
+    profileSaveTimerRef.current = window.setTimeout(() => {
+      saveUserProfileSettings(settings)
+    }, 500)
+
+    return () => {
+      if (profileSaveTimerRef.current) {
+        window.clearTimeout(profileSaveTimerRef.current)
+      }
+    }
+  }, [
+    authUser,
+    profileLoaded,
+    selectedApiMode,
+    selectedModel,
+    ignoreOcrErrors,
+    disableResponseLogging,
+    viewPromptEnabled,
+    bypassFileInput,
+    deleteFileOnLlm,
+    logPanelEnabled,
+    chunkingEnabled,
+    chunkSize,
+    chunkConcurrency,
+    deckTotalSlidesSetting,
+    docTopic,
+    docObjective,
+    docGuidance,
+    docAntiGuidance,
+    docApplyChangeItemsGuidance,
+    docChangeItemInstruction,
+    docSupportInstructions,
+    docPriorInstructions,
+    deckTopic,
+    deckObjective,
+    deckGuidance,
+    deckAntiGuidance,
+    deckApplyChangeItemsGuidance,
+    deckChangeItemInstruction,
+    deckSupportInstructions,
+    deckPriorInstructions,
+    doc2DeckTopic,
+    doc2DeckObjective,
+    doc2DeckGuidance,
+    doc2DeckAntiGuidance,
+    doc2DeckApplyChangeItemsGuidance,
+    doc2DeckApplyChangesFormattingGuidance,
+    doc2DeckApplyChangesAntiGuidance,
+    doc2DeckPptxOutputMode,
+    doc2DeckChunkingEnabled,
+    doc2DeckChunkSize,
+    doc2DeckChunkConcurrency,
+    doc2DeckChangeItemInstruction,
+    doc2DeckSupportInstructions,
+    doc2DeckPriorInstructions
+  ])
+
+  useEffect(() => {
+    if (!isDeckMateWorkflow || !deckCritiqueSections.length) {
+      setSelectedDeckSlideTab('all')
+      return
+    }
+    if (selectedDeckSlideTab === 'all') {
+      return
+    }
+    const hasCurrent = deckCritiqueSections.some((section) => section.slideNumber === selectedDeckSlideTab)
+    if (!hasCurrent) {
+      setSelectedDeckSlideTab('all')
+    }
+  }, [isDeckMateWorkflow, deckCritiqueSections, selectedDeckSlideTab])
+
+  useEffect(() => {
+    if (!isDoc2DeckWorkflow || !doc2DeckCritiqueSections.length) {
+      setSelectedDoc2DeckSlideTab('all')
+      return
+    }
+    if (selectedDoc2DeckSlideTab === 'all') {
+      return
+    }
+    const hasCurrent = doc2DeckCritiqueSections.some((section) => section.slideNumber === selectedDoc2DeckSlideTab)
+    if (!hasCurrent) {
+      setSelectedDoc2DeckSlideTab('all')
+    }
+  }, [isDoc2DeckWorkflow, doc2DeckCritiqueSections, selectedDoc2DeckSlideTab])
+
+  useEffect(() => {
+    const allowedOptionValues = new Set(visibleDeckIssueOptions.map((option) => option.optionValue))
+    setSelectedDeckIssueOptions((items) => items.filter((item) => allowedOptionValues.has(item)))
+  }, [visibleDeckIssueOptions])
+
+  useEffect(() => () => {
+    clearDeckFileExpiryTimer()
+  }, [])
+
+  useEffect(() => {
+    if (!isDeckMateWorkflow || !changedDeckSections.length) {
+      setSelectedChangedDeckSlideTab('all')
+      return
+    }
+    if (selectedChangedDeckSlideTab === 'all') {
+      return
+    }
+    const hasCurrent = changedDeckSections.some((section) => section.slideNumber === selectedChangedDeckSlideTab)
+    if (!hasCurrent) {
+      setSelectedChangedDeckSlideTab('all')
+    }
+  }, [isDeckMateWorkflow, changedDeckSections, selectedChangedDeckSlideTab])
+
+  useEffect(() => {
+    if (!isDoc2DeckWorkflow || !changedDoc2DeckSections.length) {
+      setSelectedChangedDoc2DeckSlideTab('all')
+      return
+    }
+    if (selectedChangedDoc2DeckSlideTab === 'all') {
+      return
+    }
+    const hasCurrent = changedDoc2DeckSections.some((section) => section.slideNumber === selectedChangedDoc2DeckSlideTab)
+    if (!hasCurrent) {
+      setSelectedChangedDoc2DeckSlideTab('all')
+    }
+  }, [isDoc2DeckWorkflow, changedDoc2DeckSections, selectedChangedDoc2DeckSlideTab])
+
+  useEffect(() => {
+    function handlePointerDown(event) {
+      if (!settingsOpen) {
+        return
+      }
+
+      if (settingsDropdownRef.current && !settingsDropdownRef.current.contains(event.target)) {
+        setSettingsOpen(false)
+      }
+    }
+
+    function handleEscape(event) {
+      if (event.key === 'Escape') {
+        setSettingsOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleEscape)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [settingsOpen])
+
+  function renderSettingsControl() {
+    const settingsLabels = activeSettings.settingsPanelLabels || {}
+    const settingsPanelOrder = activeSettings.settingsPanelOrder || []
+    const settingsTabs = isDoc2DeckWorkflow
+      ? [
+          {
+            id: 'prompt_instructions',
+            label: 'Prompt Instructions',
+            keys: [
+              'defaultTopic',
+              'reviewObjective',
+              'formattingGuidance',
+              'antiGuidance',
+              'changeItemInstruction',
+              'applyChangeItemsGuidance',
+              'applyChangesFormattingGuidance',
+              'applyChangesAntiGuidance'
+            ]
+          },
+          {
+            id: 'application_controls',
+            label: 'Application Controls',
+            keys: ['viewPrompt', 'logPanelEnabled', 'chunkingEnabled', 'chunkSize', 'chunkConcurrency', 'pptxOutputMode']
+          },
+          {
+            id: 'model_controls',
+            label: 'Model Controls',
+            keys: ['apiMode', 'llmModel', 'ignoreOcrErrors', 'disableResponseLogging', 'deleteFileOnLlm']
+          }
+        ]
+      : isDeckMateWorkflow
+        ? [
+            {
+              id: 'prompt_instructions',
+              label: 'Prompt Instructions',
+              keys: [
+                'defaultTopic',
+                'reviewObjective',
+                'formattingGuidance',
+                'antiGuidance',
+                'changeItemInstruction',
+                'applyChangeItemsGuidance'
+              ]
+            },
+            {
+              id: 'application_controls',
+              label: 'Application Controls',
+              keys: ['viewPrompt', 'logPanelEnabled', 'chunkingEnabled', 'deckTotalSlides', 'chunkSize', 'chunkConcurrency']
+            },
+            {
+              id: 'model_controls',
+              label: 'Model Controls',
+              keys: ['apiMode', 'llmModel', 'ignoreOcrErrors', 'disableResponseLogging', 'deleteFileOnLlm']
+            }
+          ]
+        : [
+            {
+              id: 'prompt_instructions',
+              label: 'Prompt Instructions',
+              keys: ['defaultTopic', 'reviewObjective', 'formattingGuidance', 'antiGuidance', 'changeItemInstruction']
+            },
+            {
+              id: 'application_controls',
+              label: 'Application Controls',
+              keys: ['viewPrompt', 'bypassFileInput', 'logPanelEnabled']
+            },
+            {
+              id: 'model_controls',
+              label: 'Model Controls',
+              keys: ['apiMode', 'llmModel', 'ignoreOcrErrors', 'disableResponseLogging', 'deleteFileOnLlm']
+            }
+          ]
+
+    function renderSettingsField(settingKey) {
+      switch (settingKey) {
+        case 'apiMode':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.apiMode || 'API Mode'}
+              <select name="api_mode" value={selectedApiMode} onChange={(event) => setSelectedApiMode(event.target.value)}>
+                {activeSettings.apiModes.map((apiModeOption) => (
+                  <option key={apiModeOption.value} value={apiModeOption.value}>
+                    {apiModeOption.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )
+        case 'llmModel':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.llmModel || 'LLM Model'}
+              <select name="llm_model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
+                {activeSettings.llmModels.map((modelOption) => (
+                  <option key={modelOption.value} value={modelOption.value}>
+                    {modelOption.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )
+        case 'defaultTopic':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.defaultTopic || activeSettings.labels.defaultTopic}
+              <textarea name="default_topic" value={topic} onChange={(event) => setTopicForActive(event.target.value)} rows={3} />
+            </label>
+          )
+        case 'reviewObjective':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.reviewObjective || activeSettings.labels.reviewObjective}
+              <textarea name="review_objective" value={objective} onChange={(event) => setObjectiveForActive(event.target.value)} rows={3} />
+            </label>
+          )
+        case 'formattingGuidance':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.formattingGuidance || activeSettings.labels.formattingGuidance}
+              <textarea name="formatting_guidance" value={guidance} onChange={(event) => setGuidanceForActive(event.target.value)} rows={3} />
+            </label>
+          )
+        case 'antiGuidance':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.antiGuidance || activeSettings.labels.antiGuidance}
+              <textarea name="anti_guidance" value={antiGuidance} onChange={(event) => setAntiGuidanceForActive(event.target.value)} rows={3} />
+            </label>
+          )
+        case 'applyChangeItemsGuidance':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.applyChangeItemsGuidance || activeSettings.labels.applyChangeItemsGuidance || 'Apply Change Items Guidance'}
+              <textarea
+                name="apply_change_items_guidance"
+                value={applyChangeItemsGuidance}
+                onChange={(event) => setApplyChangeItemsGuidanceForActive(event.target.value)}
+                rows={3}
+              />
+            </label>
+          )
+        case 'applyChangesAntiGuidance':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.applyChangesAntiGuidance || activeSettings.labels.applyChangesAntiGuidance || 'Apply Changes Anti-Guidance'}
+              <textarea
+                name="apply_changes_anti_guidance"
+                value={isDoc2DeckWorkflow ? doc2DeckApplyChangesAntiGuidance : ''}
+                onChange={(event) => {
+                  if (isDoc2DeckWorkflow) {
+                    setDoc2DeckApplyChangesAntiGuidance(event.target.value)
+                  }
+                }}
+                rows={3}
+              />
+            </label>
+          )
+        case 'applyChangesFormattingGuidance':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.applyChangesFormattingGuidance || activeSettings.labels.applyChangesFormattingGuidance || 'Apply Changes Formatting Guidance'}
+              <textarea
+                name="apply_changes_formatting_guidance"
+                value={isDoc2DeckWorkflow ? doc2DeckApplyChangesFormattingGuidance : ''}
+                onChange={(event) => {
+                  if (isDoc2DeckWorkflow) {
+                    setDoc2DeckApplyChangesFormattingGuidance(event.target.value)
+                  }
+                }}
+                rows={4}
+              />
+            </label>
+          )
+        case 'pptxOutputMode':
+          return (
+            <label key={settingKey} className="checkbox-label">
+              <input
+                name="pptx_output_mode"
+                type="checkbox"
+                checked={isDoc2DeckWorkflow ? doc2DeckPptxOutputMode : false}
+                onChange={(event) => {
+                  if (isDoc2DeckWorkflow) {
+                    setDoc2DeckPptxOutputMode(event.target.checked)
+                  }
+                }}
+              />
+              {settingsLabels.pptxOutputMode || activeSettings.labels.pptxOutputMode || 'pptx output mode'}
+            </label>
+          )
+        case 'changeItemInstruction':
+          return (
+            <label key={settingKey}>
+              {settingsLabels.changeItemInstruction || activeSettings.labels.changeItemInstruction || 'Change Item Instruction'}
+              <textarea
+                name="change_item_instruction"
+                value={changeItemInstruction}
+                onChange={(event) => setChangeItemInstructionForActive(event.target.value)}
+                rows={2}
+              />
+            </label>
+          )
+        case 'ignoreOcrErrors':
+          return (
+            <label key={settingKey} className="checkbox-label">
+              <input
+                name="ignore_ocr_errors"
+                type="checkbox"
+                checked={ignoreOcrErrors}
+                onChange={(event) => setIgnoreOcrErrors(event.target.checked)}
+              />
+              {settingsLabels.ignoreOcrErrors || 'Ignore obvious OCR misspellings'}
+            </label>
+          )
+        case 'disableResponseLogging':
+          return (
+            <label key={settingKey} className="checkbox-label">
+              <input
+                name="disable_response_logging"
+                type="checkbox"
+                checked={disableResponseLogging}
+                onChange={(event) => setDisableResponseLogging(event.target.checked)}
+              />
+              {settingsLabels.disableResponseLogging || 'Disable response logging'}
+            </label>
+          )
+        case 'viewPrompt':
+          return (
+            <label key={settingKey} className="checkbox-label">
+              <input
+                name="view_prompt"
+                type="checkbox"
+                checked={viewPromptEnabled}
+                onChange={(event) => {
+                  const enabled = event.target.checked
+                  setViewPromptEnabled(enabled)
+                  if (!enabled) {
+                    setShowPromptPanel(false)
+                  }
+                }}
+              />
+              {settingsLabels.viewPrompt || 'View Prompt'}
+            </label>
+          )
+        case 'bypassFileInput':
+          return (
+            <label key={settingKey} className="checkbox-label">
+              <input
+                name="bypass_file_input"
+                type="checkbox"
+                checked={bypassFileInput}
+                onChange={(event) => setBypassFileInput(event.target.checked)}
+              />
+              {settingsLabels.bypassFileInput || 'Bypass_File_Input'}
+            </label>
+          )
+        case 'deleteFileOnLlm':
+          return (
+            <label key={settingKey} className="checkbox-label">
+              <input
+                name="delete_file_on_llm"
+                type="checkbox"
+                checked={deleteFileOnLlm}
+                onChange={(event) => setDeleteFileOnLlm(event.target.checked)}
+              />
+              {settingsLabels.deleteFileOnLlm || 'Delete File on AI Platform'}
+            </label>
+          )
+        case 'logPanelEnabled':
+          return (
+            <label key={settingKey} className="checkbox-label">
+              <input
+                name="log_panel_enabled"
+                type="checkbox"
+                checked={logPanelEnabled}
+                onChange={(event) => setLogPanelEnabled(event.target.checked)}
+              />
+              {settingsLabels.logPanelEnabled || 'Log Panel Enabled'}
+            </label>
+          )
+        case 'chunkingEnabled':
+          if (!isDeckMateWorkflow) {
+            return null
+          }
+          return (
+            <label key={settingKey} className="checkbox-label">
+              <input
+                name="chunking_enabled"
+                type="checkbox"
+                checked={activeChunkingEnabled}
+                onChange={(event) => setChunkingEnabledForActive(event.target.checked)}
+              />
+              {settingsLabels.chunkingEnabled || 'Enable slide chunking'}
+            </label>
+          )
+        case 'chunkSize':
+          if (!isDeckMateWorkflow && !isDoc2DeckWorkflow) {
+            return null
+          }
+          return (
+            <label key={settingKey}>
+              {settingsLabels.chunkSize || 'Slides per chunk'}
+              <input
+                name="chunk_size"
+                type="number"
+                min={1}
+                step={1}
+                value={activeChunkSize}
+                onChange={(event) => setChunkSizeForActive(event.target.value)}
+              />
+            </label>
+          )
+        case 'deckTotalSlides':
+          if (!isDeckMateWorkflow) {
+            return null
+          }
+          return (
+            <label key={settingKey}>
+              {settingsLabels.deckTotalSlides || 'Total slides in deck'}
+              <input
+                name="deck_total_slides"
+                type="number"
+                min={0}
+                step={1}
+                value={deckTotalSlidesSetting}
+                onChange={(event) => setDeckTotalSlidesSetting(clampPositiveInteger(event.target.value, 0))}
+              />
+            </label>
+          )
+        case 'chunkConcurrency':
+          if (!isDeckMateWorkflow && !isDoc2DeckWorkflow) {
+            return null
+          }
+          return (
+            <label key={settingKey}>
+              {settingsLabels.chunkConcurrency || 'Parallel chunk requests'}
+              <input
+                name="chunk_concurrency"
+                type="number"
+                min={1}
+                step={1}
+                value={activeChunkConcurrency}
+                onChange={(event) => setChunkConcurrencyForActive(event.target.value)}
+              />
+            </label>
+          )
+        default:
+          return null
+      }
+    }
+
+    return (
+      <div className="settings-dropdown" ref={settingsDropdownRef}>
+        <button
+          type="button"
+          className="settings-button"
+          onClick={() => setSettingsOpen((open) => !open)}
+          aria-expanded={settingsOpen}
+          aria-controls="settings-panel"
+        >
+          ⚙
+        </button>
+        {settingsOpen ? (
+          <div id="settings-panel" className="gear-settings-panel field-group">
+            <button type="button" className="settings-close" onClick={() => setSettingsOpen(false)}>
+              Close
+            </button>
+            {isDeckMateWorkflow || isDoc2DeckWorkflow || activeView === APP_VIEWS.DOCUMENT_DOCTOR ? (
+              <>
+                <div
+                  className="settings-tabs"
+                  role="tablist"
+                  aria-label={
+                    isDoc2DeckWorkflow
+                      ? 'Doc2Deck settings tabs'
+                      : isDeckMateWorkflow
+                        ? 'Deck Mate settings tabs'
+                        : 'Document Doctor settings tabs'
+                  }
+                >
+                  {settingsTabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      className={deckSettingsTab === tab.id ? 'settings-tab active' : 'settings-tab'}
+                      role="tab"
+                      aria-selected={deckSettingsTab === tab.id}
+                      aria-pressed={deckSettingsTab === tab.id}
+                      onClick={() => setDeckSettingsTab(tab.id)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                {(settingsTabs.find((tab) => tab.id === deckSettingsTab) || settingsTabs[0]).keys.map(
+                  (settingKey) => renderSettingsField(settingKey)
+                )}
+              </>
+            ) : (
+              settingsPanelOrder.map((settingKey) => renderSettingsField(settingKey))
+            )}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
+  useEffect(() => {
+    if (!showPromptPanel || !viewPromptEnabled) {
+      return
+    }
+
+    let cancelled = false
+    ;(async () => {
+      const previewText = await buildPrimaryPromptPreviewText()
+      if (!cancelled) {
+        setPromptPreviewText(previewText)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    showPromptPanel,
+    viewPromptEnabled,
+    selectedApiMode,
+    bypassFileInput,
+    topic,
+    objective,
+    guidance,
+    antiGuidance,
+    ignoreOcrErrors,
+    supportInstructions,
+    priorInstructions,
+    docFile,
+    supportingFile,
+    priorResponseFile
+  ])
+
+  if (authLoading) {
+    return (
+      <main className="layout">
+        <section className="card auth-card">
+          <h2>Checking session...</h2>
+          <p className="muted">Please wait while we verify authentication.</p>
+        </section>
+      </main>
+    )
+  }
+
+  function renderAuthOverlay() {
+    if (!authOverlayOpen) {
+      return null
+    }
+
+    return (
+      <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Sign in or register">
+        <section className="card auth-card auth-overlay-card">
+          <div className="auth-overlay-header">
+            <h1>A-Ideation Access</h1>
+            <button type="button" className="secondary-button" onClick={closeAuthOverlay}>
+              Close
+            </button>
+          </div>
+          <p className="muted">Sign in or register to access the A-Ideation solution suite.</p>
+          <div className="auth-toggle-row">
+            <button
+              type="button"
+              className={authMode === 'login' ? 'auth-link-toggle active' : 'auth-link-toggle'}
+              onClick={() => {
+                clearAuthPanelMessages()
+                setAuthMode('login')
+              }}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              className={authMode === 'register' ? 'auth-link-toggle active' : 'auth-link-toggle'}
+              onClick={() => {
+                clearAuthPanelMessages()
+                setAuthMode('register')
+              }}
+            >
+              Register
+            </button>
+          </div>
+
+          {authInfo ? <p className="status-message">{authInfo}</p> : null}
+          {renderError()}
+
+          <form className="auth-form" onSubmit={handleAuthSubmit}>
+            <label>
+              Email
+              <input
+                type="email"
+                value={authEmail}
+                onChange={(event) => setAuthEmail(event.target.value)}
+                required
+                readOnly={authEmailLocked}
+              />
+            </label>
+            {accessFlowMode === 'login' ? (
+            <label>
+              Password
+              <input
+                type="password"
+                value={authPassword}
+                onChange={(event) => setAuthPassword(event.target.value)}
+                required
+              />
+            </label>
+            ) : null}
+            {accessFlowMode === 'contact' ? (
+              <label>
+                First Name
+                <input type="text" value={authFirstName} onChange={(event) => setAuthFirstName(event.target.value)} required />
+              </label>
+            ) : null}
+            {accessFlowMode === 'contact' ? (
+              <label>
+                Last Name
+                <input type="text" value={authLastName} onChange={(event) => setAuthLastName(event.target.value)} required />
+              </label>
+            ) : null}
+            {accessFlowMode === 'contact' ? (
+              <label>
+                Phone Number
+                <input type="text" value={authPhoneNumber} onChange={(event) => setAuthPhoneNumber(event.target.value)} required />
+              </label>
+            ) : null}
+            {accessFlowMode === 'contact' ? (
+              <label>
+                Job Title
+                <input type="text" value={authJobTitle} onChange={(event) => setAuthJobTitle(event.target.value)} required />
+              </label>
+            ) : null}
+            {accessFlowMode === 'register' ? (
+              <label>
+                Display Name
+                <input
+                  type="text"
+                  value={authDisplayName}
+                  onChange={(event) => setAuthDisplayName(event.target.value)}
+                  placeholder="Optional"
+                />
+              </label>
+            ) : null}
+            {accessFlowMode === 'contact' ? (
+              <button type="button" className="secondary-button" onClick={handleContactRequestSubmit}>
+                Submit Contact Request
+              </button>
+            ) : null}
+            {accessFlowMode === 'register' ? (
+              <label>
+                Account Type
+                <select value={authAccountType} onChange={(event) => setAuthAccountType(event.target.value)}>
+                  <option value="trial">30 day trial account</option>
+                  <option value="subscription">subscription account</option>
+                </select>
+              </label>
+            ) : null}
+            {accessFlowMode !== 'contact' ? <button type="submit" className="primary-button" disabled={authSubmitting}>
+              {authSubmitting
+                ? authMode === 'register'
+                  ? 'Creating Account...'
+                  : 'Signing In...'
+                : authMode === 'register'
+                  ? 'Create Account'
+                  : 'Sign In'}
+            </button> : null}
+          </form>
+
+          {authMode === 'register' ? (
+            <details className="auth-subpanel" open={registrationReadyForVerify}>
+              <summary>Verify Email</summary>
+              <form className="auth-inline-form" onSubmit={handleVerifyEmail}>
+                <input
+                  type="text"
+                  value={verifyToken}
+                  onChange={(event) => setVerifyToken(event.target.value)}
+                  placeholder="Verification token"
+                  required
+                />
+                <button type="submit" className="secondary-button">
+                  Verify
+                </button>
+              </form>
+            </details>
+          ) : null}
+
+          {authMode === 'login' ? (
+            <details className="auth-subpanel">
+              <summary>Password Reset</summary>
+              <div className="auth-inline-row">
+                <button type="button" className="secondary-button" onClick={handleForgotPassword}>
+                  Request Reset Token
+                </button>
+              </div>
+              <form className="auth-inline-form" onSubmit={handleResetPassword}>
+                <input
+                  type="text"
+                  value={resetToken}
+                  onChange={(event) => setResetToken(event.target.value)}
+                  placeholder="Reset token"
+                  required
+                />
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  placeholder="New password"
+                  required
+                />
+                <button type="submit" className="secondary-button">
+                  Reset Password
+                </button>
+              </form>
+            </details>
+          ) : null}
+        </section>
+      </div>
+    )
+  }
+
+  if (activeView === APP_VIEWS.SUITE_HOME) {
+    const suiteDisplayName = authUser?.displayName?.trim() ? authUser.displayName : authUser?.email
+
+    return (
+      <main className="layout">
+        <header className="hero card suite-hero">
+          <div className="hero-corner hero-left" />
+          <div className="hero-title-group">
+            <h1>A-Ideation</h1>
+            <p className="hero-subtitle">Improving Professional Productivity</p>
+          </div>
+          <div className="hero-corner hero-right">
+            <div className="hero-right-stack">
+              {authUser ? (
+                <>
+                  <div className="suite-user-info">
+                    <span>{suiteDisplayName}</span>
+                    <small>({authUser.email})</small>
+                  </div>
+                  {renderLogoutButton()}
+                </>
+              ) : (
+                <form className="auth-inline-form" onSubmit={handleAccessEmailSubmit}>
+                  <input
+                    type="email"
+                    placeholder="Enter email for access"
+                    value={accessEmailInput}
+                    onChange={(event) => setAccessEmailInput(event.target.value)}
+                    required
+                  />
+                  <button type="submit" className="auth-link-toggle">Enter</button>
+                </form>
+              )}
+            </div>
+          </div>
+        </header>
+        {accessFlowMode === 'pending' && accessFlowMessage ? (
+          <section className="card auth-required-popup">
+            <p>{accessFlowMessage}</p>
+          </section>
+        ) : null}
+
+        <section className="card suite-links">
+          <h2>Solutions</h2>
+          <div className="suite-link-grid">
+            <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.DOCUMENT_DOCTOR)}>
+              <img src={DOCDOC_LOGO_PATH} alt="Document Doctor logo" />
+              <span>Document<br />Doctor</span>
+            </button>
+            <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.DECK_MATE)}>
+              <img src={DECK_MATE_LOGO_PATH} alt="Deck Mate logo" />
+              <span>Deck Mate</span>
+            </button>
+            <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.DOC2DECK)}>
+              <img src={DOC2DECK_LOGO_PATH} alt="Doc 2 Deck logo" />
+              <span>Doc2Deck</span>
+            </button>
+            <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.ZOOM_ZILLA)}>
+              {zoomTileLogoFailed ? (
+                <div className="suite-link-logo-placeholder">Zoom-Zilla</div>
+              ) : (
+                <img
+                  src={ZOOM_ZILLA_LOGO_PATH}
+                  alt="Zoom-Zilla logo"
+                  onError={() => {
+                    setZoomTileLogoFailed(true)
+                  }}
+                />
+              )}
+              <span>Zoom-Zilla</span>
+            </button>
+          </div>
+        </section>
+        <section className="card suite-links getting-started-panel">
+          <h2>Getting Started</h2>
+          <ul className="getting-started-list">
+            {gettingStartedQuestions.map((question) => (
+              <li key={question}>
+                <button
+                  type="button"
+                  className="getting-started-question"
+                  onClick={() => setActiveGettingStartedQuestion(question)}
+                >
+                  {question}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+        {activeGettingStartedQuestion ? (
+          <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Getting Started answer">
+            <section className="card auth-required-popup getting-started-answer-panel">
+              <h3>{activeGettingStartedQuestion}</h3>
+              <p>this is the answer to the question</p>
+              <div className="auth-inline-row">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setActiveGettingStartedQuestion('')}
+                >
+                  Close
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+        {showAuthRequiredNotice ? (
+          <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Authentication required">
+            <section className="card auth-required-popup">
+              <p>Please sign in or register.</p>
+              <div className="auth-inline-row">
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => {
+                    setShowAuthRequiredNotice(false)
+                    openAuthOverlay('login')
+                  }}
+                >
+                  Open Sign-In
+                </button>
+                <button type="button" className="secondary-button" onClick={() => setShowAuthRequiredNotice(false)}>
+                  Close
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+        {showTrialExpiredNotice ? (
+          <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Trial period ended">
+            <section className="card auth-required-popup">
+              <p>Your trial period has ended.</p>
+              <div className="auth-inline-row">
+                <button type="button" className="secondary-button" onClick={() => setShowTrialExpiredNotice(false)}>
+                  Close
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+        {renderAuthOverlay()}
+      </main>
+    )
+  }
+
+  const workflowShellProps = isDeckMateWorkflow
+    ? {
+        appTitle: 'Deck Mate',
+        appSubtitle: 'A Professional Review Tool for Presentation Authors',
+        brandLogo: DECK_MATE_LOGO_PATH,
+        brandAlt: 'Cartoon sailor on a boat presentation logo'
+      }
+    : isDoc2DeckWorkflow
+      ? {
+          appTitle: 'Doc 2 Deck',
+          appSubtitle: 'Create Powerpoint Decks from Published Documents',
+          brandLogo: DOC2DECK_LOGO_PATH,
+          brandAlt: 'Document Doctor and Deck Mate united logo'
+        }
+      : activeView === APP_VIEWS.ZOOM_ZILLA
+        ? {
+            appTitle: 'Zoom-Zilla',
+            appSubtitle: 'Create Actionable Insight from Meeting Transcripts',
+            brandLogo: ZOOM_ZILLA_LOGO_PATH,
+            brandAlt: 'Zoom-Zilla dinosaur assistant logo',
+            brandFallbackText: 'Zoom-Zilla'
+          }
+      : {
+          appTitle: 'The Document Doctor',
+          appSubtitle: 'A Professional Review Tool for Document Authors',
+          brandLogo: DOCDOC_LOGO_PATH,
+          brandAlt: 'Cartoon paper doctor logo'
+        }
+
+  if (activeView === APP_VIEWS.ZOOM_ZILLA) {
+    return (
+      <PageShell
+        mode={MODES.DOC_DEFINE}
+        {...workflowShellProps}
+        topRightControls={
+          <>
+            {renderBackToSuiteButton()}
+            {renderLogoutButton()}
+          </>
+        }
+      >
+        {renderError()}
+        <section className="card">
+          <h2>Zoom-Zilla</h2>
+          <p className="muted">Create Actionable Insight from Meeting Transcripts</p>
+        </section>
+      </PageShell>
+    )
+  }
+
+  if (currentMode === MODES.DOC_DEFINE) {
+    return (
+      <PageShell
+        mode={MODES.DOC_DEFINE}
+        {...workflowShellProps}
+        topRightControls={
+          <>
+            {renderBackToSuiteButton()}
+            {renderLogoutButton()}
+            {renderSettingsControl()}
+          </>
+        }
+      >
+        {renderError()}
+        <section className="card primary-upload-card">
+          <div className="primary-upload-inner split">
+            <div className="primary-upload-left">
+              {isDeckMateWorkflow ? (
+                <div className="deck-file-grid">
+                  <span className="panel-label deck-grid-label">Select presentation</span>
+                  <span className={`panel-label deck-grid-label${isCalculatingSlides || deckTotalSlidesInput < 1 ? ' disabled-label' : ''}`}>
+                    Total Slides
+                  </span>
+                  <span className={`panel-label deck-grid-label${isCalculatingSlides || deckTotalSlidesInput < 1 ? ' disabled-label' : ''}`}>
+                    Slides To Review
+                  </span>
+                  <span className={`panel-label deck-grid-label${isCalculatingSlides || deckTotalSlidesInput < 1 ? ' disabled-label' : ''}`}>
+                    Critique Output File
+                  </span>
+                  <div className="deck-file-cell">
+                    <input
+                      id="deck_primary_document"
+                      name="primary_document"
+                      type="file"
+                      onChange={handlePrimaryDocumentChange}
+                    />
+                  </div>
+                  <input
+                    id="deck_total_slides_main"
+                    type="number"
+                    name="deck_total_slides_main"
+                    min={0}
+                    step={1}
+                    className="slide-count-input"
+                    disabled={isCalculatingSlides || deckTotalSlidesInput < 1}
+                    value={deckTotalSlidesInput}
+                    onChange={(event) => setDeckTotalSlidesInput(clampPositiveInteger(event.target.value, 0))}
+                  />
+                  <input
+                    id="slides_to_review_main"
+                    type="text"
+                    name="slides_to_review_main"
+                    className="slides-to-review-input"
+                    disabled={isCalculatingSlides || deckTotalSlidesInput < 1}
+                    value={slidesToReviewInput}
+                    onChange={(event) => setSlidesToReviewInput(event.target.value)}
+                  />
+                  <input
+                    id="critique_output_file"
+                    type="text"
+                    name="critique_output_file"
+                    className="deck-critique-output-input"
+                    disabled={isCalculatingSlides || deckTotalSlidesInput < 1}
+                    value={critiqueOutputFileName}
+                    onChange={(event) => setCritiqueOutputFileName(event.target.value)}
+                  />
+                </div>
+              ) : (
+                <>
+                  <label className="panel-label">{`Select primary ${contentNoun}`}</label>
+                  <div className="file-selector-row">
+                  <input
+                    name="primary_document"
+                    type="file"
+                    onChange={handlePrimaryDocumentChange}
+                  />
+                  {docFile ? (
+                    <label className="output-file-field compact-output-field deck-output-field">
+                      Critique Output File
+                      <input
+                        type="text"
+                        name="critique_output_file"
+                        value={critiqueOutputFileName}
+                        onChange={(event) => setCritiqueOutputFileName(event.target.value)}
+                      />
+                    </label>
+                  ) : null}
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="primary-upload-actions">
+              <button
+                type="button"
+                disabled={
+                  !docFile ||
+                  (isDeckMateWorkflow &&
+                    (isCalculatingSlides || deckTotalSlidesInput < 1 || !slidesToReviewInput.trim()))
+                }
+                onClick={() => invokeOperation(OPERATIONS.CRITIQUE_PRIMARY)}
+              >
+                {isDoc2DeckWorkflow ? 'Create Presentation Outline' : `Critique ${contentNounTitle}`}
+              </button>
+              {viewPromptEnabled ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (showPromptPanel) {
+                      setShowPromptPanel(false)
+                      return
+                    }
+
+                    setPromptPreviewText('Building prompt preview...')
+                    setShowPromptPanel(true)
+                    setPromptPreviewText(await buildPrimaryPromptPreviewText())
+                  }}
+                >
+                  View Prompt
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </section>
+
+        <section className="card grid two-column-grid">
+          <div className="field-group">
+            <h2>{`Primary ${contentNoun} definition`}</h2>
+            <label>
+              {activeSettings.labels.defaultTopic}
+              <textarea name="topic_main" value={topic} onChange={(event) => setTopicForActive(event.target.value)} rows={3} />
+            </label>
+            <label>
+              {activeSettings.labels.reviewObjective}
+              <textarea
+                name="objective_main"
+                value={objective}
+                onChange={(event) => setObjectiveForActive(event.target.value)}
+                rows={3}
+              />
+            </label>
+          </div>
+
+          <div className="field-group">
+            <h2>Response guidance</h2>
+            <label>
+              {activeSettings.labels.formattingGuidance}
+              <textarea
+                name="guidance_main"
+                value={guidance}
+                onChange={(event) => setGuidanceForActive(event.target.value)}
+                rows={3}
+              />
+            </label>
+            <label>
+              {activeSettings.labels.antiGuidance}
+              <textarea
+                name="anti_guidance_main"
+                value={antiGuidance}
+                onChange={(event) => setAntiGuidanceForActive(event.target.value)}
+                rows={3}
+              />
+            </label>
+          </div>
+
+          <details className="collapsible-panel">
+            <summary>{`Supporting ${contentNounPlural}`}</summary>
+            <div className="collapsible-panel-body field-group">
+              <label>
+                {`Supporting ${contentNounTitle}`}
+                <input
+                  name="supporting_document"
+                  type="file"
+                  onChange={(event) => setSupportingFile(event.target.files?.[0] || null)}
+                />
+              </label>
+              <label>
+                {`Supporting ${contentNounTitle} Context`}
+                <textarea
+                  name="support_instructions"
+                  value={supportInstructions}
+                  onChange={(event) => setSupportInstructionsForActive(event.target.value)}
+                  rows={4}
+                />
+              </label>
+            </div>
+          </details>
+
+          <details className="collapsible-panel">
+            <summary>Prior response</summary>
+            <div className="collapsible-panel-body field-group">
+              <label>
+                {`Prior Response ${contentNounTitle}`}
+                <input
+                  name="prior_response_document"
+                  type="file"
+                  onChange={(event) => setPriorResponseFile(event.target.files?.[0] || null)}
+                />
+              </label>
+              <label>
+                Prior Response Context
+                <textarea
+                  name="prior_instructions"
+                  value={priorInstructions}
+                  onChange={(event) => setPriorInstructionsForActive(event.target.value)}
+                  rows={4}
+                />
+              </label>
+            </div>
+          </details>
+        </section>
+
+        {viewPromptEnabled && showPromptPanel ? (
+          <section className="card prompt-preview-card">
+            <h2>Prompt Preview</h2>
+            <pre>{promptPreviewText}</pre>
+          </section>
+        ) : null}
+        {isDeckMateWorkflow && isCalculatingSlides ? (
+          <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Calculating number of slides">
+            <section className="card slide-count-popup">
+              <h3>Please wait</h3>
+              <p>calculating number of slides</p>
+            </section>
+          </div>
+        ) : null}
+        {renderRequestLogPanel()}
+      </PageShell>
+    )
+  }
+
+  if (currentMode === MODES.INVOKE) {
+    return (
+      <PageShell
+        mode={MODES.INVOKE}
+        {...workflowShellProps}
+        topRightControls={
+          <>
+            {renderBackToSuiteButton()}
+            {renderLogoutButton()}
+          </>
+        }
+      >
+        <section className="card invoke-card compact-panel">
+          <div className="spinner" aria-hidden="true" />
+          <h2>Invoking the AI Model</h2>
+        </section>
+        {renderRequestLogPanel()}
+      </PageShell>
+    )
+  }
+
+  if (currentMode === MODES.RESULT_SAVED) {
+    return (
+      <PageShell
+        mode={MODES.RESULT_SAVED}
+        {...workflowShellProps}
+        topRightControls={
+          <>
+            {renderBackToSuiteButton()}
+            {renderLogoutButton()}
+          </>
+        }
+      >
+        <section className="card result-card compact-panel">
+          <h2>AI Model Result Saved</h2>
+          {renderError()}
+          {lastCritiqueWaitMs !== null ? (
+            <p className="muted">{`Wait Time: ${(lastCritiqueWaitMs / 1000).toFixed(1)}s`}</p>
+          ) : null}
+          <div className="action-row wrap-actions center-actions">
+            {lastOperation === OPERATIONS.APPLY_CHANGE_ITEMS ? (
+              <button type="button" onClick={() => setCurrentMode(MODES.VIEW_CHANGED)}>
+                {`View Changed ${contentNounTitle}`}
+              </button>
+            ) : (
+              <button type="button" onClick={() => setCurrentMode(MODES.CRITIQUE_REVIEW)}>
+                View Critique
+              </button>
+            )}
+            <button type="button" className="secondary-button" onClick={resetToDefinitionMode}>
+              Start Over
+            </button>
+          </div>
+        </section>
+        {renderRequestLogPanel()}
+      </PageShell>
+    )
+  }
+
+  if (currentMode === MODES.CRITIQUE_REVIEW) {
+    return (
+      <PageShell
+        mode={MODES.CRITIQUE_REVIEW}
+        {...workflowShellProps}
+        topRightControls={
+          <>
+            {renderBackToSuiteButton()}
+            {renderLogoutButton()}
+          </>
+        }
+      >
+        <section className="card action-row wrap-actions center-actions compact-panel">
+            <button type="button" className="secondary-button" onClick={resetToDefinitionMode}>
+              Exit Review
+            </button>
+            <button
+              type="button"
+              onClick={() => invokeOperation(OPERATIONS.APPLY_CHANGE_ITEMS)}
+              disabled={!changeItems.length}
+            >
+              Apply Change Items
+            </button>
+            {viewPromptEnabled ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (showPromptPanel) {
+                    setShowPromptPanel(false)
+                    return
+                  }
+
+                  setPromptPreviewText('Building prompt preview...')
+                  setShowPromptPanel(true)
+                  setPromptPreviewText(await buildApplyChangeItemsPromptPreviewText())
+                }}
+              >
+                View Prompt
+              </button>
+            ) : null}
+            {changeItems.length ? (
+              <label className="output-file-field inline-output-field">
+                {`Changed ${contentNounTitle} Output File`}
+                <input
+                  type="text"
+                  name="changed_output_file"
+                  value={changedOutputFileName}
+                  onChange={(event) => setChangedOutputFileName(event.target.value)}
+                />
+              </label>
+            ) : null}
+        </section>
+
+        {renderError()}
+
+        <section className="card review-grid critique-review-layout">
+          <div className="field-group critique-panel">
+            {isDeckMateWorkflow && deckCritiqueSections.length ? (
+              <>
+                <div
+                  className={deckCritiqueSections.length > 10 ? 'settings-tabs slide-tabs-scrollable' : 'settings-tabs'}
+                  role="tablist"
+                  aria-label="Critique slide tabs"
+                >
+                  <button
+                    type="button"
+                    className={selectedDeckSlideTab === 'all' ? 'settings-tab active' : 'settings-tab'}
+                    onClick={() => setSelectedDeckSlideTab('all')}
+                  >
+                    All
+                  </button>
+                  {deckCritiqueSections.map((section) => (
+                    <button
+                      key={section.slideNumber}
+                      type="button"
+                      className={selectedDeckSlideTab === section.slideNumber ? 'settings-tab active' : 'settings-tab'}
+                      onClick={() => setSelectedDeckSlideTab(section.slideNumber)}
+                    >
+                      {`Slide ${section.slideNumber}`}
+                    </button>
+                  ))}
+                </div>
+                <label className="panel-field">
+                  <span className="panel-label">Critique Content</span>
+                  <textarea
+                    className="critique-editor"
+                    value={
+                      (selectedDeckSlideTab === 'all'
+                        ? critiqueMarkdown
+                        : deckCritiqueSections.find((section) => section.slideNumber === selectedDeckSlideTab)?.content) ||
+                      critiqueMarkdown
+                    }
+                    readOnly
+                    rows={REVIEW_TEXTAREA_ROWS}
+                  />
+                </label>
+              </>
+            ) : isDoc2DeckWorkflow && doc2DeckCritiqueSections.length ? (
+              <>
+                <div
+                  className={doc2DeckCritiqueSections.length > 10 ? 'settings-tabs slide-tabs-scrollable' : 'settings-tabs'}
+                  role="tablist"
+                  aria-label="Critique slide tabs"
+                >
+                  <button
+                    type="button"
+                    className={selectedDoc2DeckSlideTab === 'all' ? 'settings-tab active' : 'settings-tab'}
+                    onClick={() => setSelectedDoc2DeckSlideTab('all')}
+                  >
+                    All
+                  </button>
+                  {doc2DeckCritiqueSections.map((section) => (
+                    <button
+                      key={section.slideNumber}
+                      type="button"
+                      className={selectedDoc2DeckSlideTab === section.slideNumber ? 'settings-tab active' : 'settings-tab'}
+                      onClick={() => setSelectedDoc2DeckSlideTab(section.slideNumber)}
+                    >
+                      {`Slide ${section.slideNumber}`}
+                    </button>
+                  ))}
+                </div>
+                <label className="panel-field">
+                  <span className="panel-label">Critique Content</span>
+                  <textarea
+                    className="critique-editor"
+                    value={
+                      (selectedDoc2DeckSlideTab === 'all'
+                        ? critiqueMarkdown
+                        : doc2DeckCritiqueSections.find((section) => section.slideNumber === selectedDoc2DeckSlideTab)?.content) ||
+                      critiqueMarkdown
+                    }
+                    readOnly
+                    rows={REVIEW_TEXTAREA_ROWS}
+                  />
+                </label>
+              </>
+            ) : (
+              <label className="panel-field">
+                <span className="panel-label">Critique Content</span>
+                <textarea
+                  className="critique-editor"
+                  value={critiqueMarkdown}
+                  onChange={(event) => setCritiqueMarkdown(event.target.value)}
+                  rows={REVIEW_TEXTAREA_ROWS}
+                />
+              </label>
+            )}
+          </div>
+
+          <aside className="side-panel change-composer">
+            <div className="side-panel-header">
+              <h3>Create change items</h3>
+              <p className="muted">{`Capture concise edits, then apply them to the ${contentNoun}.`}</p>
+            </div>
+
+            <div className="change-composer-card">
+              {isDeckMateWorkflow ? (
+                <>
+                  <label>
+                    Slide / Issue selections
+                    <select
+                      multiple
+                      value={selectedDeckIssueOptions}
+                      onChange={(event) =>
+                        setSelectedDeckIssueOptions(
+                          [...event.target.selectedOptions].map((option) => option.value)
+                        )
+                      }
+                      size={5}
+                    >
+                      {visibleDeckIssueOptions.map((option) => (
+                        <option key={option.optionValue} value={option.optionValue}>
+                          {option.optionLabel}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="button" onClick={addDeckIssueSelectionsAsChangeItems}>
+                    Add Selected Issues as Change Items
+                  </button>
+                </>
+              ) : isDoc2DeckWorkflow ? (
+                <>
+                  <label>
+                    Slides (Change IDs)
+                    <select
+                      multiple
+                      value={selectedDoc2DeckSlides}
+                      onChange={(event) =>
+                        setSelectedDoc2DeckSlides(
+                          [...event.target.selectedOptions].map((option) => option.value)
+                        )
+                      }
+                      size={5}
+                    >
+                      {doc2DeckCritiqueSections.map((section) => (
+                        <option key={section.slideNumber} value={`slide-${section.slideNumber}`}>
+                          {`Slide ${section.slideNumber} (slide-${section.slideNumber})`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="button" onClick={addDoc2DeckSlideSelectionsAsChangeItems}>
+                    Add Selected Slides as Change Items
+                  </button>
+                </>
+              ) : (
+                <>
+                  <label>
+                    Change ID
+                    <input
+                      type="text"
+                      value={changeItemDraft.id}
+                      onChange={(event) =>
+                        setChangeItemDraft((draft) => ({ ...draft, id: event.target.value }))
+                      }
+                      placeholder="major-1"
+                    />
+                  </label>
+                  <label>
+                    Change Instruction
+                    <textarea
+                      className="compact-textarea"
+                      value={changeItemDraft.instruction}
+                      onChange={(event) =>
+                        setChangeItemDraft((draft) => ({ ...draft, instruction: event.target.value }))
+                      }
+                      rows={3}
+                    />
+                  </label>
+                  <button type="button" onClick={addChangeItem}>
+                    Create Change Item
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="change-item-list-card">
+              <div className="change-item-list-header">
+                <span>Change Items</span>
+                <span>{changeItems.length}</span>
+              </div>
+              <div className="change-item-list">
+                {changeItems.length ? (
+                  changeItems.map((item) => (
+                    <article key={item.id} className="change-item-card">
+                      <div className="change-item-header">
+                        <h4>{item.id}</h4>
+                        <button
+                          type="button"
+                          className="change-item-remove-link"
+                          onClick={() => removeChangeItem(item.id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        className="change-item-instruction-input"
+                        value={item.instruction}
+                        onChange={(event) => updateChangeItemInstruction(item.id, event.target.value)}
+                      />
+                    </article>
+                  ))
+                ) : (
+                  <p className="muted">No entries saved yet.</p>
+                )}
+              </div>
+            </div>
+          </aside>
+        </section>
+
+        {viewPromptEnabled && showPromptPanel ? (
+          <section className="card prompt-preview-card">
+            <h2>Prompt Preview</h2>
+            <pre>{promptPreviewText}</pre>
+          </section>
+        ) : null}
+        {renderRequestLogPanel()}
+      </PageShell>
+    )
+  }
+
+  return (
+    <PageShell
+      mode={MODES.VIEW_CHANGED}
+      {...workflowShellProps}
+      topRightControls={
+        <>
+          {renderBackToSuiteButton()}
+          {renderLogoutButton()}
+        </>
+      }
+    >
+      <section className="card action-row wrap-actions center-actions compact-panel">
+        <button type="button" onClick={() => invokeOperation(OPERATIONS.CRITIQUE_CHANGED)}>
+          {`Critique Changed ${contentNounTitle}`}
+        </button>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => {
+            setChangeItems([])
+            setCurrentMode(MODES.CRITIQUE_REVIEW)
+          }}
+        >
+          Discard Changes
+        </button>
+        <button type="button" className="secondary-button" onClick={resetToDefinitionMode}>
+          Start Over
+        </button>
+      </section>
+
+      {renderError()}
+
+      <section className="card field-group tall-document-panel">
+        {isDeckMateWorkflow ? (
+          <>
+            <div
+              className={changedDeckSections.length > 10 ? 'settings-tabs slide-tabs-scrollable' : 'settings-tabs'}
+              role="tablist"
+              aria-label="Changed content slide tabs"
+            >
+              <button
+                type="button"
+                className={selectedChangedDeckSlideTab === 'all' ? 'settings-tab active' : 'settings-tab'}
+                onClick={() => setSelectedChangedDeckSlideTab('all')}
+              >
+                All
+              </button>
+              {changedDeckSections.map((section) => (
+                <button
+                  key={section.slideNumber}
+                  type="button"
+                  className={selectedChangedDeckSlideTab === section.slideNumber ? 'settings-tab active' : 'settings-tab'}
+                  onClick={() => setSelectedChangedDeckSlideTab(section.slideNumber)}
+                >
+                  {`Slide ${section.slideNumber}`}
+                </button>
+              ))}
+            </div>
+            <label>
+              {`Changed ${contentNoun} content`}
+              <textarea
+                value={
+                  (selectedChangedDeckSlideTab === 'all'
+                    ? changedDocumentMarkdown
+                    : changedDeckSections.find((section) => section.slideNumber === selectedChangedDeckSlideTab)?.content) ||
+                  changedDocumentMarkdown
+                }
+                onChange={(event) => {
+                  if (selectedChangedDeckSlideTab === 'all') {
+                    setChangedDocumentMarkdown(event.target.value)
+                  }
+                }}
+                readOnly={selectedChangedDeckSlideTab !== 'all'}
+                rows={REVIEW_TEXTAREA_ROWS}
+              />
+            </label>
+          </>
+        ) : isDoc2DeckWorkflow && changedDoc2DeckSections.length ? (
+          <>
+            <div
+              className={changedDoc2DeckSections.length > 10 ? 'settings-tabs slide-tabs-scrollable' : 'settings-tabs'}
+              role="tablist"
+              aria-label="Changed content slide tabs"
+            >
+              <button
+                type="button"
+                className={selectedChangedDoc2DeckSlideTab === 'all' ? 'settings-tab active' : 'settings-tab'}
+                onClick={() => setSelectedChangedDoc2DeckSlideTab('all')}
+              >
+                All
+              </button>
+              {changedDoc2DeckSections.map((section) => (
+                <button
+                  key={section.slideNumber}
+                  type="button"
+                  className={selectedChangedDoc2DeckSlideTab === section.slideNumber ? 'settings-tab active' : 'settings-tab'}
+                  onClick={() => setSelectedChangedDoc2DeckSlideTab(section.slideNumber)}
+                >
+                  {`Slide ${section.slideNumber}`}
+                </button>
+              ))}
+            </div>
+            <label>
+              {`Changed ${contentNoun} content`}
+              <textarea
+                value={
+                  (selectedChangedDoc2DeckSlideTab === 'all'
+                    ? changedDoc2DeckDisplayText
+                    : changedDoc2DeckSections.find((section) => section.slideNumber === selectedChangedDoc2DeckSlideTab)?.content) ||
+                  changedDoc2DeckDisplayText
+                }
+                onChange={(event) => {
+                  if (selectedChangedDoc2DeckSlideTab === 'all' && !doc2DeckPptxOutputMode && !changedDoc2DeckJsonSections.length) {
+                    setChangedDocumentMarkdown(event.target.value)
+                  }
+                }}
+                readOnly={selectedChangedDoc2DeckSlideTab !== 'all' || doc2DeckPptxOutputMode || changedDoc2DeckJsonSections.length > 0}
+                rows={REVIEW_TEXTAREA_ROWS}
+              />
+            </label>
+          </>
+        ) : (
+          <label>
+            {`Changed ${contentNoun} content`}
+            <textarea
+              value={changedDocumentMarkdown}
+              onChange={(event) => setChangedDocumentMarkdown(event.target.value)}
+              rows={REVIEW_TEXTAREA_ROWS}
+            />
+          </label>
+        )}
+      </section>
+      {renderRequestLogPanel()}
+    </PageShell>
+  )
+}
+
+  async function buildApplyChangeItemsPromptPreviewText() {
+    const requestPayload = buildApplyChangeItemsRequest()
+    requestPayload.messages = await maybeBypassFileMessages(requestPayload.messages, {
+      original_document: docFile
+    })
+
+    const openAiEndpoint =
+      selectedApiMode === 'chat'
+        ? 'https://api.openai.com/v1/chat/completions'
+        : 'https://api.openai.com/v1/responses'
+
+    if (selectedApiMode !== 'chat') {
+      return JSON.stringify(
+        {
+          openAiEndpoint,
+          ...requestPayload
+        },
+        null,
+        2
+      )
+    }
+
+    const chatContent = requestPayload.messages.map((item) =>
+      item.type === 'input_text'
+        ? { type: 'text', text: item.text || '' }
+        : { type: 'file', file: { source: item.source || 'file_reference' } }
+    )
+
+    return JSON.stringify(
+      {
+        openAiEndpoint,
+        model: requestPayload.model,
+        store: requestPayload.store,
+        messages: [
+          { role: 'system', content: requestPayload.systemPrompt },
+          { role: 'user', content: chatContent }
+        ]
+      },
+      null,
+      2
+    )
+  }
