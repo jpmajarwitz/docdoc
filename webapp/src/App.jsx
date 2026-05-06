@@ -1292,10 +1292,6 @@ export default function App({ appShell = 'ai' }) {
     setAuthSubmitting(true)
     try {
       if (authMode === 'register') {
-        if (!contactSubmittedForEmail || contactSubmittedForEmail !== authEmail.trim().toLowerCase()) {
-          setError(`Before creating an account, submit your contact request for ${authEmail}.`)
-          return
-        }
         setAuthInfo('Please wait while account is being created...')
         const response = await postJson(AUTH_ENDPOINTS.REGISTER, {
           email: authEmail,
