@@ -799,7 +799,7 @@ function auth_upsert_contact_request(PDO $pdo, $payload)
            phone_number = VALUES(phone_number),
            job_title = VALUES(job_title),
            updated_at = UTC_TIMESTAMP(),
-           `access` = CASE WHEN `access` = \"approved\" THEN `access` ELSE \"pending\" END'
+           `access` = CASE WHEN `access` = \'approved\' THEN `access` ELSE \'pending\' END'
     );
     $stmt->execute([
         'first_name' => $payload['first_name'],
