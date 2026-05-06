@@ -1369,8 +1369,11 @@ export default function App({ appShell = 'ai' }) {
       const checkedEmail = `${response.email || enteredEmail}`.trim()
       setAuthEmail(checkedEmail)
       if (response.mode === 'pending') {
+        const pendingEmail = checkedEmail || `${accessEmailInput}`.trim().toLowerCase()
         setAccessFlowMode('pending')
-        setAccessFlowMessage(response.message || '')
+        setAccessFlowMessage(
+          `Your contact information has been received and is being processed. You will be notified at ${pendingEmail} when registration is approved.`
+        )
         return
       }
       if (response.mode === 'contact') {
@@ -2713,6 +2716,33 @@ async function buildPrimaryPromptPreviewText() {
     return <div className="error-banner">{error}</div>
   }
 
+  function renderPendingAccessPopup() {
+    if (accessFlowMode !== 'pending' || !accessFlowMessage) {
+      return null
+    }
+
+    return (
+      <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Contact request pending approval">
+        <section className="card auth-card auth-overlay-card">
+          <div className="auth-overlay-header">
+            <h2>Registration Pending</h2>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => {
+                setAccessFlowMode('entry')
+                setAccessFlowMessage('')
+              }}
+            >
+              Close
+            </button>
+          </div>
+          <p className="muted">{accessFlowMessage}</p>
+        </section>
+      </div>
+    )
+  }
+
   function renderRequestLogPanel() {
     if (!logPanelEnabled) {
       return null
@@ -3647,11 +3677,7 @@ async function buildPrimaryPromptPreviewText() {
             </div>
           </div>
         </header>
-        {accessFlowMode === 'pending' && accessFlowMessage ? (
-          <section className="card auth-required-popup">
-            <p>{accessFlowMessage}</p>
-          </section>
-        ) : null}
+        {renderPendingAccessPopup()}
 
         <section className="card suite-links">
           <h2>Solutions</h2>
