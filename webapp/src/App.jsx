@@ -1341,7 +1341,7 @@ export default function App({ appShell = 'ai' }) {
   async function handleContactRequestSubmit(event) {
     event.preventDefault()
     setError('')
-    setAuthInfo('Submitting contact request...')
+    setAuthInfo('')
     try {
       await postJson(AUTH_ENDPOINTS.CONTACT_REQUEST, {
         firstName: authFirstName,
@@ -1351,7 +1351,7 @@ export default function App({ appShell = 'ai' }) {
         jobTitle: authJobTitle
       })
       setContactSubmittedForEmail(authEmail.trim().toLowerCase())
-      setAuthInfo('Contact request submitted. You can register after approval.')
+      setAuthInfo('')
     } catch (contactError) {
       setError(normalizeRequestError(contactError))
       setAuthInfo('')
@@ -3429,6 +3429,9 @@ async function buildPrimaryPromptPreviewText() {
       return null
     }
     const contactOnlyMode = accessFlowMode === 'contact'
+    const contactRequestSubmittedForCurrentEmail = contactOnlyMode
+      && contactSubmittedForEmail
+      && contactSubmittedForEmail === authEmail.trim().toLowerCase()
 
     return (
       <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Sign in or register">
@@ -3441,7 +3444,9 @@ async function buildPrimaryPromptPreviewText() {
           </div>
           <p className="muted">
             {contactOnlyMode
-              ? 'Submit your contact details first. Access credentials will be enabled after approval.'
+              ? (contactRequestSubmittedForCurrentEmail
+                ? 'Contact request submitted. You will receive an email with approval to register shortly.'
+                : 'Submit your contact details first. Access credentials will be enabled after approval.')
               : 'Sign in or register to access the A-Ideation solution suite.'}
           </p>
           {!contactOnlyMode ? (
@@ -3469,7 +3474,7 @@ async function buildPrimaryPromptPreviewText() {
             </div>
           ) : null}
 
-          {authInfo ? <p className="status-message">{authInfo}</p> : null}
+          {!contactOnlyMode && authInfo ? <p className="status-message">{authInfo}</p> : null}
           {renderError()}
 
           <form className="auth-form" onSubmit={handleAuthSubmit}>
@@ -3497,25 +3502,25 @@ async function buildPrimaryPromptPreviewText() {
             {accessFlowMode === 'contact' ? (
               <label>
                 First Name
-                <input type="text" value={authFirstName} onChange={(event) => setAuthFirstName(event.target.value)} required />
+                <input type="text" value={authFirstName} onChange={(event) => setAuthFirstName(event.target.value)} required readOnly={contactRequestSubmittedForCurrentEmail} />
               </label>
             ) : null}
             {accessFlowMode === 'contact' ? (
               <label>
                 Last Name
-                <input type="text" value={authLastName} onChange={(event) => setAuthLastName(event.target.value)} required />
+                <input type="text" value={authLastName} onChange={(event) => setAuthLastName(event.target.value)} required readOnly={contactRequestSubmittedForCurrentEmail} />
               </label>
             ) : null}
             {accessFlowMode === 'contact' ? (
               <label>
                 Phone Number
-                <input type="text" value={authPhoneNumber} onChange={(event) => setAuthPhoneNumber(event.target.value)} required />
+                <input type="text" value={authPhoneNumber} onChange={(event) => setAuthPhoneNumber(event.target.value)} required readOnly={contactRequestSubmittedForCurrentEmail} />
               </label>
             ) : null}
             {accessFlowMode === 'contact' ? (
               <label>
                 Job Title
-                <input type="text" value={authJobTitle} onChange={(event) => setAuthJobTitle(event.target.value)} required />
+                <input type="text" value={authJobTitle} onChange={(event) => setAuthJobTitle(event.target.value)} required readOnly={contactRequestSubmittedForCurrentEmail} />
               </label>
             ) : null}
             {accessFlowMode === 'register' ? (
@@ -3529,7 +3534,7 @@ async function buildPrimaryPromptPreviewText() {
                 />
               </label>
             ) : null}
-            {accessFlowMode === 'contact' ? (
+            {accessFlowMode === 'contact' && !contactRequestSubmittedForCurrentEmail ? (
               <button type="button" className="secondary-button" onClick={handleContactRequestSubmit}>
                 Submit Contact Request
               </button>
