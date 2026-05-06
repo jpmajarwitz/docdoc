@@ -3428,6 +3428,7 @@ async function buildPrimaryPromptPreviewText() {
     if (!authOverlayOpen) {
       return null
     }
+    const contactOnlyMode = accessFlowMode === 'contact'
 
     return (
       <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Sign in or register">
@@ -3438,29 +3439,35 @@ async function buildPrimaryPromptPreviewText() {
               Close
             </button>
           </div>
-          <p className="muted">Sign in or register to access the A-Ideation solution suite.</p>
-          <div className="auth-toggle-row">
-            <button
-              type="button"
-              className={authMode === 'login' ? 'auth-link-toggle active' : 'auth-link-toggle'}
-              onClick={() => {
-                clearAuthPanelMessages()
-                setAuthMode('login')
-              }}
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              className={authMode === 'register' ? 'auth-link-toggle active' : 'auth-link-toggle'}
-              onClick={() => {
-                clearAuthPanelMessages()
-                setAuthMode('register')
-              }}
-            >
-              Register
-            </button>
-          </div>
+          <p className="muted">
+            {contactOnlyMode
+              ? 'Submit your contact details first. Access credentials will be enabled after approval.'
+              : 'Sign in or register to access the A-Ideation solution suite.'}
+          </p>
+          {!contactOnlyMode ? (
+            <div className="auth-toggle-row">
+              <button
+                type="button"
+                className={authMode === 'login' ? 'auth-link-toggle active' : 'auth-link-toggle'}
+                onClick={() => {
+                  clearAuthPanelMessages()
+                  setAuthMode('login')
+                }}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                className={authMode === 'register' ? 'auth-link-toggle active' : 'auth-link-toggle'}
+                onClick={() => {
+                  clearAuthPanelMessages()
+                  setAuthMode('register')
+                }}
+              >
+                Register
+              </button>
+            </div>
+          ) : null}
 
           {authInfo ? <p className="status-message">{authInfo}</p> : null}
           {renderError()}
@@ -3547,7 +3554,7 @@ async function buildPrimaryPromptPreviewText() {
             </button> : null}
           </form>
 
-          {authMode === 'register' ? (
+          {authMode === 'register' && !contactOnlyMode ? (
             <details className="auth-subpanel" open={registrationReadyForVerify}>
               <summary>Verify Email</summary>
               <form className="auth-inline-form" onSubmit={handleVerifyEmail}>
