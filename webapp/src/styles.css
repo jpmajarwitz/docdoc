@@ -308,6 +308,17 @@ h1 {
   line-height: 1.1;
 }
 
+.access-email-inline-label {
+  display: inline-block;
+  margin: 0;
+  font-weight: 600;
+}
+
+.access-email-input {
+  width: auto;
+  min-width: 220px;
+}
+
 .status-message {
   margin: 0;
   font-weight: 700;

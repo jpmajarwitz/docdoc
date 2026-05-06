@@ -3661,8 +3661,9 @@ async function buildPrimaryPromptPreviewText() {
               ) : (
                 <form className="auth-inline-form" onSubmit={handleAccessEmailSubmit}>
                   <div className="auth-inline-row">
-                    <label htmlFor="suite-access-email-input">Email:</label>
+                    <label className="access-email-inline-label" htmlFor="suite-access-email-input">Email:</label>
                     <input
+                      className="access-email-input"
                       id="suite-access-email-input"
                       type="email"
                       placeholder="Enter email for access"
