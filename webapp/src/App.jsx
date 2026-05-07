@@ -758,7 +758,6 @@ export default function App({ appShell = 'ai' }) {
   const [pendingContacts, setPendingContacts] = useState([])
   const [approvedContacts, setApprovedContacts] = useState([])
   const [pendingContactsLoading, setPendingContactsLoading] = useState(false)
-  const [showApprovedContacts, setShowApprovedContacts] = useState(false)
   const [adminResultModal, setAdminResultModal] = useState({ open: false, message: '' })
   const [zoomTileLogoFailed, setZoomTileLogoFailed] = useState(false)
   const isDeckMateWorkflow = activeView === APP_VIEWS.DECK_MATE
@@ -3944,25 +3943,25 @@ async function buildPrimaryPromptPreviewText() {
               </table>
             </div>
           ) : null}
-          <details open={showApprovedContacts} onToggle={(event) => setShowApprovedContacts(event.currentTarget.open)}>
-            <summary>Approved Access Requests</summary>
-            {!approvedContacts.length ? <p>No approved contacts yet.</p> : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr><th>Email</th><th>First Name</th><th>Last Name</th><th>Phone</th><th>Job Title</th><th>Updated</th></tr>
-                  </thead>
-                  <tbody>
-                    {approvedContacts.map((item) => (
-                      <tr key={`approved-${item.id}-${item.email}`}>
-                        <td>{item.email}</td><td>{item.first_name}</td><td>{item.last_name}</td><td>{item.phone_number}</td><td>{item.job_title}</td><td>{item.updated_at}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </details>
+        </section>
+        <section className="card">
+          <h2>Approved Access Requests</h2>
+          {!approvedContacts.length ? <p>No approved contacts yet.</p> : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Email</th><th>First Name</th><th>Last Name</th><th>Phone</th><th>Job Title</th><th>Updated</th></tr>
+                </thead>
+                <tbody>
+                  {approvedContacts.map((item) => (
+                    <tr key={`approved-${item.id}-${item.email}`}>
+                      <td>{item.email}</td><td>{item.first_name}</td><td>{item.last_name}</td><td>{item.phone_number}</td><td>{item.job_title}</td><td>{item.updated_at}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
         {adminResultModal.open ? (
           <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Approval result">
