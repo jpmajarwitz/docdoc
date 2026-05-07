@@ -759,6 +759,7 @@ export default function App({ appShell = 'ai' }) {
   const [approvedContacts, setApprovedContacts] = useState([])
   const [pendingContactsLoading, setPendingContactsLoading] = useState(false)
   const [adminResultModal, setAdminResultModal] = useState({ open: false, message: '' })
+  const [adminApproveModal, setAdminApproveModal] = useState({ open: false, contactId: null, durationDays: 30 })
   const [zoomTileLogoFailed, setZoomTileLogoFailed] = useState(false)
   const isDeckMateWorkflow = activeView === APP_VIEWS.DECK_MATE
   const isDoc2DeckWorkflow = activeView === APP_VIEWS.DOC2DECK
@@ -1580,11 +1581,11 @@ export default function App({ appShell = 'ai' }) {
     }
   }
 
-  async function handleApproveContact(contactId) {
+  async function handleApproveContact(contactId, durationDays) {
     setError('')
     setPendingContactsLoading(true)
     try {
-      const response = await postJson(AUTH_ENDPOINTS.REGISTRATION_APPROVE, { contactId })
+      const response = await postJson(AUTH_ENDPOINTS.REGISTRATION_APPROVE, { contactId, durationDays })
       setAdminResultModal({ open: true, message: response.message || 'Access request approved successfully.' })
     } catch (approveError) {
       setAdminResultModal({ open: true, message: `Approval failed: ${normalizeRequestError(approveError)}` })
@@ -3936,7 +3937,15 @@ async function buildPrimaryPromptPreviewText() {
                   {pendingContacts.map((item) => (
                     <tr key={`${item.id}-${item.email}`}>
                       <td>{item.email}</td><td>{item.first_name}</td><td>{item.last_name}</td><td>{item.phone_number}</td><td>{item.job_title}</td><td>{item.created_at}</td>
-                      <td><button type="button" className="header-text-link" onClick={() => handleApproveContact(item.id)}>Approve</button></td>
+                      <td>
+                        <button
+                          type="button"
+                          className="header-text-link"
+                          onClick={() => setAdminApproveModal({ open: true, contactId: item.id, durationDays: 30 })}
+                        >
+                          Approve
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -3984,6 +3993,37 @@ async function buildPrimaryPromptPreviewText() {
                   Close
                 </button>
               </div>
+            </section>
+          </div>
+        ) : null}
+        {adminApproveModal.open ? (
+          <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Approve access request">
+            <section className="card auth-required-popup">
+              <p>Enter duration (days):</p>
+              <form
+                className="auth-inline-form"
+                onSubmit={async (event) => {
+                  event.preventDefault()
+                  const duration = Number(adminApproveModal.durationDays) || 30
+                  const contactId = adminApproveModal.contactId
+                  setAdminApproveModal({ open: false, contactId: null, durationDays: 30 })
+                  await handleApproveContact(contactId, duration)
+                }}
+              >
+                <input
+                  type="number"
+                  min={1}
+                  value={adminApproveModal.durationDays}
+                  onChange={(event) => setAdminApproveModal((prev) => ({ ...prev, durationDays: event.target.value }))}
+                  required
+                />
+                <div className="auth-inline-row">
+                  <button type="submit" className="primary-button">Approve</button>
+                  <button type="button" className="secondary-button" onClick={() => setAdminApproveModal({ open: false, contactId: null, durationDays: 30 })}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
             </section>
           </div>
         ) : null}

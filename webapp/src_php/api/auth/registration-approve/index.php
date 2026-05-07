@@ -12,15 +12,19 @@ if (strtolower((string) ($user['user_type'] ?? 'regular')) !== 'registration_adm
 
 $payload = auth_read_json_body();
 $contactId = (int) ($payload['contactId'] ?? 0);
+$durationDays = (int) ($payload['durationDays'] ?? 30);
 if ($contactId < 1) {
     php_backend_error(400, 'A valid contactId is required.');
+}
+if ($durationDays < 1) {
+    php_backend_error(400, 'A valid durationDays is required.');
 }
 
 $pdo = auth_get_pdo($config);
 auth_ensure_contact_columns($pdo);
 
-$stmt = $pdo->prepare("UPDATE contact SET `access` = 'approved', updated_at = UTC_TIMESTAMP() WHERE id = :id");
-$stmt->execute(['id' => $contactId]);
+$stmt = $pdo->prepare("UPDATE contact SET `access` = 'approved', duration = :duration, updated_at = UTC_TIMESTAMP() WHERE id = :id");
+$stmt->execute(['id' => $contactId, 'duration' => $durationDays]);
 if ($stmt->rowCount() < 1) {
     php_backend_error(404, 'Contact request not found.');
 }
