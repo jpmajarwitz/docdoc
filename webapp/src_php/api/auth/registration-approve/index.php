@@ -13,11 +13,15 @@ if (strtolower((string) ($user['user_type'] ?? 'regular')) !== 'registration_adm
 $payload = auth_read_json_body();
 $contactId = (int) ($payload['contactId'] ?? 0);
 $durationDays = (int) ($payload['durationDays'] ?? 30);
+$registrationType = strtolower(trim((string) ($payload['registrationType'] ?? 'trial')));
 if ($contactId < 1) {
     php_backend_error(400, 'A valid contactId is required.');
 }
 if ($durationDays < 1) {
     php_backend_error(400, 'A valid durationDays is required.');
+}
+if (!in_array($registrationType, ['trial', 'subscription'], true)) {
+    php_backend_error(400, 'A valid registrationType is required.');
 }
 
 $pdo = auth_get_pdo($config);
@@ -30,8 +34,8 @@ if (!$contact) {
     php_backend_error(404, 'Contact request not found.');
 }
 
-$stmt = $pdo->prepare("UPDATE contact SET `access` = 'approved', duration = :duration, updated_at = UTC_TIMESTAMP() WHERE id = :id");
-$stmt->execute(['id' => $contactId, 'duration' => $durationDays]);
+$stmt = $pdo->prepare("UPDATE contact SET `access` = 'approved', duration = :duration, registration_type = :registration_type, updated_at = UTC_TIMESTAMP() WHERE id = :id");
+$stmt->execute(['id' => $contactId, 'duration' => $durationDays, 'registration_type' => $registrationType]);
 if ($stmt->rowCount() < 1) {
     php_backend_error(404, 'Contact request not found.');
 }

@@ -775,6 +775,9 @@ function auth_ensure_contact_columns(PDO $pdo)
     if (!isset($columns['duration'])) {
         $alterFragments[] = 'ADD COLUMN duration VARCHAR(255) NULL';
     }
+    if (!isset($columns['registration_type'])) {
+        $alterFragments[] = "ADD COLUMN registration_type VARCHAR(20) NOT NULL DEFAULT 'trial'";
+    }
 
     if ($alterFragments) {
         $pdo->exec('ALTER TABLE contact ' . implode(', ', $alterFragments));

@@ -759,7 +759,7 @@ export default function App({ appShell = 'ai' }) {
   const [approvedContacts, setApprovedContacts] = useState([])
   const [pendingContactsLoading, setPendingContactsLoading] = useState(false)
   const [adminResultModal, setAdminResultModal] = useState({ open: false, message: '' })
-  const [adminApproveModal, setAdminApproveModal] = useState({ open: false, contactId: null, durationDays: 30 })
+  const [adminApproveModal, setAdminApproveModal] = useState({ open: false, contactId: null, durationDays: 30, registrationType: 'trial' })
   const [zoomTileLogoFailed, setZoomTileLogoFailed] = useState(false)
   const isDeckMateWorkflow = activeView === APP_VIEWS.DECK_MATE
   const isDoc2DeckWorkflow = activeView === APP_VIEWS.DOC2DECK
@@ -1581,11 +1581,11 @@ export default function App({ appShell = 'ai' }) {
     }
   }
 
-  async function handleApproveContact(contactId, durationDays) {
+  async function handleApproveContact(contactId, durationDays, registrationType) {
     setError('')
     setPendingContactsLoading(true)
     try {
-      const response = await postJson(AUTH_ENDPOINTS.REGISTRATION_APPROVE, { contactId, durationDays })
+      const response = await postJson(AUTH_ENDPOINTS.REGISTRATION_APPROVE, { contactId, durationDays, registrationType })
       setAdminResultModal({ open: true, message: response.message || 'Access request approved successfully.' })
     } catch (approveError) {
       setAdminResultModal({ open: true, message: `Approval failed: ${normalizeRequestError(approveError)}` })
@@ -3941,7 +3941,7 @@ async function buildPrimaryPromptPreviewText() {
                         <button
                           type="button"
                           className="header-text-link"
-                          onClick={() => setAdminApproveModal({ open: true, contactId: item.id, durationDays: 30 })}
+                          onClick={() => setAdminApproveModal({ open: true, contactId: item.id, durationDays: 30, registrationType: 'trial' })}
                         >
                           Approve
                         </button>
@@ -4006,8 +4006,9 @@ async function buildPrimaryPromptPreviewText() {
                   event.preventDefault()
                   const duration = Number(adminApproveModal.durationDays) || 30
                   const contactId = adminApproveModal.contactId
-                  setAdminApproveModal({ open: false, contactId: null, durationDays: 30 })
-                  await handleApproveContact(contactId, duration)
+                  const registrationType = adminApproveModal.registrationType || 'trial'
+                  setAdminApproveModal({ open: false, contactId: null, durationDays: 30, registrationType: 'trial' })
+                  await handleApproveContact(contactId, duration, registrationType)
                 }}
               >
                 <input
@@ -4018,8 +4019,20 @@ async function buildPrimaryPromptPreviewText() {
                   required
                 />
                 <div className="auth-inline-row">
+                  <label>
+                    Registration Type
+                    <select
+                      value={adminApproveModal.registrationType}
+                      onChange={(event) => setAdminApproveModal((prev) => ({ ...prev, registrationType: event.target.value }))}
+                    >
+                      <option value="trial">trial</option>
+                      <option value="subscription">subscription</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="auth-inline-row">
                   <button type="submit" className="primary-button">Approve</button>
-                  <button type="button" className="secondary-button" onClick={() => setAdminApproveModal({ open: false, contactId: null, durationDays: 30 })}>
+                  <button type="button" className="secondary-button" onClick={() => setAdminApproveModal({ open: false, contactId: null, durationDays: 30, registrationType: 'trial' })}>
                     Cancel
                   </button>
                 </div>
