@@ -10,10 +10,6 @@ $payload = auth_read_json_body();
 $email = trim((string) ($payload['email'] ?? ''));
 $password = (string) ($payload['password'] ?? '');
 $displayName = trim((string) ($payload['displayName'] ?? ''));
-$requestedAccountType = strtolower(trim((string) ($payload['accountType'] ?? 'trial')));
-$accountType = $requestedAccountType === 'subscription' ? 'subscription' : 'trial';
-$trialPeriodDays = $accountType === 'trial' ? 30 : null;
-$trialStartAt = $accountType === 'trial' ? date('Y-m-d H:i:s') : null;
 
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     php_backend_error(400, 'A valid email is required.');
@@ -27,6 +23,15 @@ auth_ensure_contact_columns($pdo);
 $contact = auth_get_contact_by_email($pdo, $emailNormalized);
 if (!$contact || strtolower((string) ($contact['access'] ?? 'pending')) !== 'approved') {
     php_backend_error(403, 'your contact information has been received and is being processed you will be notified at ' . $email . ' when registration is approved.');
+}
+$registrationType = strtolower((string) ($contact['registration_type'] ?? 'trial'));
+$accountType = $registrationType === 'subscription' ? 'subscription' : 'trial';
+$trialPeriodDays = null;
+$trialStartAt = null;
+if ($accountType === 'trial') {
+    $durationDays = isset($contact['duration']) ? (int) $contact['duration'] : 30;
+    $trialPeriodDays = $durationDays > 0 ? $durationDays : 30;
+    $trialStartAt = date('Y-m-d H:i:s');
 }
 $existing = auth_get_user_by_email($pdo, $emailNormalized);
 if ($existing) {

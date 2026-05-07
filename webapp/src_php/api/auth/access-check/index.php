@@ -38,10 +38,14 @@ if ($access !== 'approved') {
 }
 
 if (!$user) {
+    $registrationType = strtolower((string) ($contact['registration_type'] ?? 'trial'));
+    $accountType = $registrationType === 'subscription' ? 'subscription' : 'trial';
     php_backend_json_response(200, [
         'ok' => true,
         'mode' => 'register',
         'email' => $email,
+        'accountType' => $accountType,
+        'duration' => isset($contact['duration']) ? (int) $contact['duration'] : null,
     ]);
 }
 

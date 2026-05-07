@@ -1314,8 +1314,7 @@ export default function App({ appShell = 'ai' }) {
         const response = await postJson(AUTH_ENDPOINTS.REGISTER, {
           email: authEmail,
           password: authPassword,
-          displayName: authDisplayName,
-          accountType: authAccountType
+          displayName: authDisplayName
         })
         setRegistrationReadyForVerify(true)
         if (response.verificationEmailSent) {
@@ -1398,6 +1397,7 @@ export default function App({ appShell = 'ai' }) {
       }
       if (response.mode === 'register') {
         setAccessFlowMode('register')
+        setAuthAccountType((response.accountType || 'trial') === 'subscription' ? 'subscription' : 'trial')
         setAuthEmailLocked(true)
         openAuthOverlay('register')
         return
@@ -3616,10 +3616,7 @@ async function buildPrimaryPromptPreviewText() {
             {accessFlowMode === 'register' ? (
               <label>
                 Account Type
-                <select value={authAccountType} onChange={(event) => setAuthAccountType(event.target.value)}>
-                  <option value="trial">30 day trial account</option>
-                  <option value="subscription">subscription account</option>
-                </select>
+                <input type="text" value={authAccountType === 'subscription' ? 'subscription account' : 'trial account'} readOnly />
               </label>
             ) : null}
             {accessFlowMode !== 'contact' ? <button type="submit" className="primary-button" disabled={authSubmitting}>
