@@ -3539,13 +3539,17 @@ async function buildPrimaryPromptPreviewText() {
             </button>
           </div>
           <p className="muted">
-            {loginOnlyMode
+            {authMode === 'register'
+              ? (registrationReadyForVerify
+                ? 'Your account has been created. Enter the token from your verification email.'
+                : 'Create your account to access the A-Ideation solution suite.')
+              : loginOnlyMode
               ? 'Sign in to access the A-Ideation solution suite.'
               : contactOnlyMode
               ? (contactRequestSubmittedForCurrentEmail
                 ? 'Contact request submitted. You will receive an email with approval to register shortly.'
                 : 'Submit your contact details first. Access credentials will be enabled after approval.')
-              : 'Sign in or register to access the A-Ideation solution suite.'}
+              : 'Sign in to access the A-Ideation solution suite.'}
           </p>
 
           {!contactOnlyMode && authInfo ? <p className="status-message">{authInfo}</p> : null}
@@ -3594,7 +3598,7 @@ async function buildPrimaryPromptPreviewText() {
             {accessFlowMode === 'contact' ? (
               <label>
                 Job Title
-                <input type="text" value={authJobTitle} onChange={(event) => setAuthJobTitle(event.target.value)} required readOnly={contactRequestSubmittedForCurrentEmail} />
+                <input type="text" value={authJobTitle} onChange={(event) => setAuthJobTitle(event.target.value)} readOnly={contactRequestSubmittedForCurrentEmail} />
               </label>
             ) : null}
             {accessFlowMode === 'register' ? (
@@ -3619,7 +3623,7 @@ async function buildPrimaryPromptPreviewText() {
                 <input type="text" value={authAccountType === 'subscription' ? 'subscription account' : 'trial account'} readOnly />
               </label>
             ) : null}
-            {accessFlowMode !== 'contact' ? <button type="submit" className="primary-button" disabled={authSubmitting}>
+            {accessFlowMode !== 'contact' && !(authMode === 'register' && registrationReadyForVerify) ? <button type="submit" className="primary-button" disabled={authSubmitting}>
               {authSubmitting
                 ? authMode === 'register'
                   ? 'Creating Account...'
@@ -3641,7 +3645,7 @@ async function buildPrimaryPromptPreviewText() {
                   placeholder="Verification token"
                   required
                 />
-                <button type="submit" className="secondary-button">
+                <button type="submit" className="primary-button">
                   Verify
                 </button>
               </form>

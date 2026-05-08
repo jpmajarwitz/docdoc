@@ -13,8 +13,8 @@ $phoneNumber = trim((string) ($payload['phoneNumber'] ?? ''));
 $email = trim((string) ($payload['email'] ?? ''));
 $jobTitle = trim((string) ($payload['jobTitle'] ?? ''));
 
-if ($firstName === '' || $lastName === '' || $phoneNumber === '' || $jobTitle === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    php_backend_error(400, 'First name, last name, phone number, job title, and a valid email are required.');
+if ($firstName === '' || $lastName === '' || $phoneNumber === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    php_backend_error(400, 'First name, last name, phone number, and a valid email are required.');
 }
 
 $pdo = auth_get_pdo($config);
