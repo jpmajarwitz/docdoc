@@ -1640,6 +1640,19 @@ export default function App({ appShell = 'ai' }) {
     }
   }
 
+  function moveGettingStartedItem(index, direction) {
+    setAdminGettingStartedDraft((prev) => {
+      const nextIndex = index + direction
+      if (nextIndex < 0 || nextIndex >= prev.length) {
+        return prev
+      }
+      const draft = [...prev]
+      const [item] = draft.splice(index, 1)
+      draft.splice(nextIndex, 0, item)
+      return draft
+    })
+  }
+
   async function handleApproveContact(contactId, durationDays, registrationType) {
     setError('')
     setPendingContactsLoading(true)
@@ -4118,6 +4131,24 @@ async function buildPrimaryPromptPreviewText() {
             <form className="auth-form" onSubmit={handleSaveGettingStarted}>
               {adminGettingStartedDraft.map((item, index) => (
                 <div className="field-group" key={`gs-${index}`}>
+                  <div className="auth-inline-row">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => moveGettingStartedItem(index, -1)}
+                      disabled={index === 0}
+                    >
+                      ↑ Move Up
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => moveGettingStartedItem(index, 1)}
+                      disabled={index === adminGettingStartedDraft.length - 1}
+                    >
+                      ↓ Move Down
+                    </button>
+                  </div>
                   <label>
                     Question
                     <input
