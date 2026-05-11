@@ -140,6 +140,15 @@ h1 {
 
 .getting-started-answer-panel h3 {
   margin-bottom: 0.6rem;
+  text-align: left;
+}
+
+.getting-started-answer-panel p {
+  text-align: left;
+}
+
+.getting-started-answer-panel.auth-required-popup {
+  width: min(630px, 94vw);
 }
 
 .suite-user-info {
