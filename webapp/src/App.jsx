@@ -719,12 +719,17 @@ async function getJson(endpoint) {
 
 export default function App({ appShell = 'ai' }) {
   const defaultGettingStartedItems = [
-    { question: 'What is the A-Ideation Professional Productivity toolset?', answer: '' },
-    { question: 'What are the benefits of using a browser-based AI agent?', answer: '' },
-    { question: 'What is Document Doctor?', answer: '' },
-    { question: 'What is Deck Mate?', answer: '' },
-    { question: 'What is Doc2Deck?', answer: '' },
-    { question: 'What is Zoom-Zilla?', answer: '' }
+    { subsection: 'A-Ideation Overview', question: 'What is the A-Ideation Professional Productivity toolset?', answer: '' },
+    { subsection: 'A-Ideation Overview', question: 'What are the benefits of using a browser-based AI agent?', answer: '' },
+    { subsection: 'A-Ideation Overview', question: 'How do I get started with A-Ideation?', answer: '' },
+    { subsection: 'A-Ideation Overview', question: 'Who should use A-Ideation?', answer: '' },
+    { subsection: 'A-Ideation Overview', question: 'What types of files can I use?', answer: '' },
+    { subsection: 'A-Ideation Overview', question: 'How is data handled in A-Ideation?', answer: '' },
+    { subsection: 'A-Ideation Overview', question: 'What output can I expect from A-Ideation tools?', answer: '' },
+    { subsection: 'Applications', question: 'What is Document Doctor?', answer: '' },
+    { subsection: 'Applications', question: 'What is Deck Mate?', answer: '' },
+    { subsection: 'Applications', question: 'What is Doc2Deck?', answer: '' },
+    { subsection: 'Applications', question: 'What is Zoom-Zilla?', answer: '' }
   ]
   const dedicatedViewByShell = {
     dd: APP_VIEWS.DOCUMENT_DOCTOR,
@@ -766,6 +771,15 @@ export default function App({ appShell = 'ai' }) {
   const [activeGettingStartedQuestion, setActiveGettingStartedQuestion] = useState('')
   const [gettingStartedItems, setGettingStartedItems] = useState(defaultGettingStartedItems)
   const [adminGettingStartedDraft, setAdminGettingStartedDraft] = useState(defaultGettingStartedItems)
+  const groupedGettingStartedItems = useMemo(() => {
+    const grouped = new Map()
+    gettingStartedItems.forEach((item) => {
+      const subsection = `${item?.subsection || 'Applications'}`.trim() || 'Applications'
+      if (!grouped.has(subsection)) grouped.set(subsection, [])
+      grouped.get(subsection).push(item)
+    })
+    return Array.from(grouped.entries()).map(([subsection, items]) => ({ subsection, items }))
+  }, [gettingStartedItems])
   const [pendingContacts, setPendingContacts] = useState([])
   const [approvedContacts, setApprovedContacts] = useState([])
   const [activeUsers, setActiveUsers] = useState([])
@@ -1614,9 +1628,10 @@ export default function App({ appShell = 'ai' }) {
     const response = await getJson(AUTH_ENDPOINTS.GETTING_STARTED)
     const items = Array.isArray(response.items) ? response.items : []
     const normalized = items
-      .map((item) => ({
+      .map((item, index) => ({
         question: `${item?.question || ''}`.trim(),
-        answer: `${item?.answer || ''}`.trim()
+        answer: `${item?.answer || ''}`.trim(),
+        subsection: `${item?.subsection || ''}`.trim() || (index < 7 ? 'A-Ideation Overview' : 'Applications')
       }))
       .filter((item) => item.question)
     const nextItems = normalized.length ? normalized : defaultGettingStartedItems
@@ -1629,7 +1644,8 @@ export default function App({ appShell = 'ai' }) {
     const normalized = adminGettingStartedDraft
       .map((item) => ({
         question: `${item?.question || ''}`.trim(),
-        answer: `${item?.answer || ''}`.trim()
+        answer: `${item?.answer || ''}`.trim(),
+        subsection: `${item?.subsection || ''}`.trim() || 'Applications'
       }))
       .filter((item) => item.question)
 
@@ -3884,15 +3900,22 @@ async function buildPrimaryPromptPreviewText() {
         <section className="card suite-links getting-started-panel">
           <h2>Getting Started</h2>
           <ul className="getting-started-list">
-            {gettingStartedItems.map((item) => (
-              <li key={item.question}>
-                <button
-                  type="button"
-                  className="getting-started-question"
-                  onClick={() => setActiveGettingStartedQuestion(item.question)}
-                >
-                  {item.question}
-                </button>
+            {groupedGettingStartedItems.map((group) => (
+              <li key={group.subsection}>
+                <div className="getting-started-subsection">{group.subsection}</div>
+                <ul className="getting-started-list">
+                  {group.items.map((item) => (
+                    <li key={`${group.subsection}-${item.question}`}>
+                      <button
+                        type="button"
+                        className="getting-started-question"
+                        onClick={() => setActiveGettingStartedQuestion(item.question)}
+                      >
+                        {item.question}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </li>
             ))}
           </ul>
@@ -4137,6 +4160,19 @@ async function buildPrimaryPromptPreviewText() {
               {adminGettingStartedDraft.map((item, index) => (
                 <div className="field-group" key={`gs-${index}`}>
                   <label>
+                    Subsection
+                    <input
+                      type="text"
+                      value={item.subsection || ''}
+                      onChange={(event) =>
+                        setAdminGettingStartedDraft((prev) => prev.map((row, rowIndex) => (
+                          rowIndex === index ? { ...row, subsection: event.target.value } : row
+                        )))
+                      }
+                      placeholder="e.g. A-Ideation Overview"
+                    />
+                  </label>
+                  <label>
                     <span className="question-label-row">
                       <span>Question</span>
                       <span className="question-order-controls">
@@ -4191,7 +4227,7 @@ async function buildPrimaryPromptPreviewText() {
                 <button
                   type="button"
                   className="secondary-button"
-                  onClick={() => setAdminGettingStartedDraft((prev) => [...prev, { question: '', answer: '' }])}
+                  onClick={() => setAdminGettingStartedDraft((prev) => [...prev, { subsection: 'Applications', question: '', answer: '' }])}
                 >
                   Add Question
                 </button>
