@@ -16,7 +16,7 @@ export const APP_SETTINGS = {
     { value: 'markdown', label: 'Markdown (Legacy)' }
   ],
   defaultCritiqueResponseFormat: 'json',
-  defaultDocxToJson: true,
+  defaultDocxToJson: false,
   labels: {
     defaultTopic: 'Default Topic',
     reviewObjective: 'Review Objective',

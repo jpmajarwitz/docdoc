@@ -822,6 +822,9 @@ export default function App({ appShell = 'ai' }) {
   const [selectedApiMode, setSelectedApiMode] = useState(APP_SETTINGS.defaultApiMode || 'responses')
   const [selectedModel, setSelectedModel] = useState(APP_SETTINGS.defaultModel)
   const [critiqueResponseFormat, setCritiqueResponseFormat] = useState(APP_SETTINGS.defaultCritiqueResponseFormat || 'json')
+  const [critiqueSeverityFilter, setCritiqueSeverityFilter] = useState('all')
+  const [critiqueCategoryFilter, setCritiqueCategoryFilter] = useState('all')
+  const [critiqueSortMode, setCritiqueSortMode] = useState('severity_then_category')
   const [docxToJson, setDocxToJson] = useState(APP_SETTINGS.defaultDocxToJson ?? true)
   const [ignoreOcrErrors, setIgnoreOcrErrors] = useState(true)
   const [disableResponseLogging, setDisableResponseLogging] = useState(
@@ -1007,6 +1010,33 @@ export default function App({ appShell = 'ai' }) {
     }
     return changedDoc2DeckSections.map((section) => section.content).join('\n\n')
   }, [isDoc2DeckWorkflow, doc2DeckPptxOutputMode, changedDoc2DeckSections, changedDoc2DeckJsonSections, changedDocumentMarkdown])
+  const parsedCritiqueJson = useMemo(() => {
+    if (critiqueResponseFormat !== 'json') return null
+    try {
+      return validateCritiqueJsonOutput(critiqueMarkdown)
+    } catch (_error) {
+      return null
+    }
+  }, [critiqueResponseFormat, critiqueMarkdown])
+  const critiqueCategoryOptions = useMemo(() => {
+    if (!parsedCritiqueJson) return []
+    return [...new Set([...(parsedCritiqueJson.major_issues || []), ...(parsedCritiqueJson.minor_issues || [])].map((item) => item.category).filter(Boolean))].sort()
+  }, [parsedCritiqueJson])
+  const visibleCritiqueIssues = useMemo(() => {
+    if (!parsedCritiqueJson) return []
+    const combined = [
+      ...(parsedCritiqueJson.major_issues || []).map((item) => ({ ...item, _severityRank: 0 })),
+      ...(parsedCritiqueJson.minor_issues || []).map((item) => ({ ...item, _severityRank: 1 }))
+    ]
+    const filtered = combined.filter((item) => (
+      (critiqueSeverityFilter === 'all' || item.severity === critiqueSeverityFilter) &&
+      (critiqueCategoryFilter === 'all' || item.category === critiqueCategoryFilter)
+    ))
+    return filtered.sort((left, right) => {
+      if (critiqueSortMode === 'category') return `${left.category}`.localeCompare(`${right.category}`) || `${left.id}`.localeCompare(`${right.id}`)
+      return (left._severityRank - right._severityRank) || `${left.category}`.localeCompare(`${right.category}`) || `${left.id}`.localeCompare(`${right.id}`)
+    })
+  }, [parsedCritiqueJson, critiqueSeverityFilter, critiqueCategoryFilter, critiqueSortMode])
 
   useEffect(() => {
     if (!isDoc2DeckWorkflow || !changedDoc2DeckJsonParse.usedFallback) {
@@ -3125,6 +3155,12 @@ async function buildPrimaryPromptPreviewText() {
   }, [])
 
   useEffect(() => {
+    const isDefaultName = critiqueOutputFileName === 'critique.md' || critiqueOutputFileName === 'critique.json' || !`${critiqueOutputFileName || ''}`.trim()
+    if (!isDefaultName) return
+    setCritiqueOutputFileName(critiqueResponseFormat === 'json' ? 'critique.json' : 'critique.md')
+  }, [critiqueResponseFormat, critiqueOutputFileName])
+
+  useEffect(() => {
     if (typeof window === 'undefined') {
       return
     }
@@ -4971,15 +5007,53 @@ async function buildPrimaryPromptPreviewText() {
                 </label>
               </>
             ) : (
-              <label className="panel-field">
-                <span className="panel-label">Critique Content</span>
-                <textarea
-                  className="critique-editor"
-                  value={critiqueMarkdown}
-                  onChange={(event) => setCritiqueMarkdown(event.target.value)}
-                  rows={REVIEW_TEXTAREA_ROWS}
-                />
-              </label>
+              <>
+                {critiqueResponseFormat === 'json' && parsedCritiqueJson ? (
+                  <section className="field-group">
+                    <div className="auth-inline-row">
+                      <label>Severity
+                        <select value={critiqueSeverityFilter} onChange={(event) => setCritiqueSeverityFilter(event.target.value)}>
+                          <option value="all">All</option>
+                          <option value="major">Major</option>
+                          <option value="minor">Minor</option>
+                        </select>
+                      </label>
+                      <label>Category
+                        <select value={critiqueCategoryFilter} onChange={(event) => setCritiqueCategoryFilter(event.target.value)}>
+                          <option value="all">All</option>
+                          {critiqueCategoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
+                        </select>
+                      </label>
+                      <label>Sort
+                        <select value={critiqueSortMode} onChange={(event) => setCritiqueSortMode(event.target.value)}>
+                          <option value="severity_then_category">Severity then Category</option>
+                          <option value="category">Category</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="doc2deck-slide-grid">
+                      {visibleCritiqueIssues.map((issue) => (
+                        <article key={issue.id} className="doc2deck-slide-card">
+                          <h4>{issue.id} · {issue.category} · {issue.severity}</h4>
+                          <p><strong>Justification:</strong> {issue.justification}</p>
+                          <p><strong>Recommended:</strong> {issue.recommended_change}</p>
+                          {issue.suggested_rewrite ? <p><strong>Rewrite:</strong> {issue.suggested_rewrite}</p> : null}
+                          <p><strong>Confidence:</strong> {issue.confidence_notes}</p>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+                <label className="panel-field">
+                  <span className="panel-label">Critique Content</span>
+                  <textarea
+                    className="critique-editor"
+                    value={critiqueMarkdown}
+                    onChange={(event) => setCritiqueMarkdown(event.target.value)}
+                    rows={REVIEW_TEXTAREA_ROWS}
+                  />
+                </label>
+              </>
             )}
           </div>
 
