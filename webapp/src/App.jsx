@@ -2059,7 +2059,7 @@ async function buildPrimaryPromptPreviewText() {
       messages.push({ type: 'input_file', source: 'prior_response_document' })
     }
 
-    if (critiqueResponseFormat === 'json') {
+    if (critiqueResponseFormat === 'json' && !isDeckMateWorkflow && !isDoc2DeckWorkflow) {
       messages.push({
         type: 'input_text',
         text: 'Return only valid JSON with this schema: {"overall_assessment":string,"major_issues":[{"id":string,"category":string,"severity":"major","justification":string,"recommended_change":string,"suggested_rewrite":string|null,"confidence_notes":string}],"minor_issues":[{"id":string,"category":string,"severity":"minor","justification":string,"recommended_change":string,"suggested_rewrite":string|null,"confidence_notes":string}],"metadata":{"model":string,"timestamp":string,"input_digest":string,"prompt_size":integer,"document_size":integer,"response_size":integer,"processing_time_ms":integer}}. Do not return markdown.'
@@ -2200,7 +2200,7 @@ async function buildPrimaryPromptPreviewText() {
         text: `Changed ${contentNoun} body:\n${changedDocumentMarkdown}`
       }
     ]
-    if (critiqueResponseFormat === 'json') {
+    if (critiqueResponseFormat === 'json' && !isDeckMateWorkflow && !isDoc2DeckWorkflow) {
       messages.push({
         type: 'input_text',
         text: 'Return only valid JSON with this schema: {"overall_assessment":string,"major_issues":[{"id":string,"category":string,"severity":"major","justification":string,"recommended_change":string,"suggested_rewrite":string|null,"confidence_notes":string}],"minor_issues":[{"id":string,"category":string,"severity":"minor","justification":string,"recommended_change":string,"suggested_rewrite":string|null,"confidence_notes":string}],"metadata":{"model":string,"timestamp":string,"input_digest":string,"prompt_size":integer,"document_size":integer,"response_size":integer,"processing_time_ms":integer}}. Do not return markdown.'
@@ -2913,7 +2913,7 @@ async function buildPrimaryPromptPreviewText() {
         setStatus('Applying change items completed successfully.')
       } else {
         let critiqueTextToRender = outputText
-        if (critiqueResponseFormat === 'json' && (operation === OPERATIONS.CRITIQUE_PRIMARY || operation === OPERATIONS.CRITIQUE_CHANGED)) {
+        if (critiqueResponseFormat === 'json' && !isDeckMateWorkflow && !isDoc2DeckWorkflow && (operation === OPERATIONS.CRITIQUE_PRIMARY || operation === OPERATIONS.CRITIQUE_CHANGED)) {
           try {
             const validatedCritique = validateCritiqueJsonOutput(outputText)
             critiqueTextToRender = JSON.stringify(validatedCritique, null, 2)
@@ -2927,7 +2927,7 @@ async function buildPrimaryPromptPreviewText() {
           setLastCritiqueWaitMs(Math.max(0, finishedAt - operationStartedAt))
         }
         if (operation === OPERATIONS.CRITIQUE_PRIMARY) {
-          if (critiqueResponseFormat === 'json') {
+          if (critiqueResponseFormat === 'json' && !isDeckMateWorkflow && !isDoc2DeckWorkflow) {
             saveTextToFile(critiqueTextToRender, critiqueOutputFileName || 'critique.json', 'application/json;charset=utf-8')
           } else {
             saveMarkdownToFile(outputText, critiqueOutputFileName)
