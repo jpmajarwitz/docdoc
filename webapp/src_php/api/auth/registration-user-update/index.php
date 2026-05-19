@@ -1,0 +1,20 @@
+<?php
+require_once dirname(__DIR__, 3) . '/lib/auth.php';
+$config = php_backend_load_config();
+php_backend_apply_cors($config);
+php_backend_require_method('POST');
+$user = auth_require_active_session($config);
+if (strtolower((string) ($user['user_type'] ?? 'regular')) !== 'registration_admin') php_backend_error(403, 'Registration admin access is required.');
+$payload = auth_read_json_body();
+$userId=(int)($payload['userId']??0);
+$accountType=strtolower(trim((string)($payload['accountType']??'subscription')))==='trial'?'trial':'subscription';
+$status=strtolower(trim((string)($payload['status']??'inactive')))==='active'?'active':'inactive';
+$trialPeriodDaysRaw=$payload['trialPeriodDays']??null;
+$trialPeriodDays=$accountType==='trial'?max(1,(int)$trialPeriodDaysRaw):null;
+if($userId<1) php_backend_error(400,'A valid userId is required.');
+$pdo=auth_get_pdo($config);
+auth_ensure_user_trial_columns($pdo);
+$stmt=$pdo->prepare("UPDATE users SET account_type=:account_type,status=:status,trial_period_days=:trial_period_days,trial_start_at=:trial_start_at WHERE id=:id");
+$trialStartAt=$accountType==='trial'?date('Y-m-d H:i:s'):null;
+$stmt->execute(['account_type'=>$accountType,'status'=>$status,'trial_period_days'=>$trialPeriodDays,'trial_start_at'=>$trialStartAt,'id'=>$userId]);
+php_backend_json_response(200,['ok'=>true,'message'=>'User updated successfully.']);
