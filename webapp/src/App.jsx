@@ -5068,7 +5068,7 @@ async function buildPrimaryPromptPreviewText() {
                     </div>
                     <div className="doc2deck-slide-grid">
                       {visibleCritiqueIssues.map((issue, index) => (
-                        <React.Fragment key={issue.id}>
+                        <div key={issue.id}>
                           <article className="doc2deck-slide-card">
                           <h4>{issue.id} · {issue.category} · {issue.severity}</h4>
                           <p><strong>Justification:</strong> {issue.justification}</p>
@@ -5077,7 +5077,7 @@ async function buildPrimaryPromptPreviewText() {
                           <p><strong>Confidence:</strong> {issue.confidence_notes}</p>
                           </article>
                           {index < visibleCritiqueIssues.length - 1 ? <hr className="getting-started-item-divider" /> : null}
-                        </React.Fragment>
+                        </div>
                       ))}
                     </div>
                   </section>
