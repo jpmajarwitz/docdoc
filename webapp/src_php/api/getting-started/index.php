@@ -2,6 +2,30 @@
 require_once dirname(__DIR__, 2) . '/lib/auth.php';
 $config = php_backend_load_config();
 php_backend_apply_cors($config);
+
+
+$allowedHosts = array_values(array_filter([
+  strtolower((string) ($config['app_host'] ?? '')),
+  'enddne.com',
+  'www.enddne.com'
+]));
+if ($allowedHosts) {
+  $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+  if (!in_array($host, $allowedHosts, true)) {
+    php_backend_error(403, 'Host is not allowed.');
+  }
+}
+
+$origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
+$allowedOrigins = array_values(array_filter([
+  (string) ($config['app_origin'] ?? ''),
+  'https://enddne.com',
+  'https://www.enddne.com'
+]));
+if ($origin !== '' && $allowedOrigins && !in_array($origin, $allowedOrigins, true)) {
+  php_backend_error(403, 'Origin is not allowed.');
+}
+
 $path = dirname(__DIR__, 2) . '/data/getting_started.json';
 if (!file_exists($path)) {
   file_put_contents($path, json_encode([], JSON_PRETTY_PRINT));

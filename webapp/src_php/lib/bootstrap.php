@@ -78,7 +78,7 @@ function php_backend_apply_cors($config)
         header('Vary: Origin');
         header('Access-Control-Allow-Credentials: true');
         header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-        header('Access-Control-Allow-Headers: Content-Type, X-App-Name');
+        header('Access-Control-Allow-Headers: Content-Type, X-App-Name, X-CSRF-Token');
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
