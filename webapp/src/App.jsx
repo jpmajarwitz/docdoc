@@ -4206,7 +4206,7 @@ async function buildPrimaryPromptPreviewText() {
                   }))}
                 >
                   <span>{group.subsection}</span>
-                  <span aria-hidden="true">{expandedGettingStartedSections[group.subsection] ? '▲' : '▼'}</span>
+                  <span className="getting-started-subsection-chevron" aria-hidden="true">{expandedGettingStartedSections[group.subsection] ? '▲' : '▼'}</span>
                 </button>
                 {expandedGettingStartedSections[group.subsection] ? (
                   <ul className="getting-started-list">
