@@ -1048,6 +1048,25 @@ export default function App({ appShell = 'ai' }) {
   }, [orderedCritiqueIssues, critiqueSeverityFilter, critiqueCategoryFilter])
 
 
+
+  const nonActivatedApprovedUsers = useMemo(() => {
+    const registeredEmails = new Set([
+      ...activeUsers.map((user) => `${user?.email || ''}`.trim().toLowerCase()),
+      ...inactiveUsers.map((user) => `${user?.email || ''}`.trim().toLowerCase())
+    ].filter(Boolean))
+
+    return approvedContacts
+      .filter((contact) => !registeredEmails.has(`${contact?.email || ''}`.trim().toLowerCase()))
+      .map((contact) => {
+        const approvedAtRaw = `${contact?.updated_at || contact?.created_at || ''}`.trim()
+        const approvedAt = approvedAtRaw ? new Date(approvedAtRaw) : null
+        const daysSinceApproval = approvedAt && !Number.isNaN(approvedAt.getTime())
+          ? Math.max(0, Math.floor((Date.now() - approvedAt.getTime()) / (1000 * 60 * 60 * 24)))
+          : null
+        return { ...contact, daysSinceApproval }
+      })
+  }, [approvedContacts, activeUsers, inactiveUsers])
+
   useEffect(() => {
     if (!isDoc2DeckWorkflow || !changedDoc2DeckJsonParse.usedFallback) {
       return
@@ -4425,6 +4444,15 @@ async function buildPrimaryPromptPreviewText() {
               {!inactiveUsers.length ? <p>No inactive users.</p> : (
                 <div className="table-wrap"><table><thead><tr><th>ID</th><th>Email</th><th>Display Name</th><th>Status</th><th>Account Type</th><th>Trial Days</th><th>Trial Start</th><th>Action</th></tr></thead><tbody>
                   {inactiveUsers.map((userRow) => <tr key={`inactive-${userRow.id}`}><td>{userRow.id}</td><td>{userRow.email}</td><td>{userRow.display_name}</td><td>{userRow.status}</td><td>{userRow.account_type}</td><td>{userRow.trial_period_days}</td><td>{userRow.trial_start_at}</td><td><button type="button" className="header-text-link" onClick={() => setAdminUserEditModal({ open: true, user: { ...userRow } })}>Edit</button></td></tr>)}
+                </tbody></table></div>
+              )}
+            </section>
+
+            <section className="card">
+              <h2>Non-Activated Approved Users</h2>
+              {!nonActivatedApprovedUsers.length ? <p>No non-activated approved users.</p> : (
+                <div className="table-wrap"><table><thead><tr><th>Email</th><th>First Name</th><th>Last Name</th><th>Phone</th><th>Job Title</th><th>Approved</th><th>Days Since Approval</th></tr></thead><tbody>
+                  {nonActivatedApprovedUsers.map((item) => <tr key={`non-activated-${item.id}-${item.email}`}><td>{item.email}</td><td>{item.first_name}</td><td>{item.last_name}</td><td>{item.phone_number}</td><td>{item.job_title}</td><td>{item.updated_at || item.created_at || ''}</td><td>{item.daysSinceApproval === null ? 'n/a' : item.daysSinceApproval}</td></tr>)}
                 </tbody></table></div>
               )}
             </section>
