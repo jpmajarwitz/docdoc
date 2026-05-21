@@ -161,9 +161,9 @@ h1 {
   font-size: 1rem;
   margin: 0.35rem 0;
   width: 100%;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   border: none;
   background: transparent;
   padding: 0;
@@ -1071,4 +1071,5 @@ code {
 
 .getting-started-subsection-chevron {
   color: #6b21a8;
+  margin-left: 0.35rem;
 }
