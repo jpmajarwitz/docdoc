@@ -4171,10 +4171,12 @@ async function buildPrimaryPromptPreviewText() {
             <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.DOCUMENT_DOCTOR)}>
               <img src={DOCDOC_LOGO_PATH} alt="Document Doctor logo" />
               <span>Document<br />Doctor</span>
+              <small>Ready To Use</small>
             </button>
             <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.DECK_MATE)}>
               <img src={DECK_MATE_LOGO_PATH} alt="Deck Mate logo" />
               <span>Deck Mate</span>
+              <small>Ready To Use</small>
             </button>
             <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.DOC2DECK)}>
               <img src={DOC2DECK_LOGO_PATH} alt="Doc 2 Deck logo" />
@@ -4193,6 +4195,8 @@ async function buildPrimaryPromptPreviewText() {
                 />
               )}
               <span>Zoom-Zilla</span>
+              <small>Ready To Use</small>
+              <small>(Coming Soon)</small>
             </button>
             <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.RESUNATOR)}>
               {resunatorTileLogoFailed ? (
@@ -4206,7 +4210,8 @@ async function buildPrimaryPromptPreviewText() {
                   }}
                 />
               )}
-              <span>RESUnator (Coming Soon)</span>
+              <span>RESUnator</span>
+              <small>(Coming Soon)</small>
             </button>
           </div>
         </section>
