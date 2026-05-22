@@ -4168,51 +4168,61 @@ async function buildPrimaryPromptPreviewText() {
         <section className="card suite-links">
           <h2>Solutions</h2>
           <div className="suite-link-grid">
-            <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.DOCUMENT_DOCTOR)}>
-              <img src={DOCDOC_LOGO_PATH} alt="Document Doctor logo" />
-              <span>Document<br />Doctor</span>
-              <small>Ready To Use</small>
-            </button>
-            <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.DECK_MATE)}>
-              <img src={DECK_MATE_LOGO_PATH} alt="Deck Mate logo" />
-              <span>Deck Mate</span>
-              <small>Ready To Use</small>
-            </button>
-            <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.DOC2DECK)}>
-              <img src={DOC2DECK_LOGO_PATH} alt="Doc 2 Deck logo" />
-              <span>Doc2Deck</span>
-            </button>
-            <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.ZOOM_ZILLA)}>
-              {zoomTileLogoFailed ? (
-                <div className="suite-link-logo-placeholder">Zoom-Zilla</div>
-              ) : (
-                <img
-                  src={ZOOM_ZILLA_LOGO_PATH}
-                  alt="Zoom-Zilla logo"
-                  onError={() => {
-                    setZoomTileLogoFailed(true)
-                  }}
-                />
-              )}
-              <span>Zoom-Zilla</span>
-              <small>Ready To Use</small>
-              <small>(Coming Soon)</small>
-            </button>
-            <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.RESUNATOR)}>
-              {resunatorTileLogoFailed ? (
-                <div className="suite-link-logo-placeholder">RESUnator</div>
-              ) : (
-                <img
-                  src={RESUNATOR_LOGO_PATH}
-                  alt="RESUnator logo"
-                  onError={() => {
-                    setResunatorTileLogoFailed(true)
-                  }}
-                />
-              )}
-              <span>RESUnator</span>
-              <small>(Coming Soon)</small>
-            </button>
+            <div className="suite-link-item">
+              <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.DOCUMENT_DOCTOR)}>
+                <img src={DOCDOC_LOGO_PATH} alt="Document Doctor logo" />
+                <span>Document<br />Doctor</span>
+              </button>
+              <div className="suite-link-status">Ready To Use</div>
+            </div>
+            <div className="suite-link-item">
+              <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.DECK_MATE)}>
+                <img src={DECK_MATE_LOGO_PATH} alt="Deck Mate logo" />
+                <span>Deck Mate</span>
+              </button>
+              <div className="suite-link-status">Ready To Use</div>
+            </div>
+            <div className="suite-link-item">
+              <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.DOC2DECK)}>
+                <img src={DOC2DECK_LOGO_PATH} alt="Doc 2 Deck logo" />
+                <span>Doc2Deck</span>
+              </button>
+              <div className="suite-link-status">Ready To Use</div>
+            </div>
+            <div className="suite-link-item">
+              <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.ZOOM_ZILLA)}>
+                {zoomTileLogoFailed ? (
+                  <div className="suite-link-logo-placeholder">Zoom-Zilla</div>
+                ) : (
+                  <img
+                    src={ZOOM_ZILLA_LOGO_PATH}
+                    alt="Zoom-Zilla logo"
+                    onError={() => {
+                      setZoomTileLogoFailed(true)
+                    }}
+                  />
+                )}
+                <span>Zoom-Zilla</span>
+              </button>
+              <div className="suite-link-status">(Coming Soon)</div>
+            </div>
+            <div className="suite-link-item">
+              <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.RESUNATOR)}>
+                {resunatorTileLogoFailed ? (
+                  <div className="suite-link-logo-placeholder">RESUnator</div>
+                ) : (
+                  <img
+                    src={RESUNATOR_LOGO_PATH}
+                    alt="RESUnator logo"
+                    onError={() => {
+                      setResunatorTileLogoFailed(true)
+                    }}
+                  />
+                )}
+                <span>RESUnator</span>
+              </button>
+              <div className="suite-link-status">(Coming Soon)</div>
+            </div>
           </div>
         </section>
         <section className="card suite-links getting-started-panel">
@@ -4842,7 +4852,6 @@ async function buildPrimaryPromptPreviewText() {
                 </button>
               ) : null}
             </div>
-          </div>
         </section>
 
         <section className="card grid two-column-grid">

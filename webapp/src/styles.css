@@ -249,6 +249,12 @@ h1 {
   justify-content: flex-start;
 }
 
+.suite-link-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
 .suite-link-card {
   display: flex;
   align-items: center;
@@ -1075,8 +1081,9 @@ code {
   margin-left: 0.35rem;
 }
 
-.suite-link-card small {
-  display: block;
+
+.suite-link-status {
+  margin-top: 0.35rem;
   text-align: center;
   color: #6b21a8;
   font-weight: 600;
