@@ -35,11 +35,12 @@ textarea {
 }
 
 .hero.admin-hero {
-  grid-template-columns: 1fr minmax(220px, auto);
+  grid-template-columns: minmax(140px, auto) 1fr minmax(220px, auto);
 }
 
 .hero.admin-hero .hero-left {
-  display: none;
+  display: flex;
+  justify-content: flex-start;
 }
 
 .hero.admin-hero .hero-title-group {
