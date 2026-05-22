@@ -10,6 +10,7 @@ const APP_VIEWS = {
   DECK_MATE: 'deck_mate',
   DOC2DECK: 'doc2deck',
   ZOOM_ZILLA: 'zoom_zilla',
+  RESUNATOR: 'resunator',
   REGISTRATION_ADMIN: 'registration_admin'
 }
 
@@ -83,6 +84,7 @@ const DOCDOC_LOGO_PATH = `${import.meta.env.BASE_URL}assets/docdoc-logo-small.jp
 const DECK_MATE_LOGO_PATH = `${import.meta.env.BASE_URL}assets/deck-mate-logo-small.jpg`
 const DOC2DECK_LOGO_PATH = `${import.meta.env.BASE_URL}assets/doc2deck-logo-small.jpg`
 const ZOOM_ZILLA_LOGO_PATH = `${import.meta.env.BASE_URL}assets/zoom-zilla-logo-small.jpg`
+const RESUNATOR_LOGO_PATH = `${import.meta.env.BASE_URL}assets/reso-nator-logo-small.jpg`
 
 function emptyChangeDraft(defaultInstruction = 'create item as stated') {
   return {
@@ -746,7 +748,8 @@ export default function App({ appShell = 'ai' }) {
     dd: APP_VIEWS.DOCUMENT_DOCTOR,
     dm: APP_VIEWS.DECK_MATE,
     d2d: APP_VIEWS.DOC2DECK,
-    zz: APP_VIEWS.ZOOM_ZILLA
+    zz: APP_VIEWS.ZOOM_ZILLA,
+    rn: APP_VIEWS.RESUNATOR
   }
   const dedicatedView = dedicatedViewByShell[appShell] || APP_VIEWS.SUITE_HOME
   const isSuiteShell = dedicatedView === APP_VIEWS.SUITE_HOME
@@ -808,6 +811,7 @@ export default function App({ appShell = 'ai' }) {
   })
   const [adminUserEditModal, setAdminUserEditModal] = useState({ open: false, user: null })
   const [zoomTileLogoFailed, setZoomTileLogoFailed] = useState(false)
+  const [resunatorTileLogoFailed, setResunatorTileLogoFailed] = useState(false)
   const isDeckMateWorkflow = activeView === APP_VIEWS.DECK_MATE
   const isDoc2DeckWorkflow = activeView === APP_VIEWS.DOC2DECK
   const activeSettings = isDeckMateWorkflow
@@ -4190,6 +4194,20 @@ async function buildPrimaryPromptPreviewText() {
               )}
               <span>Zoom-Zilla</span>
             </button>
+            <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.RESUNATOR)}>
+              {resunatorTileLogoFailed ? (
+                <div className="suite-link-logo-placeholder">RESUnator</div>
+              ) : (
+                <img
+                  src={RESUNATOR_LOGO_PATH}
+                  alt="RESUnator logo"
+                  onError={() => {
+                    setResunatorTileLogoFailed(true)
+                  }}
+                />
+              )}
+              <span>RESUnator (Coming Soon)</span>
+            </button>
           </div>
         </section>
         <section className="card suite-links getting-started-panel">
@@ -4321,11 +4339,19 @@ async function buildPrimaryPromptPreviewText() {
         }
       : activeView === APP_VIEWS.ZOOM_ZILLA
         ? {
-            appTitle: 'Zoom-Zilla',
+            appTitle: 'Zoom-Zilla (Coming Soon)',
             appSubtitle: 'Create Actionable Insight from Meeting Transcripts',
             brandLogo: ZOOM_ZILLA_LOGO_PATH,
             brandAlt: 'Zoom-Zilla dinosaur assistant logo',
             brandFallbackText: 'Zoom-Zilla'
+          }
+      : activeView === APP_VIEWS.RESUNATOR
+        ? {
+            appTitle: 'RESUnator (Coming Soon)',
+            appSubtitle: 'Create curated resumes and cover letters in minutes based on job descriptions',
+            brandLogo: RESUNATOR_LOGO_PATH,
+            brandAlt: 'RESUnator logo',
+            brandFallbackText: 'RESUnator'
           }
       : {
           appTitle: 'The Document Doctor',
@@ -4349,8 +4375,30 @@ async function buildPrimaryPromptPreviewText() {
       >
         {renderError()}
         <section className="card">
-          <h2>Zoom-Zilla</h2>
+          <h2>Zoom-Zilla (Coming Soon)</h2>
           <p className="muted">Create Actionable Insight from Meeting Transcripts</p>
+        </section>
+      </PageShell>
+    )
+  }
+
+  if (activeView === APP_VIEWS.RESUNATOR) {
+    return (
+      <PageShell
+        mode={MODES.DOC_DEFINE}
+        {...workflowShellProps}
+        topLeftControls={renderBackToSuiteButton()}
+        topRightControls={
+          <>
+            {renderUserIdentity()}
+            {renderLogoutButton()}
+          </>
+        }
+      >
+        {renderError()}
+        <section className="card">
+          <h2>RESUnator (Coming Soon)</h2>
+          <p className="muted">Create curated resumes and cover letters in minutes based on job descriptions</p>
         </section>
       </PageShell>
     )
