@@ -698,7 +698,7 @@ async function postMultipart(endpoint, payload, fileEntries = {}) {
 
   Object.entries(fileEntries).forEach(([fieldName, file]) => {
     if (file) {
-      formData.append(fieldName, file)
+      formData.append(FILE_SOURCE_TRANSPORT_ALIASES[fieldName] || fieldName, file)
     }
   })
 
@@ -2118,14 +2118,20 @@ export default function App({ appShell = 'ai' }) {
 
 async function buildPrimaryPromptPreviewText() {
     const requestPayload = buildPrimaryCritiqueRequest()
-    requestPayload.messages = await maybeBypassFileMessages(requestPayload.messages, {
-      primary_document: docFile,
-      [RESUNATOR_FILE_SOURCES.RESUME]: docFile,
-      supporting_document: supportingFile,
-      job_description_document: jobReqFile,
-      [RESUNATOR_FILE_SOURCES.JOB_DESCRIPTION]: jobReqFile,
-      prior_response_document: priorResponseFile
-    })
+    const promptFileEntries = isResunatorWorkflow
+      ? {
+          [RESUNATOR_FILE_SOURCES.RESUME]: docFile,
+          supporting_document: supportingFile,
+          [RESUNATOR_FILE_SOURCES.JOB_DESCRIPTION]: jobReqFile,
+          prior_response_document: priorResponseFile
+        }
+      : {
+          primary_document: docFile,
+          supporting_document: supportingFile,
+          job_description_document: jobReqFile,
+          prior_response_document: priorResponseFile
+        }
+    requestPayload.messages = await maybeBypassFileMessages(requestPayload.messages, promptFileEntries)
 
     const openAiEndpoint =
       selectedApiMode === 'chat'
@@ -2570,12 +2576,19 @@ async function buildPrimaryPromptPreviewText() {
               const canonicalDocxPayload = useCanonicalDocxForPrimary
                 ? await buildCanonicalDocxV1(docFile)
                 : null
-              const directFileEntries = {
-                primary_document: useCanonicalDocxForPrimary ? null : docFile,
-                supporting_document: supportingFile,
-                job_description_document: jobReqFile,
-                prior_response_document: priorResponseFile
-              }
+              const directFileEntries = isResunatorWorkflow
+                ? {
+                    [RESUNATOR_FILE_SOURCES.RESUME]: useCanonicalDocxForPrimary ? null : docFile,
+                    supporting_document: supportingFile,
+                    [RESUNATOR_FILE_SOURCES.JOB_DESCRIPTION]: jobReqFile,
+                    prior_response_document: priorResponseFile
+                  }
+                : {
+                    primary_document: useCanonicalDocxForPrimary ? null : docFile,
+                    supporting_document: supportingFile,
+                    job_description_document: jobReqFile,
+                    prior_response_document: priorResponseFile
+                  }
               const runSinglePrimaryRequest = async (requestPayload, chunkContext = null) => {
                 const usingDeckCachedFile = isDeckMateWorkflow && Boolean(deckCachedPrimaryFileId)
                 const requestPayloadWithCachedFile = usingDeckCachedFile
@@ -3012,11 +3025,17 @@ async function buildPrimaryPromptPreviewText() {
                 }
 
                 const requestPayload = buildApplyChangeItemsRequest()
-                const directFileEntries = {
-                  original_document: docFile,
-                  supporting_document: supportingFile,
-                  job_description_document: jobReqFile
-                }
+                const directFileEntries = isResunatorWorkflow
+                  ? {
+                      original_document: docFile,
+                      supporting_document: supportingFile,
+                      [RESUNATOR_FILE_SOURCES.JOB_DESCRIPTION]: jobReqFile
+                    }
+                  : {
+                      original_document: docFile,
+                      supporting_document: supportingFile,
+                      job_description_document: jobReqFile
+                    }
                 const requestPayloadBypassed = {
                   ...requestPayload,
                   messages: await maybeBypassFileMessages(requestPayload.messages, directFileEntries)
@@ -5721,12 +5740,18 @@ async function buildPrimaryPromptPreviewText() {
 
   async function buildApplyChangeItemsPromptPreviewText() {
     const requestPayload = buildApplyChangeItemsRequest()
-    requestPayload.messages = await maybeBypassFileMessages(requestPayload.messages, {
-      original_document: docFile,
-      supporting_document: supportingFile,
-      job_description_document: jobReqFile,
-      [RESUNATOR_FILE_SOURCES.JOB_DESCRIPTION]: jobReqFile
-    })
+    const promptFileEntries = isResunatorWorkflow
+      ? {
+          original_document: docFile,
+          supporting_document: supportingFile,
+          [RESUNATOR_FILE_SOURCES.JOB_DESCRIPTION]: jobReqFile
+        }
+      : {
+          original_document: docFile,
+          supporting_document: supportingFile,
+          job_description_document: jobReqFile
+        }
+    requestPayload.messages = await maybeBypassFileMessages(requestPayload.messages, promptFileEntries)
 
     const openAiEndpoint =
       selectedApiMode === 'chat'
