@@ -1007,6 +1007,7 @@ export default function App({ appShell = 'ai' }) {
         : docChangeItemInstruction
   const [critiqueMarkdown, setCritiqueMarkdown] = useState('')
   const [changedDocumentMarkdown, setChangedDocumentMarkdown] = useState('')
+  const [resunatorRefinementInstruction, setResunatorRefinementInstruction] = useState('')
   const [critiqueOutputFileName, setCritiqueOutputFileName] = useState('critique.md')
   const [changedOutputFileName, setChangedOutputFileName] = useState('changes.md')
   const [status, setStatus] = useState(`Ready for ${contentNoun} definition.`)
@@ -1958,6 +1959,86 @@ export default function App({ appShell = 'ai' }) {
     URL.revokeObjectURL(url)
   }
 
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+  }
+
+  function renderResumeMarkdownAsHtml(content) {
+    const lines = String(content || '').split(/\r?\n/)
+    const html = []
+    let listOpen = false
+    const closeList = () => {
+      if (listOpen) {
+        html.push('</ul>')
+        listOpen = false
+      }
+    }
+
+    lines.forEach((line) => {
+      const trimmed = line.trim()
+      if (!trimmed) {
+        closeList()
+        return
+      }
+      const heading = trimmed.match(/^(#{1,3})\s+(.+)$/)
+      if (heading) {
+        closeList()
+        const level = Math.min(heading[1].length + 1, 4)
+        html.push(`<h${level}>${escapeHtml(heading[2])}</h${level}>`)
+        return
+      }
+      const bullet = trimmed.match(/^[-*•]\s+(.+)$/)
+      if (bullet) {
+        if (!listOpen) {
+          html.push('<ul>')
+          listOpen = true
+        }
+        html.push(`<li>${escapeHtml(bullet[1])}</li>`)
+        return
+      }
+      closeList()
+      html.push(`<p>${escapeHtml(trimmed)}</p>`)
+    })
+    closeList()
+    return html.join('\n')
+  }
+
+  function saveResunatorResumeAsPdf() {
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer')
+    if (!printWindow) {
+      setError('Unable to open the print window. Allow popups, then try Save Resume as PDF again.')
+      return
+    }
+
+    const html = renderResumeMarkdownAsHtml(changedDocumentMarkdown)
+    printWindow.document.write(`<!doctype html>
+<html>
+<head>
+  <title>RESUnator Resume</title>
+  <style>
+    @page { margin: 0.55in; }
+    body { color: #111827; font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; line-height: 1.35; }
+    h1, h2, h3, h4 { color: #111827; margin: 0.18in 0 0.07in; }
+    h1 { font-size: 19pt; text-align: center; margin-top: 0; }
+    h2 { border-bottom: 1px solid #6b21a8; font-size: 13pt; padding-bottom: 0.03in; text-transform: uppercase; }
+    h3, h4 { font-size: 11.5pt; }
+    p { margin: 0 0 0.07in; }
+    ul { margin: 0 0 0.08in 0.2in; padding-left: 0.16in; }
+    li { margin: 0 0 0.035in; }
+  </style>
+</head>
+<body>${html}</body>
+</html>`)
+    printWindow.document.close()
+    printWindow.focus()
+    printWindow.print()
+  }
+
   async function saveDoc2DeckPptxFromJsonOutput(jsonText, sourceFileName) {
     const parseResult = parseDoc2DeckPptxJsonWithMeta(jsonText)
     const parsed = parseResult.parsed
@@ -2568,6 +2649,88 @@ async function buildPrimaryPromptPreviewText() {
     }
 
     return requestPayload
+  }
+
+  function buildResunatorRefineResumeRequest() {
+    const messages = [
+      {
+        type: 'input_text',
+        text: `Refinement Instruction: ${resunatorRefinementInstruction.trim()}`
+      },
+      {
+        type: 'input_text',
+        text: `Current generated resume content to revise:\n${changedDocumentMarkdown}`
+      },
+      {
+        type: 'input_text',
+        text: `${critiqueLabelForRefinement()}:\n${critiqueMarkdown}`
+      },
+      {
+        type: 'input_text',
+        text: `Change Items previously applied:\n${formatChangeItems(changeItems)}`
+      },
+      ...buildSelectedResunatorResumeContextMessages(),
+      ...buildResunatorJobDescriptionMessages('Job Description context')
+    ]
+
+    return buildLlmRequest(messages)
+  }
+
+  function critiqueLabelForRefinement() {
+    return isResunatorWorkflow ? 'Original resume critique' : 'Original critique'
+  }
+
+  async function refineResunatorResume() {
+    if (!resunatorRefinementInstruction.trim()) {
+      setError('Enter a refinement instruction before refining the resume.')
+      return
+    }
+    if (!changedDocumentMarkdown.trim()) {
+      setError('There is no generated resume content to refine.')
+      return
+    }
+
+    setError('')
+    setStatus('Refining resume...')
+    const requestPayload = buildResunatorRefineResumeRequest()
+    const directFileEntries = {
+      ...buildSelectedResunatorResumeContextFileEntries(),
+      supporting_document: supportingFile,
+      [RESUNATOR_FILE_SOURCES.JOB_DESCRIPTION]: jobReqInputMode === 'file' ? jobReqFile : null
+    }
+    const requestPayloadBypassed = {
+      ...requestPayload,
+      messages: await maybeBypassFileMessages(requestPayload.messages, directFileEntries)
+    }
+
+    appendRequestLog('Submitting RESUnator resume refinement request to backend.', {
+      endpoint: API_ENDPOINTS[OPERATIONS.APPLY_CHANGE_ITEMS],
+      requestPayload: requestPayloadBypassed,
+      fileEntries: Object.fromEntries(
+        Object.entries(directFileEntries).map(([key, file]) => [
+          key,
+          file ? { name: file.name, size: file.size, type: file.type } : null
+        ])
+      )
+    })
+
+    try {
+      const response = await postMultipart(
+        API_ENDPOINTS[OPERATIONS.APPLY_CHANGE_ITEMS],
+        requestPayloadBypassed,
+        bypassFileInput ? {} : directFileEntries
+      )
+      setChangedDocumentMarkdown(response.outputText || '')
+      setStatus('Resume refinement completed successfully.')
+      appendRequestLog('RESUnator resume refinement response received.', {
+        outputTextLength: (response.outputText || '').length,
+        deleteLogs: response.deleteLogs || null
+      })
+    } catch (refineError) {
+      const normalizedError = normalizeRequestError(refineError)
+      setError(normalizedError)
+      appendRequestLog('RESUnator resume refinement request failed.', { error: normalizedError })
+    }
   }
 
   function buildChangedDocCritiqueRequest() {
@@ -5953,6 +6116,35 @@ async function buildPrimaryPromptPreviewText() {
       </section>
 
       {renderError()}
+
+      {isResunatorWorkflow ? (
+        <section className="card field-group compact-panel">
+          <div className="action-row wrap-actions center-actions">
+            <button type="button" className="secondary-button" onClick={saveResunatorResumeAsPdf}>
+              Save Resume as PDF
+            </button>
+          </div>
+          <label>
+            Refinement Instruction
+            <textarea
+              className="compact-textarea"
+              value={resunatorRefinementInstruction}
+              onChange={(event) => setResunatorRefinementInstruction(event.target.value)}
+              rows={3}
+              placeholder="Describe how the generated resume should be refined."
+            />
+          </label>
+          <div className="action-row wrap-actions center-actions">
+            <button
+              type="button"
+              onClick={refineResunatorResume}
+              disabled={!resunatorRefinementInstruction.trim() || !changedDocumentMarkdown.trim()}
+            >
+              Refine Resume
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="card field-group tall-document-panel">
         {isDeckMateWorkflow ? (
