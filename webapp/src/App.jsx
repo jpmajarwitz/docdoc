@@ -859,6 +859,7 @@ export default function App({ appShell = 'ai' }) {
   const [currentMode, setCurrentMode] = useState(MODES.DOC_DEFINE)
   const [docFile, setDocFile] = useState(null)
   const [resunatorResumeEntries, setResunatorResumeEntries] = useState([{ file: null, description: '' }])
+  const [selectedResunatorContextResumeSources, setSelectedResunatorContextResumeSources] = useState([])
   const [supportingFile, setSupportingFile] = useState(null)
   const [jobReqFile, setJobReqFile] = useState(null)
   const [jobReqInputMode, setJobReqInputMode] = useState('file')
@@ -1727,6 +1728,7 @@ export default function App({ appShell = 'ai' }) {
     setCurrentMode(MODES.DOC_DEFINE)
     setDocFile(null)
     setResunatorResumeEntries([{ file: null, description: '' }])
+    setSelectedResunatorContextResumeSources([])
     setSupportingFile(null)
     setJobReqFile(null)
     setJobReqInputMode('file')
@@ -2222,9 +2224,44 @@ async function buildPrimaryPromptPreviewText() {
     )
   }
 
+  function selectedResunatorContextResumeEntries() {
+    const selectedSources = new Set(selectedResunatorContextResumeSources)
+    return activeResunatorResumeEntries().filter((entry) => selectedSources.has(resunatorResumeSourceLabel(entry.index)))
+  }
+
+  function buildSelectedResunatorResumeContextMessages() {
+    return selectedResunatorContextResumeEntries().flatMap((entry) => {
+      const source = resunatorResumeSourceLabel(entry.index)
+      const messages = []
+      if ((entry.description || '').trim()) {
+        messages.push({
+          type: 'input_text',
+          text: `${source} additional context description: ${(entry.description || '').trim()}`
+        })
+      }
+      messages.push({ type: 'input_file', source })
+      return messages
+    })
+  }
+
+  function buildSelectedResunatorResumeContextFileEntries() {
+    return Object.fromEntries(
+      selectedResunatorContextResumeEntries().map((entry) => [resunatorResumeSourceLabel(entry.index), entry.file])
+    )
+  }
+
+  function toggleResunatorContextResume(source) {
+    setSelectedResunatorContextResumeSources((sources) =>
+      sources.includes(source) ? sources.filter((item) => item !== source) : [...sources, source]
+    )
+  }
+
   function updateResunatorResumeEntry(index, updates) {
     setResunatorResumeEntries((entries) => {
       const nextEntries = entries.map((entry, entryIndex) => (entryIndex === index ? { ...entry, ...updates } : entry))
+      if (Object.prototype.hasOwnProperty.call(updates, 'file')) {
+        setSelectedResunatorContextResumeSources([])
+      }
       const firstFile = nextEntries.find((entry) => entry.file)?.file || null
       setDocFile(firstFile)
       return nextEntries
@@ -2238,6 +2275,7 @@ async function buildPrimaryPromptPreviewText() {
   function removeResunatorResumeEntry(index) {
     setResunatorResumeEntries((entries) => {
       const nextEntries = entries.length > 1 ? entries.filter((_, entryIndex) => entryIndex !== index) : [{ file: null, description: '' }]
+      setSelectedResunatorContextResumeSources([])
       const firstFile = nextEntries.find((entry) => entry.file)?.file || null
       setDocFile(firstFile)
       return nextEntries
@@ -2461,7 +2499,7 @@ async function buildPrimaryPromptPreviewText() {
     const doc2DeckPptxFormattingGuidance = (
       doc2DeckApplyChangesFormattingGuidance || DOC2DECK_SETTINGS.defaults.applyChangesFormattingGuidance || ''
     ).trim()
-    const mainInstructionText = isDoc2DeckWorkflow
+    const mainInstructionText = isDoc2DeckWorkflow || isResunatorWorkflow
       ? (applyChangeItemsGuidance || '').trim()
       : `Apply all requested change items directly to the original ${contentNoun} and return the changed ${contentNoun} in markdown.${
           applyChangeItemsGuidance ? ` ${applyChangeItemsGuidance}` : ''
@@ -2512,6 +2550,7 @@ async function buildPrimaryPromptPreviewText() {
         text: `Original ${contentNoun}:`
       },
       { type: 'input_file', source: 'original_document' },
+      ...(isResunatorWorkflow ? buildSelectedResunatorResumeContextMessages() : []),
       ...(isResunatorWorkflow ? buildResunatorJobDescriptionMessages('Job Description context') : [])
     ]
 
@@ -3178,6 +3217,7 @@ async function buildPrimaryPromptPreviewText() {
                 const directFileEntries = isResunatorWorkflow
                   ? {
                       original_document: docFile,
+                      ...buildSelectedResunatorResumeContextFileEntries(),
                       supporting_document: supportingFile,
                       [RESUNATOR_FILE_SOURCES.JOB_DESCRIPTION]: jobReqInputMode === 'file' ? jobReqFile : null
                     }
@@ -5827,6 +5867,37 @@ async function buildPrimaryPromptPreviewText() {
                 )}
               </div>
             </div>
+
+            {isResunatorWorkflow ? (
+              <div className="change-item-list-card">
+                <div className="change-item-list-header">
+                  <span>Additional Resume Context</span>
+                  <span>{selectedResunatorContextResumeSources.length}</span>
+                </div>
+                <div className="change-item-list">
+                  {activeResunatorResumeEntries().length ? (
+                    activeResunatorResumeEntries().map((entry) => {
+                      const source = resunatorResumeSourceLabel(entry.index)
+                      return (
+                        <label key={source} className="resunator-context-choice">
+                          <input
+                            type="checkbox"
+                            checked={selectedResunatorContextResumeSources.includes(source)}
+                            onChange={() => toggleResunatorContextResume(source)}
+                          />
+                          <span>
+                            <strong>{source}</strong> — {entry.file?.name || 'No file selected'}
+                            {(entry.description || '').trim() ? ` (${(entry.description || '').trim()})` : ''}
+                          </span>
+                        </label>
+                      )
+                    })
+                  ) : (
+                    <p className="muted">No submitted resume versions are available.</p>
+                  )}
+                </div>
+              </div>
+            ) : null}
           </aside>
         </section>
 
@@ -5984,8 +6055,9 @@ async function buildPrimaryPromptPreviewText() {
     const promptFileEntries = isResunatorWorkflow
       ? {
           original_document: docFile,
+          ...buildSelectedResunatorResumeContextFileEntries(),
           supporting_document: supportingFile,
-          [RESUNATOR_FILE_SOURCES.JOB_DESCRIPTION]: jobReqFile
+          [RESUNATOR_FILE_SOURCES.JOB_DESCRIPTION]: jobReqInputMode === 'file' ? jobReqFile : null
         }
       : {
           original_document: docFile,

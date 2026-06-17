@@ -1107,3 +1107,10 @@ code {
   display: grid;
   gap: 0.75rem;
 }
+
+.resunator-context-choice {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.55rem;
+  line-height: 1.35;
+}
