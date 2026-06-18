@@ -1753,7 +1753,7 @@ export default function App({ appShell = 'ai' }) {
     setSelectedResunatorContextResumeSources([])
     setSupportingFile(null)
     setJobReqFile(null)
-    setJobReqInputMode('file')
+    setJobReqInputMode('text')
     setJobReqUrl('')
     setJobReqUrlStatus('')
     setJobReqUrlJson(null)
