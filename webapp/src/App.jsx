@@ -45,7 +45,7 @@ const API_BASE_URL =
 
 const STANDARD_CRITIQUE_JSON_SCHEMA_INSTRUCTION = 'Return only valid JSON with this schema: {"overall_assessment":string,"major_issues":[{"id":string,"category":string,"severity":"major","justification":string,"recommended_change":string,"suggested_rewrite":string|null,"confidence_notes":string}],"minor_issues":[{"id":string,"category":string,"severity":"minor","justification":string,"recommended_change":string,"suggested_rewrite":string|null,"confidence_notes":string}],"metadata":{"model":string,"timestamp":string,"input_digest":string,"prompt_size":integer,"document_size":integer,"response_size":integer,"processing_time_ms":integer}}. Do not return markdown.'
 
-const RESUNATOR_CRITIQUE_JSON_SCHEMA_INSTRUCTION = 'Return only valid JSON with this schema: {"resume entries":[{"id":string,"category":string,"explanation":string,"recommended content":string,"confidence_notes":string}],"metadata":{"model":string,"timestamp":string,"input_digest":string,"prompt_size":integer,"document_size":integer,"response_size":integer,"processing_time_ms":integer}}. Do not return markdown.'
+const RESUNATOR_CRITIQUE_JSON_SCHEMA_INSTRUCTION = 'Return only valid JSON with this schema: {"job fit analysis":[{"overall fit":string,"strengths":string,"gaps and mitigations":string,"other factors":string}],"resume entries":[{"id":string,"category":string,"explanation":string,"recommended content":string,"confidence_notes":string}],"metadata":{"model":string,"timestamp":string,"input_digest":string,"prompt_size":integer,"document_size":integer,"response_size":integer,"processing_time_ms":integer}}. Do not return markdown.'
 
 const API_ENDPOINTS = {
   [OPERATIONS.CRITIQUE_PRIMARY]: `${API_BASE_URL}/api/critique/`,
@@ -1032,6 +1032,7 @@ export default function App({ appShell = 'ai' }) {
   const [selectedChangedDoc2DeckSlideTab, setSelectedChangedDoc2DeckSlideTab] = useState('all')
   const [selectedDoc2DeckSlides, setSelectedDoc2DeckSlides] = useState([])
   const [selectedDocIssueOptions, setSelectedDocIssueOptions] = useState([])
+  const [selectedResunatorCritiqueTab, setSelectedResunatorCritiqueTab] = useState('job_fit_analysis')
   const [deckAdaptiveChunkSize, setDeckAdaptiveChunkSize] = useState(null)
   const [deckChunkLastReduction, setDeckChunkLastReduction] = useState(0)
   const [deckChunkSuccessStreak, setDeckChunkSuccessStreak] = useState(0)
@@ -1781,6 +1782,8 @@ export default function App({ appShell = 'ai' }) {
     setSelectedDoc2DeckSlideTab('all')
     setSelectedChangedDoc2DeckSlideTab('all')
     setSelectedDoc2DeckSlides([])
+    setSelectedDocIssueOptions([])
+    setSelectedResunatorCritiqueTab('job_fit_analysis')
   }
 
   async function handleProtectedNavigation(view) {
@@ -2835,6 +2838,28 @@ async function buildPrimaryPromptPreviewText() {
     if (!parsed || typeof parsed !== 'object') throw new Error('Root must be an object.')
 
     if (isResunatorWorkflow) {
+      const jobFitAnalysis = parsed['job fit analysis'] || parsed.job_fit_analysis
+      if (!Array.isArray(jobFitAnalysis)) throw new Error('job fit analysis must be an array.')
+      parsed.job_fit_analysis = jobFitAnalysis.map((item) => {
+        if (!item || typeof item !== 'object') throw new Error('job fit analysis entry must be an object.')
+        const overallFit = item['overall fit'] ?? item.overall_fit
+        const gapsAndMitigations = item['gaps and mitigations'] ?? item.gaps_and_mitigations
+        const otherFactors = item['other factors'] ?? item.other_factors
+        if (typeof overallFit !== 'string' || !overallFit.trim()) throw new Error('job fit analysis overall fit must be a non-empty string.')
+        if (typeof item.strengths !== 'string' || !item.strengths.trim()) throw new Error('job fit analysis strengths must be a non-empty string.')
+        if (typeof gapsAndMitigations !== 'string' || !gapsAndMitigations.trim()) throw new Error('job fit analysis gaps and mitigations must be a non-empty string.')
+        if (typeof otherFactors !== 'string' || !otherFactors.trim()) throw new Error('job fit analysis other factors must be a non-empty string.')
+        return {
+          ...item,
+          'overall fit': overallFit,
+          overall_fit: overallFit,
+          'gaps and mitigations': gapsAndMitigations,
+          gaps_and_mitigations: gapsAndMitigations,
+          'other factors': otherFactors,
+          other_factors: otherFactors
+        }
+      })
+
       const resumeEntries = parsed['resume entries'] || parsed.resume_entries
       if (!Array.isArray(resumeEntries)) throw new Error('resume entries must be an array.')
       parsed.resume_entries = resumeEntries.map((item) => {
@@ -5945,37 +5970,98 @@ async function buildPrimaryPromptPreviewText() {
               <>
                 {critiqueResponseFormat === 'json' && parsedCritiqueJson ? (
                   <section className="field-group">
-                    <div className="auth-inline-row">
-                      {!isResunatorWorkflow ? (
-                        <label>Severity
-                          <select value={critiqueSeverityFilter} onChange={(event) => setCritiqueSeverityFilter(event.target.value)}>
-                            <option value="all">All</option>
-                            <option value="major">Major</option>
-                            <option value="minor">Minor</option>
-                          </select>
-                        </label>
-                      ) : null}
-                      <label>Category
-                        <select value={critiqueCategoryFilter} onChange={(event) => setCritiqueCategoryFilter(event.target.value)}>
-                          <option value="all">All</option>
-                          {critiqueCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                        </select>
-                      </label>
-                    </div>
-                    <div className="doc2deck-slide-grid">
-                      {visibleCritiqueIssues.map((issue, index) => (
-                        <div key={issue.id}>
-                          <article className="doc2deck-slide-card">
-                          <h4>{issue.id} · {issue.category}{isResunatorWorkflow ? '' : ` · ${issue.severity}`}</h4>
-                          <p><strong>{isResunatorWorkflow ? 'Explanation' : 'Justification'}:</strong> {issue.justification}</p>
-                          <p><strong>{isResunatorWorkflow ? 'Recommended Content' : 'Recommended'}:</strong> {issue.recommended_change}</p>
-                          {!isResunatorWorkflow && issue.suggested_rewrite ? <p><strong>Rewrite:</strong> {issue.suggested_rewrite}</p> : null}
-                          <p><strong>Confidence:</strong> {issue.confidence_notes}</p>
-                          </article>
-                          {index < visibleCritiqueIssues.length - 1 ? <hr className="getting-started-item-divider" /> : null}
+                    {isResunatorWorkflow ? (
+                      <>
+                        <div className="settings-tabs" role="tablist" aria-label="RESUnator critique sections">
+                          <button
+                            type="button"
+                            className={selectedResunatorCritiqueTab === 'job_fit_analysis' ? 'settings-tab active' : 'settings-tab'}
+                            onClick={() => setSelectedResunatorCritiqueTab('job_fit_analysis')}
+                          >
+                            Job Fit Analysis
+                          </button>
+                          <button
+                            type="button"
+                            className={selectedResunatorCritiqueTab === 'resume_entries' ? 'settings-tab active' : 'settings-tab'}
+                            onClick={() => setSelectedResunatorCritiqueTab('resume_entries')}
+                          >
+                            Resume Entries
+                          </button>
                         </div>
-                      ))}
-                    </div>
+                        {selectedResunatorCritiqueTab === 'job_fit_analysis' ? (
+                          <div className="doc2deck-slide-grid">
+                            {(parsedCritiqueJson.job_fit_analysis || []).map((entry, index) => (
+                              <div key={`job-fit-${index}`}>
+                                <article className="doc2deck-slide-card">
+                                  <h4>Job Fit Analysis</h4>
+                                  <p><strong>Overall Fit:</strong> {entry.overall_fit}</p>
+                                  <p><strong>Strengths:</strong> {entry.strengths}</p>
+                                  <p><strong>Gaps and Mitigations:</strong> {entry.gaps_and_mitigations}</p>
+                                  <p><strong>Other Factors:</strong> {entry.other_factors}</p>
+                                </article>
+                                {index < (parsedCritiqueJson.job_fit_analysis || []).length - 1 ? <hr className="getting-started-item-divider" /> : null}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <>
+                            <div className="auth-inline-row">
+                              <label>Category
+                                <select value={critiqueCategoryFilter} onChange={(event) => setCritiqueCategoryFilter(event.target.value)}>
+                                  <option value="all">All</option>
+                                  {critiqueCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                              </label>
+                            </div>
+                            <div className="doc2deck-slide-grid">
+                              {visibleCritiqueIssues.map((issue, index) => (
+                                <div key={issue.id}>
+                                  <article className="doc2deck-slide-card">
+                                    <h4>{issue.id} · {issue.category}</h4>
+                                    <p><strong>Explanation:</strong> {issue.justification}</p>
+                                    <p><strong>Recommended Content:</strong> {issue.recommended_change}</p>
+                                    <p><strong>Confidence:</strong> {issue.confidence_notes}</p>
+                                  </article>
+                                  {index < visibleCritiqueIssues.length - 1 ? <hr className="getting-started-item-divider" /> : null}
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="auth-inline-row">
+                          <label>Severity
+                            <select value={critiqueSeverityFilter} onChange={(event) => setCritiqueSeverityFilter(event.target.value)}>
+                              <option value="all">All</option>
+                              <option value="major">Major</option>
+                              <option value="minor">Minor</option>
+                            </select>
+                          </label>
+                          <label>Category
+                            <select value={critiqueCategoryFilter} onChange={(event) => setCritiqueCategoryFilter(event.target.value)}>
+                              <option value="all">All</option>
+                              {critiqueCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                            </select>
+                          </label>
+                        </div>
+                        <div className="doc2deck-slide-grid">
+                          {visibleCritiqueIssues.map((issue, index) => (
+                            <div key={issue.id}>
+                              <article className="doc2deck-slide-card">
+                                <h4>{issue.id} · {issue.category} · {issue.severity}</h4>
+                                <p><strong>Justification:</strong> {issue.justification}</p>
+                                <p><strong>Recommended:</strong> {issue.recommended_change}</p>
+                                {issue.suggested_rewrite ? <p><strong>Rewrite:</strong> {issue.suggested_rewrite}</p> : null}
+                                <p><strong>Confidence:</strong> {issue.confidence_notes}</p>
+                              </article>
+                              {index < visibleCritiqueIssues.length - 1 ? <hr className="getting-started-item-divider" /> : null}
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </section>
                 ) : null}
                 <label className="panel-field">
