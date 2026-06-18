@@ -1994,6 +1994,18 @@ export default function App({ appShell = 'ai' }) {
       .replace(/'/g, '&#39;')
   }
 
+  function renderResumeInlineMarkdown(value) {
+    return escapeHtml(value).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  }
+
+  function looksLikeResumeHeader(value) {
+    const trimmed = String(value || '').trim()
+    if (!trimmed || trimmed.length > 90) return false
+    if (/[:：]$/.test(trimmed) && !/[.!?]["')\]]?$/.test(trimmed)) return true
+    const letters = trimmed.replace(/[^A-Za-z]/g, '')
+    return letters.length >= 3 && trimmed === trimmed.toUpperCase() && !/[.!?]["')\]]?$/.test(trimmed)
+  }
+
   function renderResumeMarkdownAsHtml(content) {
     const lines = String(content || '').split(/\r?\n/)
     const html = []
@@ -2015,7 +2027,12 @@ export default function App({ appShell = 'ai' }) {
       if (heading) {
         closeList()
         const level = Math.min(heading[1].length + 1, 4)
-        html.push(`<h${level}>${escapeHtml(heading[2])}</h${level}>`)
+        html.push(`<h${level}>${renderResumeInlineMarkdown(heading[2])}</h${level}>`)
+        return
+      }
+      if (looksLikeResumeHeader(trimmed)) {
+        closeList()
+        html.push(`<h2>${renderResumeInlineMarkdown(trimmed.replace(/[:：]$/, ''))}</h2>`)
         return
       }
       const bullet = trimmed.match(/^[-*•]\s+(.+)$/)
@@ -2024,11 +2041,11 @@ export default function App({ appShell = 'ai' }) {
           html.push('<ul>')
           listOpen = true
         }
-        html.push(`<li>${escapeHtml(bullet[1])}</li>`)
+        html.push(`<li>${renderResumeInlineMarkdown(bullet[1])}</li>`)
         return
       }
       closeList()
-      html.push(`<p>${escapeHtml(trimmed)}</p>`)
+      html.push(`<p>${renderResumeInlineMarkdown(trimmed)}</p>`)
     })
     closeList()
     return html.join('\n')
@@ -2097,8 +2114,9 @@ export default function App({ appShell = 'ai' }) {
     body { color: #111827; font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; line-height: 1.35; }
     h1, h2, h3, h4 { color: #111827; margin: 0.18in 0 0.07in; }
     h1 { font-size: 19pt; text-align: center; margin-top: 0; }
-    h2 { border-bottom: 1px solid #6b21a8; font-size: 13pt; padding-bottom: 0.03in; text-transform: uppercase; }
-    h3, h4 { font-size: 11.5pt; }
+    h2 { border-bottom: 1px solid #6b21a8; font-size: 13pt; font-weight: 700; padding-bottom: 0.03in; text-transform: uppercase; }
+    h3, h4 { font-size: 11.5pt; font-weight: 700; }
+    strong { font-weight: 700; }
     p { margin: 0 0 0.07in; }
     ul { margin: 0 0 0.08in 0.2in; padding-left: 0.16in; }
     li { margin: 0 0 0.035in; }
