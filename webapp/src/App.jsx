@@ -1012,6 +1012,8 @@ export default function App({ appShell = 'ai' }) {
   const [critiqueMarkdown, setCritiqueMarkdown] = useState('')
   const [changedDocumentMarkdown, setChangedDocumentMarkdown] = useState('')
   const [resunatorRefinementInstruction, setResunatorRefinementInstruction] = useState('')
+  const [resunatorCoverLetterInstruction, setResunatorCoverLetterInstruction] = useState('')
+  const [resunatorCoverLetterMarkdown, setResunatorCoverLetterMarkdown] = useState('')
   const [resunatorRefinedResumeReady, setResunatorRefinedResumeReady] = useState(false)
   const [critiqueOutputFileName, setCritiqueOutputFileName] = useState('critique.md')
   const [changedOutputFileName, setChangedOutputFileName] = useState('changes.md')
@@ -1765,6 +1767,8 @@ export default function App({ appShell = 'ai' }) {
     setSettingsOpen(false)
     setCritiqueMarkdown('')
     setChangedDocumentMarkdown('')
+    setResunatorCoverLetterInstruction('')
+    setResunatorCoverLetterMarkdown('')
     setResunatorRefinedResumeReady(false)
     setCritiqueOutputFileName('critique.md')
     setChangedOutputFileName('changes.md')
@@ -2028,43 +2032,64 @@ export default function App({ appShell = 'ai' }) {
     return html.join('\n')
   }
 
-  function saveResunatorResumeAsPdf() {
-    if (!changedDocumentMarkdown.trim()) {
-      setError('There is no generated resume content to save as a PDF.')
+  function printResunatorMarkdownAsPdf({ content, documentTitle, frameId, emptyError }) {
+    if (!String(content || '').trim()) {
+      setError(emptyError)
+      appendRequestLog('Print-to-PDF blocked because content was empty.', { documentTitle, frameId })
       return
     }
 
-    const existingFrame = document.getElementById('resunator-resume-print-frame')
-    if (existingFrame) {
-      existingFrame.remove()
-    }
+    appendRequestLog('Preparing RESUnator print-to-PDF document.', {
+      documentTitle,
+      frameId,
+      contentLength: String(content || '').length,
+      hasDocumentBody: Boolean(document.body),
+      hasCreateElement: typeof document.createElement === 'function',
+      hasWindowPrint: typeof window.print === 'function',
+      userAgent: window.navigator?.userAgent || 'unknown'
+    })
 
-    const printFrame = document.createElement('iframe')
-    printFrame.id = 'resunator-resume-print-frame'
-    printFrame.title = 'RESUnator resume PDF print frame'
-    printFrame.style.position = 'fixed'
-    printFrame.style.right = '0'
-    printFrame.style.bottom = '0'
-    printFrame.style.width = '0'
-    printFrame.style.height = '0'
-    printFrame.style.border = '0'
-    printFrame.style.visibility = 'hidden'
-    document.body.appendChild(printFrame)
+    try {
+      const existingFrame = document.getElementById(frameId)
+      if (existingFrame) {
+        existingFrame.remove()
+        appendRequestLog('Removed existing RESUnator print frame before creating a new one.', { frameId })
+      }
 
-    const printWindow = printFrame.contentWindow
-    const printDocument = printWindow?.document
-    if (!printWindow || !printDocument) {
-      printFrame.remove()
-      setError('Unable to prepare the PDF print document. Try again from the generated resume screen.')
-      return
-    }
+      const printFrame = document.createElement('iframe')
+      printFrame.id = frameId
+      printFrame.title = `${documentTitle} print frame`
+      printFrame.style.position = 'fixed'
+      printFrame.style.right = '0'
+      printFrame.style.bottom = '0'
+      printFrame.style.width = '0'
+      printFrame.style.height = '0'
+      printFrame.style.border = '0'
+      printFrame.style.visibility = 'hidden'
+      document.body.appendChild(printFrame)
 
-    const html = renderResumeMarkdownAsHtml(changedDocumentMarkdown)
-    printDocument.open()
-    printDocument.write(`<!doctype html>
+      const printWindow = printFrame.contentWindow
+      const printDocument = printWindow?.document
+      appendRequestLog('RESUnator print frame appended.', {
+        frameId,
+        hasContentWindow: Boolean(printWindow),
+        hasPrintDocument: Boolean(printDocument),
+        frameCount: document.querySelectorAll('iframe').length
+      })
+
+      if (!printWindow || !printDocument) {
+        printFrame.remove()
+        setError('Unable to prepare the PDF print document. Try again from the generated content screen.')
+        appendRequestLog('RESUnator print-to-PDF failed before document write.', { frameId })
+        return
+      }
+
+      const html = renderResumeMarkdownAsHtml(content)
+      printDocument.open()
+      printDocument.write(`<!doctype html>
 <html>
 <head>
-  <title>RESUnator Resume</title>
+  <title>${escapeHtml(documentTitle)}</title>
   <style>
     @page { margin: 0.55in; }
     body { color: #111827; font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; line-height: 1.35; }
@@ -2079,19 +2104,63 @@ export default function App({ appShell = 'ai' }) {
 </head>
 <body>${html}</body>
 </html>`)
-    printDocument.close()
+      printDocument.close()
+      appendRequestLog('RESUnator print document written.', {
+        frameId,
+        documentTitle,
+        htmlLength: html.length,
+        bodyTextLength: printDocument.body?.innerText?.length || 0
+      })
 
-    const cleanup = () => window.setTimeout(() => printFrame.remove(), 1000)
-    printWindow.addEventListener('afterprint', cleanup, { once: true })
-    window.setTimeout(() => {
-      printWindow.focus()
-      printWindow.print()
-      window.setTimeout(() => {
+      const cleanup = () => window.setTimeout(() => {
         if (document.body.contains(printFrame)) {
           printFrame.remove()
+          appendRequestLog('RESUnator print frame removed after print.', { frameId })
         }
-      }, 60000)
-    }, 100)
+      }, 1000)
+      printWindow.addEventListener('afterprint', cleanup, { once: true })
+      window.setTimeout(() => {
+        appendRequestLog('Calling browser print for RESUnator PDF export.', {
+          frameId,
+          documentTitle,
+          contentWindowClosed: Boolean(printWindow.closed),
+          hasFrameInDocument: document.body.contains(printFrame)
+        })
+        printWindow.focus()
+        printWindow.print()
+        window.setTimeout(() => {
+          if (document.body.contains(printFrame)) {
+            printFrame.remove()
+            appendRequestLog('RESUnator print frame removed by fallback timeout.', { frameId })
+          }
+        }, 60000)
+      }, 100)
+    } catch (printError) {
+      setError(`Unable to start PDF print flow: ${normalizeRequestError(printError)}`)
+      appendRequestLog('RESUnator print-to-PDF failed with an exception.', {
+        frameId,
+        documentTitle,
+        error: normalizeRequestError(printError)
+      })
+    }
+  }
+
+  function saveResunatorResumeAsPdf() {
+    printResunatorMarkdownAsPdf({
+      content: changedDocumentMarkdown,
+      documentTitle: 'RESUnator Resume',
+      frameId: 'resunator-resume-print-frame',
+      emptyError: 'There is no generated resume content to save as a PDF.'
+    })
+  }
+
+  function saveResunatorCoverLetterAsPdf() {
+    printResunatorMarkdownAsPdf({
+      content: resunatorCoverLetterMarkdown,
+      documentTitle: 'RESUnator Cover Letter',
+      frameId: 'resunator-cover-letter-print-frame',
+      emptyError: 'There is no generated cover letter content to save as a PDF.'
+    })
   }
 
   async function saveDoc2DeckPptxFromJsonOutput(jsonText, sourceFileName) {
@@ -2739,6 +2808,34 @@ async function buildPrimaryPromptPreviewText() {
     return isResunatorWorkflow ? 'Original resume critique' : 'Original critique'
   }
 
+  function buildResunatorCoverLetterRequest() {
+    const messages = [
+      {
+        type: 'input_text',
+        text: `Cover Letter Instruction: ${resunatorCoverLetterInstruction.trim()}`
+      },
+      {
+        type: 'input_text',
+        text: `Create a curated cover letter that aligns this generated resume with the job description. Generated resume content:
+${changedDocumentMarkdown}`
+      },
+      {
+        type: 'input_text',
+        text: `${critiqueLabelForRefinement()}:
+${critiqueMarkdown}`
+      },
+      {
+        type: 'input_text',
+        text: `Change Items previously applied:
+${formatChangeItems(changeItems)}`
+      },
+      ...buildSelectedResunatorResumeContextMessages(),
+      ...buildResunatorJobDescriptionMessages('Job Description context')
+    ]
+
+    return buildLlmRequest(messages)
+  }
+
   async function refineResunatorResume() {
     if (!resunatorRefinementInstruction.trim()) {
       setError('Enter a refinement instruction before refining the resume.')
@@ -2800,6 +2897,71 @@ async function buildPrimaryPromptPreviewText() {
       setError(normalizedError)
       setStatus('Resume refinement failed.')
       appendRequestLog('RESUnator resume refinement request failed.', { error: normalizedError })
+      setCurrentMode(MODES.VIEW_CHANGED)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function generateResunatorCoverLetter() {
+    if (!resunatorCoverLetterInstruction.trim()) {
+      setError('Enter a cover letter instruction before generating the cover letter.')
+      return
+    }
+    if (!changedDocumentMarkdown.trim()) {
+      setError('There is no generated resume content to use for the cover letter.')
+      return
+    }
+
+    setError('')
+    setStatus('Generating cover letter...')
+    setLoading(true)
+    clearRequestLog()
+    setCurrentMode(MODES.INVOKE)
+
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+
+    try {
+      const requestPayload = buildResunatorCoverLetterRequest()
+      const directFileEntries = {
+        ...buildSelectedResunatorResumeContextFileEntries(),
+        supporting_document: supportingFile,
+        [RESUNATOR_FILE_SOURCES.JOB_DESCRIPTION]: jobReqInputMode === 'file' ? jobReqFile : null
+      }
+      const requestPayloadBypassed = {
+        ...requestPayload,
+        messages: await maybeBypassFileMessages(requestPayload.messages, directFileEntries)
+      }
+
+      appendRequestLog('Submitting RESUnator cover letter request to backend.', {
+        endpoint: API_ENDPOINTS[OPERATIONS.APPLY_CHANGE_ITEMS],
+        requestPayload: requestPayloadBypassed,
+        generatedResumeLength: changedDocumentMarkdown.length,
+        fileEntries: Object.fromEntries(
+          Object.entries(directFileEntries).map(([key, file]) => [
+            key,
+            file ? { name: file.name, size: file.size, type: file.type } : null
+          ])
+        )
+      })
+
+      const response = await postMultipart(
+        API_ENDPOINTS[OPERATIONS.APPLY_CHANGE_ITEMS],
+        requestPayloadBypassed,
+        bypassFileInput ? {} : directFileEntries
+      )
+      setResunatorCoverLetterMarkdown(response.outputText || '')
+      setStatus('Cover letter generated successfully.')
+      appendRequestLog('RESUnator cover letter response received.', {
+        outputTextLength: (response.outputText || '').length,
+        deleteLogs: response.deleteLogs || null
+      })
+      setCurrentMode(MODES.VIEW_CHANGED)
+    } catch (coverError) {
+      const normalizedError = normalizeRequestError(coverError)
+      setError(normalizedError)
+      setStatus('Cover letter generation failed.')
+      appendRequestLog('RESUnator cover letter request failed.', { error: normalizedError })
       setCurrentMode(MODES.VIEW_CHANGED)
     } finally {
       setLoading(false)
@@ -3587,6 +3749,7 @@ async function buildPrimaryPromptPreviewText() {
 
       if (operation === OPERATIONS.APPLY_CHANGE_ITEMS) {
         setChangedDocumentMarkdown(outputText)
+        setResunatorCoverLetterMarkdown('')
         setResunatorRefinedResumeReady(false)
         setChangeItems([])
         if (isDoc2DeckWorkflow && doc2DeckPptxOutputMode) {
@@ -3783,6 +3946,7 @@ async function buildPrimaryPromptPreviewText() {
     setDocFile(null)
     setSlidesToReviewInput('')
     setLastCritiqueWaitMs(null)
+    setResunatorCoverLetterMarkdown('')
     setResunatorRefinedResumeReady(false)
     setError('')
     setStatus(`Ready for ${contentNoun} definition.`)
@@ -6327,6 +6491,30 @@ async function buildPrimaryPromptPreviewText() {
               Refine Resume
             </button>
           </div>
+          <label>
+            Cover Letter Instruction
+            <textarea
+              className="compact-textarea"
+              value={resunatorCoverLetterInstruction}
+              onChange={(event) => setResunatorCoverLetterInstruction(event.target.value)}
+              rows={3}
+              placeholder="Describe the tone, emphasis, or constraints for the cover letter."
+            />
+          </label>
+          <div className="action-row wrap-actions center-actions">
+            <button
+              type="button"
+              onClick={generateResunatorCoverLetter}
+              disabled={!resunatorCoverLetterInstruction.trim() || !changedDocumentMarkdown.trim()}
+            >
+              Generate Cover Letter
+            </button>
+            {resunatorCoverLetterMarkdown.trim() ? (
+              <button type="button" className="secondary-button" onClick={saveResunatorCoverLetterAsPdf}>
+                Save Cover Letter as PDF
+              </button>
+            ) : null}
+          </div>
         </section>
       ) : null}
 
@@ -6430,6 +6618,20 @@ async function buildPrimaryPromptPreviewText() {
           </label>
         )}
       </section>
+
+      {isResunatorWorkflow && resunatorCoverLetterMarkdown.trim() ? (
+        <section className="card field-group tall-document-panel">
+          <label>
+            Cover Letter content
+            <textarea
+              value={resunatorCoverLetterMarkdown}
+              onChange={(event) => setResunatorCoverLetterMarkdown(event.target.value)}
+              rows={REVIEW_TEXTAREA_ROWS}
+            />
+          </label>
+        </section>
+      ) : null}
+
       {renderRequestLogPanel()}
     </PageShell>
   )
