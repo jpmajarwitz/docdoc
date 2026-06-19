@@ -5,6 +5,7 @@ import { APP_SETTINGS } from './config/appSettings'
 import { DECK_MATE_SETTINGS } from './config/deckMateSettings'
 import { DOC2DECK_SETTINGS } from './config/doc2DeckSettings'
 import { RESUNATOR_SETTINGS } from './config/resunatorSettings'
+import { ZOOM_ZILLA_SETTINGS } from './config/zoomZillaSettings'
 
 const APP_VIEWS = {
   SUITE_HOME: 'suite_home',
@@ -48,6 +49,8 @@ const STANDARD_CRITIQUE_JSON_SCHEMA_INSTRUCTION = 'Return only valid JSON with t
 
 const RESUNATOR_CRITIQUE_JSON_SCHEMA_INSTRUCTION = 'Return only valid JSON with this schema: {"job fit analysis":[{"overall fit":string,"strengths":string,"gaps and mitigations":string,"other factors":string}],"resume entries":[{"id":string,"category":string,"explanation":string,"recommended content":string,"confidence_notes":string}],"metadata":{"model":string,"timestamp":string,"input_digest":string,"prompt_size":integer,"document_size":integer,"response_size":integer,"processing_time_ms":integer}}. Do not return markdown.'
 
+const ZOOM_ZILLA_JSON_SCHEMA_INSTRUCTION = 'Return only valid JSON with this schema: {"statements":[{"timestamp":string,"source":"chat"|"transcript","person name":string,"content":string}],"metadata":{"model":string,"timestamp":string,"input_digest":string,"prompt_size":integer,"document_size":integer,"response_size":integer,"processing_time_ms":integer}}. Do not return markdown.'
+
 const API_ENDPOINTS = {
   [OPERATIONS.CRITIQUE_PRIMARY]: `${API_BASE_URL}/api/critique/`,
   [OPERATIONS.APPLY_CHANGE_ITEMS]: `${API_BASE_URL}/api/apply-change-items/`,
@@ -59,9 +62,16 @@ const RESUNATOR_FILE_SOURCES = {
   JOB_DESCRIPTION: 'Job Description file'
 }
 
+const ZOOM_ZILLA_FILE_SOURCES = {
+  VTT: 'vtt file',
+  CHAT: 'chat file'
+}
+
 const FILE_SOURCE_TRANSPORT_ALIASES = {
   [RESUNATOR_FILE_SOURCES.RESUME]: 'primary_document',
-  [RESUNATOR_FILE_SOURCES.JOB_DESCRIPTION]: 'job_description_document'
+  [RESUNATOR_FILE_SOURCES.JOB_DESCRIPTION]: 'job_description_document',
+  [ZOOM_ZILLA_FILE_SOURCES.VTT]: 'vtt_file',
+  [ZOOM_ZILLA_FILE_SOURCES.CHAT]: 'chat_file'
 }
 
 function resunatorResumeSourceLabel(index) {
@@ -850,21 +860,26 @@ export default function App({ appShell = 'ai' }) {
   const [resunatorTileLogoFailed, setResunatorTileLogoFailed] = useState(false)
   const isDeckMateWorkflow = activeView === APP_VIEWS.DECK_MATE
   const isDoc2DeckWorkflow = activeView === APP_VIEWS.DOC2DECK
+  const isZoomZillaWorkflow = activeView === APP_VIEWS.ZOOM_ZILLA
   const isResunatorWorkflow = activeView === APP_VIEWS.RESUNATOR
   const activeSettings = isDeckMateWorkflow
     ? DECK_MATE_SETTINGS
     : isDoc2DeckWorkflow
       ? DOC2DECK_SETTINGS
-      : isResunatorWorkflow
-        ? RESUNATOR_SETTINGS
-        : APP_SETTINGS
-  const contentNoun = isDeckMateWorkflow ? 'presentation' : isResunatorWorkflow ? 'resume' : 'document'
-  const contentNounPlural = isDeckMateWorkflow ? 'presentations' : isResunatorWorkflow ? 'resumes' : 'documents'
-  const contentNounTitle = isDeckMateWorkflow ? 'Presentation' : isResunatorWorkflow ? 'Resume' : 'Document'
+      : isZoomZillaWorkflow
+        ? ZOOM_ZILLA_SETTINGS
+        : isResunatorWorkflow
+          ? RESUNATOR_SETTINGS
+          : APP_SETTINGS
+  const contentNoun = isDeckMateWorkflow ? 'presentation' : isResunatorWorkflow ? 'resume' : isZoomZillaWorkflow ? 'transcript' : 'document'
+  const contentNounPlural = isDeckMateWorkflow ? 'presentations' : isResunatorWorkflow ? 'resumes' : isZoomZillaWorkflow ? 'transcripts' : 'documents'
+  const contentNounTitle = isDeckMateWorkflow ? 'Presentation' : isResunatorWorkflow ? 'Resume' : isZoomZillaWorkflow ? 'Transcript' : 'Document'
   const [currentMode, setCurrentMode] = useState(MODES.DOC_DEFINE)
   const [docFile, setDocFile] = useState(null)
   const [resunatorResumeEntries, setResunatorResumeEntries] = useState([{ file: null, description: '' }])
   const [selectedResunatorContextResumeSources, setSelectedResunatorContextResumeSources] = useState([])
+  const [zoomVttFile, setZoomVttFile] = useState(null)
+  const [zoomChatFile, setZoomChatFile] = useState(null)
   const [supportingFile, setSupportingFile] = useState(null)
   const [jobReqFile, setJobReqFile] = useState(null)
   const [jobReqInputMode, setJobReqInputMode] = useState('text')
@@ -960,6 +975,18 @@ export default function App({ appShell = 'ai' }) {
   const [deckPriorInstructions, setDeckPriorInstructions] = useState(defaults.priorInstructions)
   const [doc2DeckSupportInstructions, setDoc2DeckSupportInstructions] = useState(defaults.supportInstructions)
   const [doc2DeckPriorInstructions, setDoc2DeckPriorInstructions] = useState(defaults.priorInstructions)
+  const [zoomTopic, setZoomTopic] = useState(ZOOM_ZILLA_SETTINGS.defaults.topic)
+  const [zoomObjective, setZoomObjective] = useState(ZOOM_ZILLA_SETTINGS.defaults.reviewObjective)
+  const [zoomGuidance, setZoomGuidance] = useState(ZOOM_ZILLA_SETTINGS.defaults.formattingGuidance)
+  const [zoomAntiGuidance, setZoomAntiGuidance] = useState(ZOOM_ZILLA_SETTINGS.defaults.antiGuidance)
+  const [zoomApplyChangeItemsGuidance, setZoomApplyChangeItemsGuidance] = useState(
+    ZOOM_ZILLA_SETTINGS.defaults.applyChangeItemsGuidance || ''
+  )
+  const [zoomChangeItemInstruction, setZoomChangeItemInstruction] = useState(
+    ZOOM_ZILLA_SETTINGS.defaults.changeItemInstruction || 'create item as stated'
+  )
+  const [zoomSupportInstructions, setZoomSupportInstructions] = useState(defaults.supportInstructions)
+  const [zoomPriorInstructions, setZoomPriorInstructions] = useState(defaults.priorInstructions)
   const [resunatorTopic, setResunatorTopic] = useState(RESUNATOR_SETTINGS.defaults.topic)
   const [resunatorObjective, setResunatorObjective] = useState(RESUNATOR_SETTINGS.defaults.reviewObjective)
   const [resunatorGuidance, setResunatorGuidance] = useState(RESUNATOR_SETTINGS.defaults.formattingGuidance)
@@ -972,14 +999,16 @@ export default function App({ appShell = 'ai' }) {
   )
   const [resunatorSupportInstructions, setResunatorSupportInstructions] = useState(defaults.supportInstructions)
   const [resunatorPriorInstructions, setResunatorPriorInstructions] = useState(defaults.priorInstructions)
-  const topic = isDeckMateWorkflow ? deckTopic : isDoc2DeckWorkflow ? doc2DeckTopic : isResunatorWorkflow ? resunatorTopic : docTopic
-  const objective = isDeckMateWorkflow ? deckObjective : isDoc2DeckWorkflow ? doc2DeckObjective : isResunatorWorkflow ? resunatorObjective : docObjective
-  const guidance = isDeckMateWorkflow ? deckGuidance : isDoc2DeckWorkflow ? doc2DeckGuidance : isResunatorWorkflow ? resunatorGuidance : docGuidance
-  const antiGuidance = isDeckMateWorkflow ? deckAntiGuidance : isDoc2DeckWorkflow ? doc2DeckAntiGuidance : isResunatorWorkflow ? resunatorAntiGuidance : docAntiGuidance
+  const topic = isDeckMateWorkflow ? deckTopic : isDoc2DeckWorkflow ? doc2DeckTopic : isZoomZillaWorkflow ? zoomTopic : isResunatorWorkflow ? resunatorTopic : docTopic
+  const objective = isDeckMateWorkflow ? deckObjective : isDoc2DeckWorkflow ? doc2DeckObjective : isZoomZillaWorkflow ? zoomObjective : isResunatorWorkflow ? resunatorObjective : docObjective
+  const guidance = isDeckMateWorkflow ? deckGuidance : isDoc2DeckWorkflow ? doc2DeckGuidance : isZoomZillaWorkflow ? zoomGuidance : isResunatorWorkflow ? resunatorGuidance : docGuidance
+  const antiGuidance = isDeckMateWorkflow ? deckAntiGuidance : isDoc2DeckWorkflow ? doc2DeckAntiGuidance : isZoomZillaWorkflow ? zoomAntiGuidance : isResunatorWorkflow ? resunatorAntiGuidance : docAntiGuidance
   const supportInstructions = isDeckMateWorkflow
     ? deckSupportInstructions
     : isDoc2DeckWorkflow
       ? doc2DeckSupportInstructions
+      : isZoomZillaWorkflow
+        ? zoomSupportInstructions
       : isResunatorWorkflow
         ? resunatorSupportInstructions
         : docSupportInstructions
@@ -987,6 +1016,8 @@ export default function App({ appShell = 'ai' }) {
     ? deckPriorInstructions
     : isDoc2DeckWorkflow
       ? doc2DeckPriorInstructions
+      : isZoomZillaWorkflow
+        ? zoomPriorInstructions
       : isResunatorWorkflow
         ? resunatorPriorInstructions
         : docPriorInstructions
@@ -994,6 +1025,8 @@ export default function App({ appShell = 'ai' }) {
     ? deckApplyChangeItemsGuidance
     : isDoc2DeckWorkflow
       ? doc2DeckApplyChangeItemsGuidance
+      : isZoomZillaWorkflow
+        ? zoomApplyChangeItemsGuidance
       : isResunatorWorkflow
         ? resunatorApplyChangeItemsGuidance
         : docApplyChangeItemsGuidance
@@ -1007,6 +1040,8 @@ export default function App({ appShell = 'ai' }) {
     ? deckChangeItemInstruction
     : isDoc2DeckWorkflow
       ? doc2DeckChangeItemInstruction
+      : isZoomZillaWorkflow
+        ? zoomChangeItemInstruction
       : isResunatorWorkflow
         ? resunatorChangeItemInstruction
         : docChangeItemInstruction
@@ -1107,7 +1142,18 @@ export default function App({ appShell = 'ai' }) {
 
   const orderedCritiqueIssues = useMemo(() => {
     if (!parsedCritiqueJson) return []
-    const combined = isResunatorWorkflow
+    const combined = isZoomZillaWorkflow
+      ? (parsedCritiqueJson.statements || []).map((item, index) => ({
+        id: `statement-${index + 1}`,
+        category: item.source || 'transcript',
+        severity: 'transcript',
+        justification: `${item.timestamp || ''} ${item.person_name || item['person name'] || ''}`.trim(),
+        recommended_change: item.content || '',
+        confidence_notes: 'Integrated transcript statement.',
+        _severityRank: 0,
+        _isZoomStatement: true
+      }))
+      : isResunatorWorkflow
       ? (parsedCritiqueJson.resume_entries || []).map((item) => ({
         id: item.id,
         category: item.category,
@@ -1125,7 +1171,7 @@ export default function App({ appShell = 'ai' }) {
     return [...combined].sort((left, right) => {
       return (left._severityRank - right._severityRank) || extractIssueCardinality(left.id) - extractIssueCardinality(right.id) || `${left.id}`.localeCompare(`${right.id}`)
     })
-  }, [parsedCritiqueJson, isResunatorWorkflow])
+  }, [parsedCritiqueJson, isResunatorWorkflow, isZoomZillaWorkflow])
 
   const critiqueCategoryOptions = useMemo(() => {
     return orderedCritiqueIssues.map((item) => ({ value: item.id, label: `${item.id} · ${item.category}` }))
@@ -1133,10 +1179,10 @@ export default function App({ appShell = 'ai' }) {
 
   const visibleCritiqueIssues = useMemo(() => {
     return orderedCritiqueIssues.filter((item) => (
-      (isResunatorWorkflow || critiqueSeverityFilter === 'all' || item.severity === critiqueSeverityFilter) &&
+      (isResunatorWorkflow || isZoomZillaWorkflow || critiqueSeverityFilter === 'all' || item.severity === critiqueSeverityFilter) &&
       (critiqueCategoryFilter === 'all' || item.id === critiqueCategoryFilter)
     ))
-  }, [orderedCritiqueIssues, critiqueSeverityFilter, critiqueCategoryFilter, isResunatorWorkflow])
+  }, [orderedCritiqueIssues, critiqueSeverityFilter, critiqueCategoryFilter, isResunatorWorkflow, isZoomZillaWorkflow])
 
 
 
@@ -1248,6 +1294,10 @@ export default function App({ appShell = 'ai' }) {
       setDoc2DeckTopic(value)
       return
     }
+    if (isZoomZillaWorkflow) {
+      setZoomTopic(value)
+      return
+    }
     if (isResunatorWorkflow) {
       setResunatorTopic(value)
       return
@@ -1262,6 +1312,10 @@ export default function App({ appShell = 'ai' }) {
     }
     if (isDoc2DeckWorkflow) {
       setDoc2DeckObjective(value)
+      return
+    }
+    if (isZoomZillaWorkflow) {
+      setZoomObjective(value)
       return
     }
     if (isResunatorWorkflow) {
@@ -1280,6 +1334,10 @@ export default function App({ appShell = 'ai' }) {
       setDoc2DeckGuidance(value)
       return
     }
+    if (isZoomZillaWorkflow) {
+      setZoomGuidance(value)
+      return
+    }
     if (isResunatorWorkflow) {
       setResunatorGuidance(value)
       return
@@ -1294,6 +1352,10 @@ export default function App({ appShell = 'ai' }) {
     }
     if (isDoc2DeckWorkflow) {
       setDoc2DeckAntiGuidance(value)
+      return
+    }
+    if (isZoomZillaWorkflow) {
+      setZoomAntiGuidance(value)
       return
     }
     if (isResunatorWorkflow) {
@@ -1312,6 +1374,10 @@ export default function App({ appShell = 'ai' }) {
       setDoc2DeckSupportInstructions(value)
       return
     }
+    if (isZoomZillaWorkflow) {
+      setZoomSupportInstructions(value)
+      return
+    }
     if (isResunatorWorkflow) {
       setResunatorSupportInstructions(value)
       return
@@ -1326,6 +1392,10 @@ export default function App({ appShell = 'ai' }) {
     }
     if (isDoc2DeckWorkflow) {
       setDoc2DeckPriorInstructions(value)
+      return
+    }
+    if (isZoomZillaWorkflow) {
+      setZoomPriorInstructions(value)
       return
     }
     if (isResunatorWorkflow) {
@@ -1344,6 +1414,10 @@ export default function App({ appShell = 'ai' }) {
       setDoc2DeckApplyChangeItemsGuidance(value)
       return
     }
+    if (isZoomZillaWorkflow) {
+      setZoomApplyChangeItemsGuidance(value)
+      return
+    }
     if (isResunatorWorkflow) {
       setResunatorApplyChangeItemsGuidance(value)
       return
@@ -1358,6 +1432,10 @@ export default function App({ appShell = 'ai' }) {
     }
     if (isDoc2DeckWorkflow) {
       setDoc2DeckChangeItemInstruction(value)
+      return
+    }
+    if (isZoomZillaWorkflow) {
+      setZoomChangeItemInstruction(value)
       return
     }
     if (isResunatorWorkflow) {
@@ -1460,6 +1538,15 @@ export default function App({ appShell = 'ai' }) {
     setDoc2DeckSupportInstructions(doc2DeckProfile.supportInstructions || defaults.supportInstructions)
     setDoc2DeckPriorInstructions(doc2DeckProfile.priorInstructions || defaults.priorInstructions)
 
+    const zoomProfile = settings.zoomZilla || {}
+    setZoomTopic(zoomProfile.topic || ZOOM_ZILLA_SETTINGS.defaults.topic)
+    setZoomObjective(zoomProfile.objective || ZOOM_ZILLA_SETTINGS.defaults.reviewObjective)
+    setZoomGuidance(zoomProfile.guidance || ZOOM_ZILLA_SETTINGS.defaults.formattingGuidance)
+    setZoomAntiGuidance(zoomProfile.antiGuidance || ZOOM_ZILLA_SETTINGS.defaults.antiGuidance)
+    setZoomApplyChangeItemsGuidance(zoomProfile.applyChangeItemsGuidance || ZOOM_ZILLA_SETTINGS.defaults.applyChangeItemsGuidance || '')
+    setZoomChangeItemInstruction(zoomProfile.changeItemInstruction || ZOOM_ZILLA_SETTINGS.defaults.changeItemInstruction || 'create item as stated')
+    setZoomSupportInstructions(zoomProfile.supportInstructions || defaults.supportInstructions)
+    setZoomPriorInstructions(zoomProfile.priorInstructions || defaults.priorInstructions)
 
     const resunatorProfile = settings.resunator || {}
     setResunatorTopic(resunatorProfile.topic || RESUNATOR_SETTINGS.defaults.topic)
@@ -1751,6 +1838,8 @@ export default function App({ appShell = 'ai' }) {
     setDocFile(null)
     setResunatorResumeEntries([{ file: null, description: '' }])
     setSelectedResunatorContextResumeSources([])
+    setZoomVttFile(null)
+    setZoomChatFile(null)
     setSupportingFile(null)
     setJobReqFile(null)
     setJobReqInputMode('text')
@@ -2258,7 +2347,9 @@ export default function App({ appShell = 'ai' }) {
       deleteFileOnLlm,
       systemPrompt: isResunatorWorkflow
         ? RESUNATOR_SETTINGS.systemPrompt
-        : 'You are a highly skilled assistant to an experienced professional in the field indicated.',
+        : isZoomZillaWorkflow
+          ? ZOOM_ZILLA_SETTINGS.systemPrompt
+          : 'You are a highly skilled assistant to an experienced professional in the field indicated.',
       messages
     }
   }
@@ -2387,6 +2478,11 @@ async function buildPrimaryPromptPreviewText() {
           ...buildResunatorResumeFileEntries(),
           [RESUNATOR_FILE_SOURCES.JOB_DESCRIPTION]: jobReqInputMode === 'file' ? jobReqFile : null
         }
+      : isZoomZillaWorkflow
+        ? {
+            [ZOOM_ZILLA_FILE_SOURCES.VTT]: zoomVttFile,
+            [ZOOM_ZILLA_FILE_SOURCES.CHAT]: zoomChatFile
+          }
       : {
           primary_document: docFile,
           supporting_document: supportingFile,
@@ -2440,6 +2536,10 @@ async function buildPrimaryPromptPreviewText() {
 
   function hasResunatorResumeInput() {
     return activeResunatorResumeEntries().length > 0
+  }
+
+  function hasZoomZillaTranscriptInputs() {
+    return Boolean(zoomVttFile && zoomChatFile)
   }
 
   function buildResunatorResumeMessages() {
@@ -2610,7 +2710,29 @@ async function buildPrimaryPromptPreviewText() {
   }
 
   function critiqueJsonSchemaInstruction() {
-    return isResunatorWorkflow ? RESUNATOR_CRITIQUE_JSON_SCHEMA_INSTRUCTION : STANDARD_CRITIQUE_JSON_SCHEMA_INSTRUCTION
+    if (isResunatorWorkflow) return RESUNATOR_CRITIQUE_JSON_SCHEMA_INSTRUCTION
+    if (isZoomZillaWorkflow) return ZOOM_ZILLA_JSON_SCHEMA_INSTRUCTION
+    return STANDARD_CRITIQUE_JSON_SCHEMA_INSTRUCTION
+  }
+
+  function buildZoomZillaCritiqueRequest() {
+    const messages = [
+      {
+        type: 'input_text',
+        text: `Review the attached vtt file and chat file from an online meeting. Objective: ${objective} Anti-Guidance: ${buildAntiGuidancePrompt()}`
+      },
+      { type: 'input_file', source: ZOOM_ZILLA_FILE_SOURCES.VTT },
+      { type: 'input_file', source: ZOOM_ZILLA_FILE_SOURCES.CHAT }
+    ]
+
+    if (critiqueResponseFormat === 'json') {
+      messages.push({
+        type: 'input_text',
+        text: critiqueJsonSchemaInstruction()
+      })
+    }
+
+    return buildLlmRequest(messages)
   }
 
   function buildResunatorCritiqueRequest() {
@@ -2637,6 +2759,9 @@ async function buildPrimaryPromptPreviewText() {
     if (isResunatorWorkflow) {
       return buildResunatorCritiqueRequest()
     }
+    if (isZoomZillaWorkflow) {
+      return buildZoomZillaCritiqueRequest()
+    }
 
     const messages = [
       {
@@ -2653,7 +2778,7 @@ async function buildPrimaryPromptPreviewText() {
       })
     }
 
-    if (supportingFile && !isResunatorWorkflow) {
+    if (supportingFile && !isResunatorWorkflow && !isZoomZillaWorkflow) {
       messages.push({
         type: 'input_text',
         text: `Supporting ${contentNoun} included for context. Instructions: ${supportInstructions || 'None provided.'}`
@@ -2661,7 +2786,7 @@ async function buildPrimaryPromptPreviewText() {
       messages.push({ type: 'input_file', source: 'supporting_document' })
     }
 
-    if (priorResponseFile && !isResunatorWorkflow) {
+    if (priorResponseFile && !isResunatorWorkflow && !isZoomZillaWorkflow) {
       messages.push({
         type: 'input_text',
         text: `Prior response ${contentNoun} included for context. Instructions: ${priorInstructions || 'None provided.'}`
@@ -3093,6 +3218,22 @@ ${formatChangeItems(changeItems)}`
           recommended_content: recommendedContent
         }
       })
+    } else if (isZoomZillaWorkflow) {
+      if (!Array.isArray(parsed.statements)) throw new Error('statements must be an array.')
+      parsed.statements = parsed.statements.map((item) => {
+        if (!item || typeof item !== 'object') throw new Error('statement must be an object.')
+        const personName = item['person name'] ?? item.person_name
+        ;['timestamp', 'source', 'content'].forEach((field) => {
+          if (typeof item[field] !== 'string') throw new Error(`statement ${field} must be a string.`)
+        })
+        if (!['chat', 'transcript'].includes(item.source)) throw new Error('statement source must be chat or transcript.')
+        if (typeof personName !== 'string') throw new Error('statement person name must be a string.')
+        return {
+          ...item,
+          'person name': personName,
+          person_name: personName
+        }
+      })
     } else {
       if (typeof parsed.overall_assessment !== 'string' || !parsed.overall_assessment.trim()) throw new Error('overall_assessment must be a non-empty string.')
       if (!Array.isArray(parsed.major_issues)) throw new Error('major_issues must be an array.')
@@ -3196,8 +3337,14 @@ ${formatChangeItems(changeItems)}`
   }
 
   async function invokeOperation(operation) {
-    if (!docFile) {
+    if (!isResunatorWorkflow && !isZoomZillaWorkflow && !docFile) {
       setError(`Upload the primary ${contentNoun} before invoking the model.`)
+      setCurrentMode(MODES.DOC_DEFINE)
+      return
+    }
+
+    if (isZoomZillaWorkflow && operation === OPERATIONS.CRITIQUE_PRIMARY && !hasZoomZillaTranscriptInputs()) {
+      setError('Upload both the VTT transcript and the chat transcript before generating the integrated transcript.')
       setCurrentMode(MODES.DOC_DEFINE)
       return
     }
@@ -3276,6 +3423,11 @@ ${formatChangeItems(changeItems)}`
                     ...buildResunatorResumeFileEntries(),
                     [RESUNATOR_FILE_SOURCES.JOB_DESCRIPTION]: jobReqInputMode === 'file' ? jobReqFile : null
                   }
+                : isZoomZillaWorkflow
+                  ? {
+                      [ZOOM_ZILLA_FILE_SOURCES.VTT]: zoomVttFile,
+                      [ZOOM_ZILLA_FILE_SOURCES.CHAT]: zoomChatFile
+                    }
                 : {
                     primary_document: useCanonicalDocxForPrimary ? null : docFile,
                     supporting_document: supportingFile,
@@ -4202,6 +4354,16 @@ ${formatChangeItems(changeItems)}`
         supportInstructions: resunatorSupportInstructions,
         priorInstructions: resunatorPriorInstructions
       },
+      zoomZilla: {
+        topic: zoomTopic,
+        objective: zoomObjective,
+        guidance: zoomGuidance,
+        antiGuidance: zoomAntiGuidance,
+        applyChangeItemsGuidance: zoomApplyChangeItemsGuidance,
+        changeItemInstruction: zoomChangeItemInstruction,
+        supportInstructions: zoomSupportInstructions,
+        priorInstructions: zoomPriorInstructions
+      },
       doc2deck: {
         topic: doc2DeckTopic,
         objective: doc2DeckObjective,
@@ -4276,6 +4438,14 @@ ${formatChangeItems(changeItems)}`
     doc2DeckChangeItemInstruction,
     doc2DeckSupportInstructions,
     doc2DeckPriorInstructions,
+    zoomTopic,
+    zoomObjective,
+    zoomGuidance,
+    zoomAntiGuidance,
+    zoomApplyChangeItemsGuidance,
+    zoomChangeItemInstruction,
+    zoomSupportInstructions,
+    zoomPriorInstructions,
     resunatorTopic,
     resunatorObjective,
     resunatorGuidance,
@@ -5124,7 +5294,7 @@ ${formatChangeItems(changeItems)}`
                 )}
                 <span>Zoom-Zilla</span>
               </button>
-              <div className="suite-link-status">(Coming Soon)</div>
+              <div className="suite-link-status">Ready To Use</div>
             </div>
             <div className="suite-link-item">
               <button type="button" className="suite-link-card" onClick={() => handleProtectedNavigation(APP_VIEWS.RESUNATOR)}>
@@ -5274,7 +5444,7 @@ ${formatChangeItems(changeItems)}`
         }
       : activeView === APP_VIEWS.ZOOM_ZILLA
         ? {
-            appTitle: 'Zoom-Zilla (Coming Soon)',
+            appTitle: 'Zoom-Zilla',
             appSubtitle: 'Create Actionable Insight from Meeting Transcripts',
             brandLogo: ZOOM_ZILLA_LOGO_PATH,
             brandAlt: 'Zoom-Zilla dinosaur assistant logo',
@@ -5294,28 +5464,6 @@ ${formatChangeItems(changeItems)}`
           brandLogo: DOCDOC_LOGO_PATH,
           brandAlt: 'Cartoon paper doctor logo'
         }
-
-  if (activeView === APP_VIEWS.ZOOM_ZILLA) {
-    return (
-      <PageShell
-        mode={MODES.DOC_DEFINE}
-        {...workflowShellProps}
-        topLeftControls={renderBackToSuiteButton()}
-        topRightControls={
-          <>
-            {renderUserIdentity()}
-            {renderLogoutButton()}
-          </>
-        }
-      >
-        {renderError()}
-        <section className="card">
-          <h2>Zoom-Zilla (Coming Soon)</h2>
-          <p className="muted">Create Actionable Insight from Meeting Transcripts</p>
-        </section>
-      </PageShell>
-    )
-  }
 
   if (activeView === APP_VIEWS.REGISTRATION_ADMIN) {
     return (
@@ -5643,7 +5791,7 @@ ${formatChangeItems(changeItems)}`
       >
         {renderError()}
         <section className="card primary-upload-card">
-          <div className={`primary-upload-inner split${isResunatorWorkflow ? ' resunator-upload-layout' : ''}`}>
+          <div className={`primary-upload-inner split${isResunatorWorkflow || isZoomZillaWorkflow ? ' resunator-upload-layout' : ''}`}>
             <div className="primary-upload-left">
               {isResunatorWorkflow ? (
                 <>
@@ -5771,6 +5919,44 @@ ${formatChangeItems(changeItems)}`
                     ) : null}
                   </div>
                 </>
+              ) : isZoomZillaWorkflow ? (
+                <>
+                  <div className="field-group resunator-resume-version-list">
+                    <div className="resunator-resume-entry">
+                      <label className="panel-label resunator-resume-source-label">Submit VTT Transcript</label>
+                      <input
+                        name="vtt_file"
+                        type="file"
+                        accept=".vtt,text/vtt,text/plain"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] || null
+                          setZoomVttFile(file)
+                          setDocFile(file)
+                        }}
+                      />
+                    </div>
+                    <div className="resunator-resume-entry">
+                      <label className="panel-label resunator-resume-source-label">Submit Chat Transcript</label>
+                      <input
+                        name="chat_file"
+                        type="file"
+                        accept=".txt,.csv,.json,.docx,.pdf,text/plain,application/json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        onChange={(event) => setZoomChatFile(event.target.files?.[0] || null)}
+                      />
+                    </div>
+                    {hasZoomZillaTranscriptInputs() ? (
+                      <label className="output-file-field compact-output-field deck-output-field">
+                        Output File
+                        <input
+                          type="text"
+                          name="critique_output_file"
+                          value={critiqueOutputFileName}
+                          onChange={(event) => setCritiqueOutputFileName(event.target.value)}
+                        />
+                      </label>
+                    ) : null}
+                  </div>
+                </>
               ) : isDeckMateWorkflow ? (
                 <div className="deck-file-grid">
                   <span className="panel-label deck-grid-label">Select presentation</span>
@@ -5850,14 +6036,14 @@ ${formatChangeItems(changeItems)}`
               <button
                 type="button"
                 disabled={
-                  (isResunatorWorkflow ? !hasResunatorResumeInput() : !docFile) ||
+                  (isResunatorWorkflow ? !hasResunatorResumeInput() : isZoomZillaWorkflow ? !hasZoomZillaTranscriptInputs() : !docFile) ||
                   (isResunatorWorkflow && !hasResunatorJobReqInput()) ||
                   (isDeckMateWorkflow &&
                     (isCalculatingSlides || deckTotalSlidesInput < 1 || !slidesToReviewInput.trim()))
                 }
                 onClick={() => invokeOperation(OPERATIONS.CRITIQUE_PRIMARY)}
               >
-                {isDoc2DeckWorkflow ? 'Create Presentation Outline' : isResunatorWorkflow ? 'Critique Resume' : `Critique ${contentNounTitle}`}
+                {isDoc2DeckWorkflow ? 'Create Presentation Outline' : isResunatorWorkflow ? 'Critique Resume' : isZoomZillaWorkflow ? 'Generate Transcript' : `Critique ${contentNounTitle}`}
               </button>
               {viewPromptEnabled ? (
                 <button
@@ -5882,8 +6068,8 @@ ${formatChangeItems(changeItems)}`
 
         <section className={`card grid two-column-grid${isResunatorWorkflow ? ' resunator-definition-grid' : ''}`}>
           <div className="field-group">
-            {!isResunatorWorkflow ? <h2>{`Primary ${contentNoun} definition`}</h2> : null}
-            {!isResunatorWorkflow ? (
+            {!isResunatorWorkflow && !isZoomZillaWorkflow ? <h2>{`Primary ${contentNoun} definition`}</h2> : null}
+            {!isResunatorWorkflow && !isZoomZillaWorkflow ? (
               <label>
                 {activeSettings.labels.defaultTopic}
                 <textarea name="topic_main" value={topic} onChange={(event) => setTopicForActive(event.target.value)} rows={3} />
@@ -5895,13 +6081,13 @@ ${formatChangeItems(changeItems)}`
                 name="objective_main"
                 value={objective}
                 onChange={(event) => setObjectiveForActive(event.target.value)}
-                rows={isResunatorWorkflow ? 5 : 3}
+                rows={isResunatorWorkflow || isZoomZillaWorkflow ? 5 : 3}
               />
             </label>
           </div>
 
           <div className="field-group">
-            {!isResunatorWorkflow ? (
+            {!isResunatorWorkflow && !isZoomZillaWorkflow ? (
               <>
                 <h2>Response guidance</h2>
                 <label>
@@ -5921,12 +6107,12 @@ ${formatChangeItems(changeItems)}`
                 name="anti_guidance_main"
                 value={antiGuidance}
                 onChange={(event) => setAntiGuidanceForActive(event.target.value)}
-                rows={isResunatorWorkflow ? 5 : 3}
+                rows={isResunatorWorkflow || isZoomZillaWorkflow ? 5 : 3}
               />
             </label>
           </div>
 
-          {!isResunatorWorkflow ? <details className="collapsible-panel">
+          {!isResunatorWorkflow && !isZoomZillaWorkflow ? <details className="collapsible-panel">
             <summary>{isResunatorWorkflow ? 'Supporting Documents' : `Supporting ${contentNounPlural}`}</summary>
             <div className="collapsible-panel-body field-group">
               <label>
@@ -5949,7 +6135,7 @@ ${formatChangeItems(changeItems)}`
             </div>
           </details> : null}
 
-          {!isResunatorWorkflow ? <details className="collapsible-panel">
+          {!isResunatorWorkflow && !isZoomZillaWorkflow ? <details className="collapsible-panel">
             <summary>Prior response</summary>
             <div className="collapsible-panel-body field-group">
               <label>
