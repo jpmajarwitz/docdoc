@@ -11,6 +11,8 @@ $fileMap = [
     'supporting_document' => isset($_FILES['supporting_document']) ? $_FILES['supporting_document'] : null,
     'job_description_document' => isset($_FILES['job_description_document']) ? $_FILES['job_description_document'] : null,
     'prior_response_document' => isset($_FILES['prior_response_document']) ? $_FILES['prior_response_document'] : null,
+    'vtt_file' => isset($_FILES['vtt_file']) ? $_FILES['vtt_file'] : null,
+    'chat_file' => isset($_FILES['chat_file']) ? $_FILES['chat_file'] : null,
 ];
 foreach ($_FILES as $fieldName => $upload) {
     if (preg_match('/^Resume_[1-9][0-9]*$/', (string) $fieldName)) {
