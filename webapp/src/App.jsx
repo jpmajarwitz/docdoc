@@ -67,6 +67,24 @@ const ZOOM_ZILLA_FILE_SOURCES = {
   CHAT: 'chat file'
 }
 
+const ZOOM_ZILLA_INSIGHT_CONFIG = {
+  summary: {
+    buttonLabel: 'Summarize',
+    tabLabel: 'Summary',
+    instruction: 'Create a concise executive summary of the integrated meeting transcript. Focus on decisions, important discussion points, risks, and unresolved questions.'
+  },
+  action_items: {
+    buttonLabel: 'Action Items',
+    tabLabel: 'Action Items',
+    instruction: 'Extract action items from the integrated meeting transcript. Include owner, task, due date or timing, and any relevant context when stated. If an owner or due date is not stated, say Not specified.'
+  },
+  sentiment: {
+    buttonLabel: 'Sentiment',
+    tabLabel: 'Sentiment',
+    instruction: 'Analyze the sentiment and tone of the integrated meeting transcript. Identify overall sentiment, areas of agreement, areas of concern or tension, and any notable participant dynamics.'
+  }
+}
+
 const FILE_SOURCE_TRANSPORT_ALIASES = {
   [RESUNATOR_FILE_SOURCES.RESUME]: 'primary_document',
   [RESUNATOR_FILE_SOURCES.JOB_DESCRIPTION]: 'job_description_document',
@@ -1072,6 +1090,9 @@ export default function App({ appShell = 'ai' }) {
   const [selectedDoc2DeckSlides, setSelectedDoc2DeckSlides] = useState([])
   const [selectedDocIssueOptions, setSelectedDocIssueOptions] = useState([])
   const [selectedResunatorCritiqueTab, setSelectedResunatorCritiqueTab] = useState('job_fit_analysis')
+  const [selectedZoomZillaResultTab, setSelectedZoomZillaResultTab] = useState('transcript')
+  const [zoomZillaInsights, setZoomZillaInsights] = useState({ summary: '', action_items: '', sentiment: '' })
+  const [zoomZillaInsightLoading, setZoomZillaInsightLoading] = useState('')
   const [deckAdaptiveChunkSize, setDeckAdaptiveChunkSize] = useState(null)
   const [deckChunkLastReduction, setDeckChunkLastReduction] = useState(0)
   const [deckChunkSuccessStreak, setDeckChunkSuccessStreak] = useState(0)
@@ -1194,6 +1215,13 @@ export default function App({ appShell = 'ai' }) {
       isChat: statement.source === 'chat'
     }))
   }, [parsedCritiqueJson])
+
+  const zoomZillaTranscriptText = useMemo(() => {
+    return zoomZillaStatements.map((statement) => {
+      const line = `${statement.personName}: ${statement.content}`
+      return statement.isChat ? `[${line}]` : line
+    }).join('\n')
+  }, [zoomZillaStatements])
 
 
 
@@ -3161,6 +3189,68 @@ ${formatChangeItems(changeItems)}`
     }
   }
 
+  function buildZoomZillaInsightRequest(insightType) {
+    const insightConfig = ZOOM_ZILLA_INSIGHT_CONFIG[insightType]
+    const messages = [
+      {
+        type: 'input_text',
+        text: `${insightConfig.instruction}
+
+Integrated transcript:
+${zoomZillaTranscriptText}`
+      }
+    ]
+
+    return buildLlmRequest(messages)
+  }
+
+  async function invokeZoomZillaInsight(insightType) {
+    const insightConfig = ZOOM_ZILLA_INSIGHT_CONFIG[insightType]
+    if (!insightConfig) return
+    if (!zoomZillaTranscriptText.trim()) {
+      setError('Generate an integrated transcript before requesting Zoom-Zilla insights.')
+      return
+    }
+
+    setError('')
+    setStatus(`Generating ${insightConfig.tabLabel.toLowerCase()}...`)
+    setLoading(true)
+    setZoomZillaInsightLoading(insightType)
+    setLastOperation(OPERATIONS.CRITIQUE_PRIMARY)
+    clearRequestLog()
+    setCurrentMode(MODES.INVOKE)
+
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+
+    try {
+      const requestPayload = buildZoomZillaInsightRequest(insightType)
+      appendRequestLog(`Submitting Zoom-Zilla ${insightConfig.tabLabel} request to backend.`, {
+        endpoint: API_ENDPOINTS[OPERATIONS.CRITIQUE_PRIMARY],
+        requestPayload,
+        transcriptLength: zoomZillaTranscriptText.length
+      })
+
+      const response = await postMultipart(API_ENDPOINTS[OPERATIONS.CRITIQUE_PRIMARY], requestPayload, {})
+      setZoomZillaInsights((current) => ({ ...current, [insightType]: response.outputText || '' }))
+      setSelectedZoomZillaResultTab(insightType)
+      setStatus(`Zoom-Zilla ${insightConfig.tabLabel.toLowerCase()} completed successfully.`)
+      appendRequestLog(`Zoom-Zilla ${insightConfig.tabLabel} response received.`, {
+        outputTextLength: (response.outputText || '').length,
+        deleteLogs: response.deleteLogs || null
+      })
+      setCurrentMode(MODES.CRITIQUE_REVIEW)
+    } catch (insightError) {
+      const normalizedError = normalizeRequestError(insightError)
+      setError(normalizedError)
+      setStatus(`Zoom-Zilla ${insightConfig.tabLabel.toLowerCase()} failed.`)
+      appendRequestLog(`Zoom-Zilla ${insightConfig.tabLabel} request failed.`, { error: normalizedError })
+      setCurrentMode(MODES.CRITIQUE_REVIEW)
+    } finally {
+      setZoomZillaInsightLoading('')
+      setLoading(false)
+    }
+  }
+
   function buildChangedDocCritiqueRequest() {
     const messages = [
       {
@@ -3397,6 +3487,10 @@ ${formatChangeItems(changeItems)}`
     setLoading(true)
     setError('')
     clearRequestLog()
+    if (isZoomZillaWorkflow && operation === OPERATIONS.CRITIQUE_PRIMARY) {
+      setSelectedZoomZillaResultTab('transcript')
+      setZoomZillaInsights({ summary: '', action_items: '', sentiment: '' })
+    }
     appendRequestLog('New user submission started.', {
       operation,
       operationLabel: operationLabels[operation],
@@ -6395,15 +6489,55 @@ ${formatChangeItems(changeItems)}`
                   <section className="field-group">
                     {isZoomZillaWorkflow ? (
                       <>
-                        <div className="transcript-readable-panel" aria-label="Integrated transcript">
-                          {zoomZillaStatements.map((statement) => (
-                            <p key={statement.id} className={statement.isChat ? 'transcript-line chat-line' : 'transcript-line'}>
-                              {statement.isChat ? '[' : null}
-                              <strong>{statement.personName}:</strong> {statement.content}
-                              {statement.isChat ? ']' : null}
-                            </p>
+                        <div className="action-row wrap-actions compact-panel">
+                          {Object.entries(ZOOM_ZILLA_INSIGHT_CONFIG).map(([insightType, insightConfig]) => (
+                            <button
+                              key={insightType}
+                              type="button"
+                              className="secondary-button"
+                              disabled={loading || zoomZillaInsightLoading === insightType}
+                              onClick={() => invokeZoomZillaInsight(insightType)}
+                            >
+                              {zoomZillaInsightLoading === insightType ? `Generating ${insightConfig.tabLabel}...` : insightConfig.buttonLabel}
+                            </button>
                           ))}
                         </div>
+                        <div className="settings-tabs" role="tablist" aria-label="Zoom-Zilla result sections">
+                          <button
+                            type="button"
+                            className={selectedZoomZillaResultTab === 'transcript' ? 'settings-tab active' : 'settings-tab'}
+                            onClick={() => setSelectedZoomZillaResultTab('transcript')}
+                          >
+                            Integrated Transcript
+                          </button>
+                          {Object.entries(ZOOM_ZILLA_INSIGHT_CONFIG).map(([insightType, insightConfig]) => (
+                            zoomZillaInsights[insightType] ? (
+                              <button
+                                key={insightType}
+                                type="button"
+                                className={selectedZoomZillaResultTab === insightType ? 'settings-tab active' : 'settings-tab'}
+                                onClick={() => setSelectedZoomZillaResultTab(insightType)}
+                              >
+                                {insightConfig.tabLabel}
+                              </button>
+                            ) : null
+                          ))}
+                        </div>
+                        {selectedZoomZillaResultTab === 'transcript' ? (
+                          <div className="transcript-readable-panel" aria-label="Integrated transcript">
+                            {zoomZillaStatements.map((statement) => (
+                              <p key={statement.id} className={statement.isChat ? 'transcript-line chat-line' : 'transcript-line'}>
+                                {statement.isChat ? '[' : null}
+                                <strong>{statement.personName}:</strong> {statement.content}
+                                {statement.isChat ? ']' : null}
+                              </p>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="transcript-readable-panel" aria-label={ZOOM_ZILLA_INSIGHT_CONFIG[selectedZoomZillaResultTab]?.tabLabel || 'Zoom-Zilla insight'}>
+                            <pre className="transcript-insight-output">{zoomZillaInsights[selectedZoomZillaResultTab]}</pre>
+                          </div>
+                        )}
                       </>
                     ) : isResunatorWorkflow ? (
                       <>

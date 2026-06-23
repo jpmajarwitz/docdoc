@@ -1262,3 +1262,11 @@ code {
 .transcript-line strong {
   font-weight: 700;
 }
+
+
+.transcript-insight-output {
+  margin: 0;
+  white-space: pre-wrap;
+  font: inherit;
+  color: inherit;
+}
