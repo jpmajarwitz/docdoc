@@ -3948,7 +3948,7 @@ ${zoomZillaTranscriptText}`
               }
 
               const configuredChunkSize = clampPositiveInteger(activeChunkSize, APP_SETTINGS.chunkSizeDefault ?? 6)
-              let activeChunkSize =
+              let currentDeckChunkSize =
                 isDeckMateWorkflow && deckAdaptiveChunkSize
                   ? clampPositiveInteger(deckAdaptiveChunkSize, configuredChunkSize)
                   : configuredChunkSize
@@ -3958,8 +3958,8 @@ ${zoomZillaTranscriptText}`
               const accumulatedSuccessfulChunks = []
 
               while (attemptsRemaining > 0) {
-                const chunkedRequests = buildPrimaryChunkedRequests(pendingSlides, activeChunkSize)
-                const calculatedParallel = Math.max(1, Math.ceil(pendingSlides.length / activeChunkSize))
+                const chunkedRequests = buildPrimaryChunkedRequests(pendingSlides, currentDeckChunkSize)
+                const calculatedParallel = Math.max(1, Math.ceil(pendingSlides.length / currentDeckChunkSize))
                 const maxParallel = Math.min(
                   calculatedParallel,
                   clampPositiveInteger(activeChunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
@@ -3968,7 +3968,7 @@ ${zoomZillaTranscriptText}`
                 appendRequestLog('Chunking plan calculated for primary critique.', {
                   totalSlidesForDisplay: totalSlides,
                   selectedSlidesCount: pendingSlides.length,
-                  chunkSize: activeChunkSize,
+                  chunkSize: currentDeckChunkSize,
                   chunkCount: chunkedRequests.length,
                   calculatedParallel,
                   chunkConcurrencyCap: clampPositiveInteger(activeChunkConcurrency, APP_SETTINGS.chunkConcurrencyDefault ?? 2),
@@ -3986,13 +3986,13 @@ ${zoomZillaTranscriptText}`
                     chunkIndex: assignedIndex + 1,
                     chunkCount: chunkedRequests.length,
                     slideSummary: assignedChunk.chunk.summary,
-                    chunkSize: activeChunkSize
+                    chunkSize: currentDeckChunkSize
                   }, { submissionId })
                   try {
                     const chunkResult = await runSinglePrimaryRequest(assignedChunk.requestPayload, {
                       chunkIndex: assignedIndex + 1,
                       slideSummary: assignedChunk.chunk.summary,
-                      chunkSize: activeChunkSize
+                      chunkSize: currentDeckChunkSize
                     })
                     completedResults.push({
                       index: assignedChunk.chunk.slides[0] ?? assignedIndex,
@@ -4016,7 +4016,7 @@ ${zoomZillaTranscriptText}`
                 appendRequestLog('Chunking run completed.', {
                   successCount: completedResults.length,
                   failedCount: failedResults.length,
-                  chunkSize: activeChunkSize,
+                  chunkSize: currentDeckChunkSize,
                   failedChunks: failedResults.map((item) => ({
                     chunkIndex: item.index + 1,
                     slideSummary: item.chunk.summary,
@@ -4026,22 +4026,22 @@ ${zoomZillaTranscriptText}`
 
                 if (!failedResults.length) {
                   if (isDeckMateWorkflow) {
-                    if (activeChunkSize < configuredChunkSize) {
+                    if (currentDeckChunkSize < configuredChunkSize) {
                       const previousAdaptive = clampPositiveInteger(deckAdaptiveChunkSize, configuredChunkSize)
-                      const nextStreak = activeChunkSize === previousAdaptive ? deckChunkSuccessStreak + 1 : 1
+                      const nextStreak = currentDeckChunkSize === previousAdaptive ? deckChunkSuccessStreak + 1 : 1
                       if (nextStreak >= 2 && reductionAmountUsed > 0) {
-                        const recoveredChunkSize = Math.min(configuredChunkSize, activeChunkSize + reductionAmountUsed)
+                        const recoveredChunkSize = Math.min(configuredChunkSize, currentDeckChunkSize + reductionAmountUsed)
                         setDeckAdaptiveChunkSize(recoveredChunkSize >= configuredChunkSize ? null : recoveredChunkSize)
                         setDeckChunkSuccessStreak(0)
                         setDeckChunkLastReduction(
                           recoveredChunkSize >= configuredChunkSize ? 0 : Math.max(1, configuredChunkSize - recoveredChunkSize)
                         )
                         appendRequestLog('Recovered Deck Mate chunk size after consecutive successful calls.', {
-                          priorChunkSize: activeChunkSize,
+                          priorChunkSize: currentDeckChunkSize,
                           recoveredChunkSize
                         }, { submissionId })
                       } else {
-                        setDeckAdaptiveChunkSize(activeChunkSize)
+                        setDeckAdaptiveChunkSize(currentDeckChunkSize)
                         setDeckChunkSuccessStreak(nextStreak)
                         if (reductionAmountUsed > 0) {
                           setDeckChunkLastReduction(reductionAmountUsed)
@@ -4084,18 +4084,18 @@ ${zoomZillaTranscriptText}`
                   pendingSlides = pendingSlides.slice(nextPendingSlidesIndex)
                 }
 
-                const reducedChunkSize = Math.max(1, Math.min(activeChunkSize - 1, Math.floor(activeChunkSize * 0.75)))
-                reductionAmountUsed = Math.max(1, activeChunkSize - reducedChunkSize)
+                const reducedChunkSize = Math.max(1, Math.min(currentDeckChunkSize - 1, Math.floor(currentDeckChunkSize * 0.75)))
+                reductionAmountUsed = Math.max(1, currentDeckChunkSize - reducedChunkSize)
                 setDeckAdaptiveChunkSize(reducedChunkSize)
                 setDeckChunkLastReduction(reductionAmountUsed)
                 setDeckChunkSuccessStreak(0)
                 appendRequestLog('Deck Mate chunk retry triggered after critique failure. Reducing chunk size by 25%.', {
-                  previousChunkSize: activeChunkSize,
+                  previousChunkSize: currentDeckChunkSize,
                   nextChunkSize: reducedChunkSize,
                   retrySlides: pendingSlides,
                   attemptsRemaining
                 }, { submissionId })
-                activeChunkSize = reducedChunkSize
+                currentDeckChunkSize = reducedChunkSize
               }
 
               throw new Error('Chunked critique failed after retry attempts.')
