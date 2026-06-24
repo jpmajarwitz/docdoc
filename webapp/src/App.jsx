@@ -3184,7 +3184,7 @@ async function buildPrimaryPromptPreviewText() {
 
   function extractZoomZillaTimestampRange(text) {
     const timestamps = []
-    `${text || ''}`.split(/\r?\n/).forEach((line) => {
+    String(text || '').split(/\r?\n/).forEach((line) => {
       timestamps.push(...parseZoomZillaTimestampsSeconds(line))
     })
     if (!timestamps.length) {
@@ -3225,7 +3225,7 @@ async function buildPrimaryPromptPreviewText() {
     let firstLine = null
     let lastLine = null
     let activeTimestamp = null
-    `${chatText || ''}`.split(/\r?\n/).forEach((line, index) => {
+    String(chatText || '').split(/\r?\n/).forEach((line, index) => {
       const timestamp = parseZoomZillaTimestampSeconds(line)
       if (Number.isFinite(timestamp)) {
         activeTimestamp = timestamp
